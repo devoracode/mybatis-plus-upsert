@@ -13,30 +13,24 @@
     <parent>
         <groupId>io.github.devoracode</groupId>
         <artifactId>mybatis-plus-upsert-parent</artifactId>
-        <version>{revision}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <dependencies>
-        <!-- Core module -->
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
-        <!-- Autoconfigure module -->
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-autoconfigure</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
-        <!-- Dynamic datasource autoconfigure module -->
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-dynamic-datasource-autoconfigure</artifactId>
-            <version>${project.version}</version>
         </dependency>
     </dependencies>
 

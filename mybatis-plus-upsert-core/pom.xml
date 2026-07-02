@@ -13,16 +13,14 @@
     <parent>
         <groupId>io.github.devoracode</groupId>
         <artifactId>mybatis-plus-upsert-parent</artifactId>
-        <version>{revision}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
     <dependencies>
-        <!-- MyBatis Plus (core dependency, provided by consumer) -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-boot-starter</artifactId>
-            <version>${mybatis-plus.version}</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>
@@ -32,15 +30,12 @@
             </exclusions>
         </dependency>
 
-        <!-- JDK8 compatible jsqlparser -->
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
-            <version>${mybatis-plus.version}</version>
             <scope>provided</scope>
         </dependency>
 
-        <!-- Spring Boot auto-configuration -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
@@ -53,12 +48,12 @@
             <optional>true</optional>
         </dependency>
 
-        <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>

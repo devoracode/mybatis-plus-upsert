@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.devoracode</groupId>
         <artifactId>mybatis-plus-upsert-parent</artifactId>
-        <version>{revision}</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -21,12 +21,11 @@
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-core</artifactId>
-            <version>${project.version}</version>
         </dependency>
+
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-autoconfigure</artifactId>
-            <version>${project.version}</version>
         </dependency>
 
         <dependency>
@@ -34,15 +33,16 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>com.baomidou</groupId>
             <artifactId>mybatis-plus-boot-starter</artifactId>
-            <version>${mybatis-plus.version}</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
@@ -51,6 +51,7 @@
                 </exclusion>
             </exclusions>
         </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

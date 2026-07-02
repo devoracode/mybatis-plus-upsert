@@ -1,0 +1,21 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: mybatis-plus-upsert-example-postgresql
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/example_db?currentSchema=public&reWriteBatchedInserts=true
+    username: admin
+    password: password
+    driver-class-name: org.postgresql.Driver
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+  upsert:
+    enabled: true
+    db-type: postgresql
