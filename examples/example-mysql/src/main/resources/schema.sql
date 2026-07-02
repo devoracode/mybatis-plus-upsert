@@ -1,9 +1,13 @@
 CREATE TABLE IF NOT EXISTS t_user (
-    id BIGINT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(100),
-    age INT,
-    create_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-    update_time DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_username (username)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    id varchar(42) NOT NULL PRIMARY KEY,
+    name varchar(255) DEFAULT NULL,
+    age smallint DEFAULT NULL,
+    email varchar(255) DEFAULT NULL,
+    cell_phone varchar(100) DEFAULT NULL,
+    id_card_no varchar(255) DEFAULT NULL,
+    address varchar(255) DEFAULT NULL,
+    province varchar(255) DEFAULT NULL,
+    license_plate varchar(255) DEFAULT NULL,
+    create_time timestamp(6) NULL DEFAULT NULL,
+    update_time timestamp(6) NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

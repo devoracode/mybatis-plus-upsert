@@ -6,9 +6,9 @@ spring:
     name: mybatis-plus-upsert-example-mysql
 
   datasource:
-    url: jdbc:mysql://localhost:3306/example_db?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
-    username: admin
-    password: password
+    url: jdbc:mysql://127.0.0.1:33306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
+    username: root
+    password: root@123
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis-plus:
@@ -19,4 +19,4 @@ mybatis-plus:
   upsert:
     enabled: true
     db-type: mysql
-    use-new-mysql-syntax: false
+    use-new-mysql-syntax: true

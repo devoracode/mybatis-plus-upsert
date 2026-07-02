@@ -20,18 +20,33 @@ import java.time.LocalDateTime;
 @TableName("t_user")
 public class User {
 
-    @TableId(type = IdType.AUTO)
-    private Long id;
-
     @ConflictKey
-    @TableField("username")
-    private String username;
+    @TableId(type = IdType.INPUT)
+    private String id;
+
+    @TableField("name")
+    private String name;
+
+    @TableField("age")
+    private Integer age;
 
     @TableField("email")
     private String email;
 
-    @TableField("age")
-    private Integer age;
+    @TableField("cell_phone")
+    private String cellPhone;
+
+    @TableField("id_card_no")
+    private String idCardNo;
+
+    @TableField("address")
+    private String address;
+
+    @TableField("province")
+    private String province;
+
+    @TableField("license_plate")
+    private String licensePlate;
 
     @IgnoreOnUpdate
     @TableField("create_time")

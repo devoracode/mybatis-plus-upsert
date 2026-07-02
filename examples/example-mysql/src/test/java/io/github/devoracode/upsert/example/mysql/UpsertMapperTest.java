@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,8 +29,10 @@ class UpsertMapperTest {
 
     @Test
     void upsert_insert_new_user() {
+        String userId = UUID.randomUUID().toString();
         User user = User.builder()
-                .username("alice")
+                .id(userId)
+                .name("alice")
                 .email("alice@example.com")
                 .age(25)
                 .createTime(LocalDateTime.now())
@@ -41,15 +44,18 @@ class UpsertMapperTest {
         assertThat(result).isEqualTo(1);
 
         User saved = userMapper.selectList(null).get(0);
-        assertThat(saved.getUsername()).isEqualTo("alice");
+        assertThat(saved.getId()).isEqualTo(userId);
+        assertThat(saved.getName()).isEqualTo("alice");
         assertThat(saved.getEmail()).isEqualTo("alice@example.com");
         assertThat(saved.getAge()).isEqualTo(25);
     }
 
     @Test
     void upsert_update_existing_user() {
+        String userId = UUID.randomUUID().toString();
         User user = User.builder()
-                .username("alice")
+                .id(userId)
+                .name("alice")
                 .email("alice@example.com")
                 .age(25)
                 .createTime(LocalDateTime.now())
@@ -59,8 +65,8 @@ class UpsertMapperTest {
         userMapper.insert(user);
 
         User updateUser = User.builder()
-                .username("alice")
-                .email("new@example.com")
+                .id(userId)
+                .name("alice_updated")
                 .age(30)
                 .build();
 
@@ -69,15 +75,19 @@ class UpsertMapperTest {
         assertThat(result).isEqualTo(1);
 
         User saved = userMapper.selectList(null).get(0);
-        assertThat(saved.getUsername()).isEqualTo("alice");
-        assertThat(saved.getEmail()).isEqualTo("new@example.com");
+        assertThat(saved.getId()).isEqualTo(userId);
+        assertThat(saved.getName()).isEqualTo("alice_updated");
+        assertThat(saved.getEmail()).isEqualTo("alice@example.com");
         assertThat(saved.getAge()).isEqualTo(30);
     }
 
     @Test
     void upsertBatch_insert_multiple_users() {
+        String userId1 = UUID.randomUUID().toString();
+        String userId2 = UUID.randomUUID().toString();
         User user1 = User.builder()
-                .username("alice")
+                .id(userId1)
+                .name("alice")
                 .email("alice@example.com")
                 .age(25)
                 .createTime(LocalDateTime.now())
@@ -85,7 +95,8 @@ class UpsertMapperTest {
                 .build();
 
         User user2 = User.builder()
-                .username("bob")
+                .id(userId2)
+                .name("bob")
                 .email("bob@example.com")
                 .age(30)
                 .createTime(LocalDateTime.now())
@@ -102,8 +113,10 @@ class UpsertMapperTest {
 
     @Test
     void upsertBatch_update_existing_users() {
+        String userId1 = UUID.randomUUID().toString();
         User user1 = User.builder()
-                .username("alice")
+                .id(userId1)
+                .name("alice")
                 .email("alice@example.com")
                 .age(25)
                 .createTime(LocalDateTime.now())
@@ -113,13 +126,15 @@ class UpsertMapperTest {
         userMapper.insert(user1);
 
         User updateUser = User.builder()
-                .username("alice")
-                .email("updated@example.com")
+                .id(userId1)
+                .name("alice_updated")
                 .age(35)
                 .build();
 
+        String userId2 = UUID.randomUUID().toString();
         User newUser = User.builder()
-                .username("carol")
+                .id(userId2)
+                .name("carol")
                 .email("carol@example.com")
                 .age(40)
                 .build();
@@ -131,11 +146,11 @@ class UpsertMapperTest {
         List<User> users = userMapper.selectList(null);
         assertThat(users).hasSize(2);
 
-        User alice = users.stream().filter(u -> "alice".equals(u.getUsername())).findFirst().orElse(null);
-        assertThat(alice.getEmail()).isEqualTo("updated@example.com");
+        User alice = users.stream().filter(u -> userId1.equals(u.getId())).findFirst().orElse(null);
+        assertThat(alice.getName()).isEqualTo("alice_updated");
         assertThat(alice.getAge()).isEqualTo(35);
 
-        User carol = users.stream().filter(u -> "carol".equals(u.getUsername())).findFirst().orElse(null);
+        User carol = users.stream().filter(u -> "carol".equals(u.getName())).findFirst().orElse(null);
         assertThat(carol).isNotNull();
         assertThat(carol.getEmail()).isEqualTo("carol@example.com");
     }
