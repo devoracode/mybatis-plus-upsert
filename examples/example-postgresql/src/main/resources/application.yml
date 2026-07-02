@@ -6,9 +6,9 @@ spring:
     name: mybatis-plus-upsert-example-postgresql
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/example_db?currentSchema=public&reWriteBatchedInserts=true
-    username: admin
-    password: password
+    url: jdbc:postgresql://localhost:15432/test?currentSchema=public&reWriteBatchedInserts=true
+    username: postgres
+    password: pg@test
     driver-class-name: org.postgresql.Driver
 
 mybatis-plus:

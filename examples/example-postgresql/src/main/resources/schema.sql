@@ -1,9 +1,13 @@
 CREATE TABLE IF NOT EXISTS t_user (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(50) NOT NULL UNIQUE,
-    email VARCHAR(100),
-    age INT,
-    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uk_username UNIQUE (username)
+    id varchar(42) NOT NULL PRIMARY KEY,
+    name varchar(255) DEFAULT NULL,
+    age smallint DEFAULT NULL,
+    email varchar(255) DEFAULT NULL,
+    cell_phone varchar(100) DEFAULT NULL,
+    id_card_no varchar(255) DEFAULT NULL,
+    address varchar(255) DEFAULT NULL,
+    province varchar(255) DEFAULT NULL,
+    license_plate varchar(255) DEFAULT NULL,
+    create_time timestamp(6) NULL DEFAULT NULL,
+    update_time timestamp(6) NULL DEFAULT NULL
 );

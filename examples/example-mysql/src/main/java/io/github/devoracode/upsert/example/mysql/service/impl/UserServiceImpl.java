@@ -1,5 +1,6 @@
 package io.github.devoracode.upsert.example.mysql.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.github.devoracode.upsert.example.mysql.entity.User;
 import io.github.devoracode.upsert.example.mysql.mapper.UserMapper;
 import io.github.devoracode.upsert.example.mysql.service.UserService;
@@ -32,12 +33,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User findByUsername(String username) {
-        return userMapper.selectList(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.<User>query()
-                        .eq(User::getUsername, username))
-                .stream()
-                .findFirst()
-                .orElse(null);
+    public User findByEmail(String email) {
+        return userMapper.selectOne(new LambdaQueryWrapper<User>().eq(User::getEmail, email));
     }
 
     @Override

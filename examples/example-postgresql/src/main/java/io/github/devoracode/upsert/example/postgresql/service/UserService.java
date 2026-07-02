@@ -10,7 +10,7 @@ public interface UserService {
 
     List<User> upsertBatch(List<User> users);
 
-    User findByUsername(String username);
+    User findByEmail(String email);
 
     List<User> findAll();
 
