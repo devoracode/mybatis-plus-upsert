@@ -6,7 +6,7 @@
 
     <groupId>io.github.devoracode</groupId>
     <artifactId>mybatis-plus-upsert-parent</artifactId>
-    <version>{revision}</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <name>mybatis-plus-upsert-parent</name>
@@ -19,6 +19,7 @@
         <module>mybatis-plus-upsert-boot-starter</module>
         <module>mybatis-plus-upsert-dynamic-datasource-autoconfigure</module>
         <module>mybatis-plus-upsert-dynamic-datasource-boot-starter</module>
+        <module>examples</module>
     </modules>
 
     <properties>
@@ -39,6 +40,60 @@
                 <version>${spring-boot.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-core</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-autoconfigure</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-dynamic-datasource-autoconfigure</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-dynamic-datasource-boot-starter</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-examples</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-example-mysql</artifactId>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

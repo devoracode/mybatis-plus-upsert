@@ -1,0 +1,9 @@
+CREATE TABLE IF NOT EXISTS t_user (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    email VARCHAR(100),
+    age INT,
+    create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_username UNIQUE (username)
+);

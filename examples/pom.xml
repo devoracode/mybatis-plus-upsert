@@ -4,12 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>mybatis-plus-upsert-dynamic-datasource-autoconfigure</artifactId>
-    <packaging>jar</packaging>
-
-    <name>mybatis-plus-upsert-dynamic-datasource-autoconfigure</name>
-    <description>Dynamic datasource autoconfigure module for mybatis-plus-upsert</description>
-
     <parent>
         <groupId>io.github.devoracode</groupId>
         <artifactId>mybatis-plus-upsert-parent</artifactId>
@@ -17,21 +11,31 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
+    <artifactId>mybatis-plus-upsert-examples</artifactId>
+    <packaging>pom</packaging>
+
+    <name>mybatis-plus-upsert-examples</name>
+    <description>Examples for mybatis-plus-upsert</description>
+
+    <modules>
+        <module>example-mysql</module>
+        <module>example-postgresql</module>
+    </modules>
+
     <dependencies>
         <dependency>
             <groupId>io.github.devoracode</groupId>
-            <artifactId>mybatis-plus-upsert-core</artifactId>
+            <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
         </dependency>
 
         <dependency>
-            <groupId>io.github.devoracode</groupId>
-            <artifactId>mybatis-plus-upsert-autoconfigure</artifactId>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-boot-starter</artifactId>
         </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-            <scope>provided</scope>
+            <artifactId>spring-boot-starter</artifactId>
         </dependency>
 
         <dependency>
@@ -39,19 +43,5 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
-
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
-
-
 </project>
