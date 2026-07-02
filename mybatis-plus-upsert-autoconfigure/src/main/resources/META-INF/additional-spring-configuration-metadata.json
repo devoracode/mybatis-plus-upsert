@@ -1,0 +1,35 @@
+{
+  "properties": [
+    {
+      "name": "mybatis-plus.upsert.enabled",
+      "type": "java.lang.Boolean",
+      "description": "Whether to enable upsert auto-configuration",
+      "defaultValue": true
+    },
+    {
+      "name": "mybatis-plus.upsert.db-type",
+      "type": "java.lang.String",
+      "description": "Database type. Required: mysql | postgresql | oracle | sqlserver | h2 | custom",
+      "defaultValue": ""
+    },
+    {
+      "name": "mybatis-plus.upsert.use-new-mysql-syntax",
+      "type": "java.lang.Boolean",
+      "description": "Whether to use the new MySQL upsert syntax (AS new) introduced in MySQL 8.0.19+. Set to false to use the legacy VALUES() syntax for backward compatibility.",
+      "defaultValue": false
+    }
+  ],
+  "hints": [
+    {
+      "name": "mybatis-plus.upsert.db-type",
+      "values": [
+        {"value": "mysql"},
+        {"value": "postgresql"},
+        {"value": "oracle"},
+        {"value": "sqlserver"},
+        {"value": "h2"},
+        {"value": "custom"}
+      ]
+    }
+  ]
+}
