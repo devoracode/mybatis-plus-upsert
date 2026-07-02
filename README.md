@@ -13,12 +13,12 @@ mybatis-plus-upsert
  ├── mybatis-plus-upsert-core             # 核心模块：注解、方言、元数据解析、SQL 生成
  ├── mybatis-plus-upsert-autoconfigure    # 自动配置模块：Spring Boot 自动装配
  ├── mybatis-plus-upsert-boot-starter     # 主 Starter：聚合 core + autoconfigure，单数据源用户引入此模块即可
- ├── mybatis-plus-upsert-dynamic-datasource-autoconfigure  # 多数据源自动配置（预留）
- └── mybatis-plus-upsert-dynamic-datasource-boot-starter   # 多数据源 Starter（预留）
+ ├── mybatis-plus-upsert-dynamic-datasource-autoconfigure  # 多数据源自动配置（开发中）
+ └── mybatis-plus-upsert-dynamic-datasource-boot-starter   # 多数据源 Starter（开发中）
 ```
 
 - **单数据源用户**：只引入 `mybatis-plus-upsert-boot-starter`
-- **多数据源用户**（如使用 dynamic-datasource）：再额外引入 `mybatis-plus-upsert-dynamic-datasource-boot-starter`
+- **多数据源用户(开发中)**（如使用 dynamic-datasource）：再额外引入 `mybatis-plus-upsert-dynamic-datasource-boot-starter`
 
 ---
 

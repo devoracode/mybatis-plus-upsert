@@ -25,11 +25,6 @@
 
         <dependency>
             <groupId>io.github.devoracode</groupId>
-            <artifactId>mybatis-plus-upsert-autoconfigure</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-dynamic-datasource-autoconfigure</artifactId>
         </dependency>
     </dependencies>
