@@ -10,6 +10,6 @@ class ConditionalOnNotCustomDbType implements Condition {
     @Override
     public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
         String dbType = context.getEnvironment().getProperty("mybatis-plus.upsert.db-type");
-        return !"custom".equalsIgnoreCase(dbType);
+        return !DbTypeDetector.DbType.CUSTOM.name().equalsIgnoreCase(dbType);
     }
 }
