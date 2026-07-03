@@ -20,5 +20,6 @@
     <modules>
         <module>example-db</module>
         <module>example-db-sb3</module>
+        <module>example-dynamic-db</module>
     </modules>
 </project>
