@@ -86,13 +86,19 @@
 
             <dependency>
                 <groupId>io.github.devoracode</groupId>
-                <artifactId>mybatis-plus-upsert-examples</artifactId>
+                <artifactId>examples</artifactId>
                 <version>${revision}</version>
             </dependency>
 
             <dependency>
                 <groupId>io.github.devoracode</groupId>
-                <artifactId>mybatis-plus-upsert-example-mysql</artifactId>
+                <artifactId>example-db</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>example-db-sb3</artifactId>
                 <version>${revision}</version>
             </dependency>
         </dependencies>
