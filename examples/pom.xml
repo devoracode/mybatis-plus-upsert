@@ -11,15 +11,15 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>mybatis-plus-upsert-examples</artifactId>
+    <artifactId>examples</artifactId>
     <packaging>pom</packaging>
 
-    <name>mybatis-plus-upsert-examples</name>
+    <name>examples</name>
     <description>Examples for mybatis-plus-upsert</description>
 
     <modules>
-        <module>example-mysql</module>
-        <module>example-postgresql</module>
+        <module>example-db</module>
+        <module>example-db-sb3</module>
     </modules>
 
     <dependencies>
