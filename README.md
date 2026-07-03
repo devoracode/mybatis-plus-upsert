@@ -1,24 +1,8 @@
 # Mybatis-plus Upsert
 
-基于 MyBatis Plus 扩展 `BaseMapper`，为 Spring Boot 2.x 项目提供开箱即用的跨数据库 **Upsert** 能力（存在则更新，不存在则插入）。
+基于 MyBatis Plus 扩展 `BaseMapper`，为 Spring Boot 2.x / 3.x 项目提供开箱即用的跨数据库 **Upsert** 能力（存在则更新，不存在则插入）。
 
 无需写 XML、无需自定义 SQL，只需在实体字段上加注解，调用 `upsert()` / `upsertBatch()` / `upsert(Collection)` 即可。
-
----
-
-## 项目结构
-
-```
-mybatis-plus-upsert
- ├── mybatis-plus-upsert-core             # 核心模块：注解、方言、元数据解析、SQL 生成
- ├── mybatis-plus-upsert-autoconfigure    # 自动配置模块：Spring Boot 自动装配
- ├── mybatis-plus-upsert-boot-starter     # 主 Starter：聚合 core + autoconfigure，单数据源用户引入此模块即可
- ├── mybatis-plus-upsert-dynamic-datasource-autoconfigure  # 多数据源自动配置（开发中）
- └── mybatis-plus-upsert-dynamic-datasource-boot-starter   # 多数据源 Starter（开发中）
-```
-
-- **单数据源用户**：只引入 `mybatis-plus-upsert-boot-starter`
-- **多数据源用户(开发中)**（如使用 dynamic-datasource）：再额外引入 `mybatis-plus-upsert-dynamic-datasource-boot-starter`
 
 ---
 
@@ -43,14 +27,36 @@ mybatis-plus-upsert
 
 | 项目 | 要求 |
 |---|---|
-| JDK | 8+ |
-| Spring Boot | 2.4.5（已验证；理论兼容 2.x 全系列，但本项目固定锁定此版本测试） |
+| JDK | 8+（Spring Boot 2.x）/ 17+（Spring Boot 3.x） |
+| Spring Boot | 2.4.5+ / 3.2.x |
 | MyBatis Plus | 3.5.9 |
-| 数据库 | MySQL / MariaDB、PostgreSQL、Oracle、SQL Server、H2（内置）；DB2、达梦、Sybase 等其他数据库需自行实现 `UpsertDialect`，见[自定义方言](#自定义方言) |
+| 数据库 | MySQL / MariaDB、PostgreSQL、Oracle、SQL Server、H2（内置）；其他数据库需自行实现 `UpsertDialect`，见[自定义方言](#自定义方言) |
 
-> Spring Boot 2.4.5 发布于 2021 年，2.4 分支已停止安全更新（EOL）。本项目固定该版本号仅为测试基线，并非推荐生产使用该 Spring Boot 版本，建议业务方自行评估是否需要使用更高的 2.x 补丁版本。
+---
 
-> **JDK8 用户重要提示**：`mybatis-plus-boot-starter:3.5.9` 默认传递依赖 `jsqlparser:5.0`，该版本仅支持 JDK11+，在 JDK8 下编译会报 `class file has wrong version 55.0, should be 52.0`（官方 issue [baomidou/mybatis-plus#6497](https://github.com/baomidou/mybatis-plus/issues/6497)）。本 starter 已在自身 `pom.xml` 中排除默认 jsqlparser 并显式引入 JDK8 兼容的 `mybatis-plus-jsqlparser-4.9:3.5.9`；**但这两个依赖都是 `provided`，由使用方的项目自行提供**，因此使用方自己的 `pom.xml`/`build.gradle` 里如果直接引入 `mybatis-plus-boot-starter`，也需要做同样的排除+替换，否则同样会在 JDK8 环境下编译失败。具体做法：
+## 快速开始
+
+### 第一步：引入依赖
+
+根据你的 Spring Boot 版本选择对应的 MyBatis-Plus starter：
+
+**Spring Boot 2.x（JDK 8+）：**
+
+```xml
+<dependency>
+    <groupId>io.github.devoracode</groupId>
+    <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
+    <version>${latestVersion}</version>
+</dependency>
+
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-boot-starter</artifactId>
+    <version>3.5.9</version>
+</dependency>
+```
+
+> **JDK 8 用户注意**：`mybatis-plus-boot-starter:3.5.9` 默认传递依赖 `jsqlparser:5.0`（仅支持 JDK 11+），需排除并替换为 JDK 8 兼容版本：
 > ```xml
 > <dependency>
 >     <groupId>com.baomidou</groupId>
@@ -70,19 +76,20 @@ mybatis-plus-upsert
 > </dependency>
 > ```
 
----
-
-## 快速开始
-
-### 第一步：引入依赖
+**Spring Boot 3.x（JDK 17+）：**
 
 ```xml
-    <dependency>
-        <groupId>io.github.devoracode</groupId>
-        <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
-        <version>${latestVersion}</version>
-    </dependency>
+<dependency>
+    <groupId>io.github.devoracode</groupId>
+    <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
+    <version>${latestVersion}</version>
+</dependency>
 
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+    <version>3.5.9</version>
+</dependency>
 ```
 
 starter 会根据配置的 `db-type` 完成配置，**无需任何额外 Bean 声明**（前提是项目中没有自定义 `ISqlInjector`，该场景见[与已有自定义 SqlInjector 共存](#与已有自定义-sqlinjector-共存)）。
