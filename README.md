@@ -10,6 +10,7 @@
 
 - [支持环境](#支持环境)
 - [快速开始](#快速开始)
+- [多数据源支持](#多数据源支持)
 - [注解详解](#注解详解)
 - [注解组合规则](#注解组合规则)
 - [字段动态判断](#字段动态判断)
@@ -180,6 +181,107 @@ public class UserService {
     }
 }
 ```
+
+---
+
+## 多数据源支持
+
+当项目使用 **dynamic-datasource-spring-boot-starter**（baomidou）进行多数据源管理时，可引入专用的 starter 来支持混合数据库场景（如 MySQL + PostgreSQL 同时使用）。
+
+### 引入依赖
+
+```xml
+<dependency>
+    <groupId>io.github.devoracode</groupId>
+    <artifactId>mybatis-plus-upsert-dynamic-datasource-boot-starter</artifactId>
+    <version>${latestVersion}</version>
+</dependency>
+
+<dependency>
+    <groupId>com.baomidou</groupId>
+    <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+    <version>4.3.1</version>
+</dependency>
+```
+
+### 配置示例
+
+```yaml
+spring:
+  datasource:
+    dynamic:
+      primary: mysql
+      datasource:
+        mysql:
+          url: jdbc:mysql://localhost:3306/db_mysql
+          username: root
+          password: ***
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        postgresql:
+          url: jdbc:postgresql://localhost:5432/db_pg
+          username: postgres
+          password: ***
+          driver-class-name: org.postgresql.Driver
+
+mybatis-plus:
+  upsert:
+    dynamic:
+      enabled: true
+      datasources:
+        mysql:
+          db-type: mysql
+          use-new-mysql-syntax: false
+        postgresql:
+          db-type: postgresql
+```
+
+### 使用方式
+
+在 Service 层使用 `@DS` 注解切换数据源，upsert 方法会自动使用对应数据源的方言：
+
+```java
+@Service
+public class UserService {
+
+    private final UserMapper userMapper;
+
+    @DS("mysql")
+    @Transactional
+    public void upsertToMysql(User user) {
+        userMapper.upsert(user);
+    }
+
+    @DS("postgresql")
+    @Transactional
+    public void upsertToPg(User user) {
+        userMapper.upsert(user);
+    }
+
+    @DS("mysql")
+    @Transactional
+    public void upsertBatchToMysql(List<User> users) {
+        userMapper.upsertBatch(users);
+    }
+}
+```
+
+### 工作原理
+
+1. 启动时读取 `mybatis-plus.upsert.dynamic.datasources` 配置，为每个数据源创建对应的 `UpsertDialect` 实例
+2. 注册 `DynamicUpsertDialect` Bean，运行时通过 `DynamicDataSourceContextHolder.peek()` 获取当前数据源名称
+3. 根据当前数据源路由到对应的方言，生成正确的 SQL 语法
+
+### 配置项说明
+
+| 配置项 | 默认值 | 说明 |
+|---|---|---|
+| `mybatis-plus.upsert.dynamic.enabled` | `true` | 是否启用动态数据源支持 |
+| `mybatis-plus.upsert.dynamic.datasources.{dsName}.db-type` | - | **必填**，该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2） |
+| `mybatis-plus.upsert.dynamic.datasources.{dsName}.use-new-mysql-syntax` | `false` | MySQL 数据源是否使用新语法 |
+
+> **注意**：
+> - 使用多数据源 starter 时，`mybatis-plus.upsert.db-type` 单数据源配置不再生效。
+> - **`mybatis-plus-upsert-boot-starter`（单数据源）与 `mybatis-plus-upsert-dynamic-datasource-boot-starter`（多数据源）互斥**，不能同时在 classpath 上，否则会导致自动配置冲突。
 
 ---
 
