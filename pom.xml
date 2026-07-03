@@ -17,7 +17,6 @@
         <module>mybatis-plus-upsert-core</module>
         <module>mybatis-plus-upsert-autoconfigure</module>
         <module>mybatis-plus-upsert-boot-starter</module>
-        <module>mybatis-plus-upsert-dynamic-datasource-autoconfigure</module>
         <module>mybatis-plus-upsert-dynamic-datasource-boot-starter</module>
         <module>examples</module>
     </modules>
@@ -70,12 +69,6 @@
             <dependency>
                 <groupId>io.github.devoracode</groupId>
                 <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
-                <version>${revision}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>io.github.devoracode</groupId>
-                <artifactId>mybatis-plus-upsert-dynamic-datasource-autoconfigure</artifactId>
                 <version>${revision}</version>
             </dependency>
 
