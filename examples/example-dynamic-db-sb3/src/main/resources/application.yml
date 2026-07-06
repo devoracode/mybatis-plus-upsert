@@ -15,7 +15,7 @@ mybatis-plus:
   upsert:
     dynamic:
       enabled: true
-      datasources:
+      datasource:
         mysql:
           db-type: mysql
           use-new-mysql-syntax: true

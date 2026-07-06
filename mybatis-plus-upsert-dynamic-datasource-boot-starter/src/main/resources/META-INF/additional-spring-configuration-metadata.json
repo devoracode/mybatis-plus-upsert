@@ -7,20 +7,25 @@
       "defaultValue": true
     },
     {
-      "name": "mybatis-plus.upsert.dynamic.datasources",
+      "name": "mybatis-plus.upsert.dynamic.datasource",
       "type": "java.util.Map",
       "description": "Data source configurations for dynamic upsert. Key is data source name (must match spring.datasource.dynamic.datasource keys). Value contains db-type and use-new-mysql-syntax."
     },
     {
-      "name": "mybatis-plus.upsert.dynamic.datasources.*.db-type",
+      "name": "mybatis-plus.upsert.dynamic.datasource.*.db-type",
       "type": "java.lang.String",
       "description": "Database type for this data source. Required: mysql | postgresql | oracle | sqlserver | h2 | custom"
     },
     {
-      "name": "mybatis-plus.upsert.dynamic.datasources.*.use-new-mysql-syntax",
+      "name": "mybatis-plus.upsert.dynamic.datasource.*.use-new-mysql-syntax",
       "type": "java.lang.Boolean",
       "description": "Whether to use the new MySQL upsert syntax (AS new) for this data source. Only applicable for MySQL.",
       "defaultValue": false
+    },
+    {
+      "name": "mybatis-plus.upsert.dynamic.datasource.*.dialect-ref",
+      "type": "java.lang.String",
+      "description": "Bean name of a user-defined UpsertDialect to use when db-type=custom. Required only when db-type is custom; ignored for built-in db types."
     }
   ],
   "hints": [
