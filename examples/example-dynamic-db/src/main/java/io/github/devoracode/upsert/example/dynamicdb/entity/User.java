@@ -14,7 +14,7 @@ public class User {
 
     @ConflictKey
     @TableId(type = IdType.INPUT)
-    private Long id;
+    private String id;
 
     @TableField("name")
     private String name;
@@ -50,7 +50,7 @@ public class User {
     public User() {
     }
 
-    public User(Long id, String name, Integer age, String email, String cellPhone, String idCardNo,
+    public User(String id, String name, Integer age, String email, String cellPhone, String idCardNo,
                 String address, String province, String licensePlate, LocalDateTime createTime, LocalDateTime updateTime) {
         this.id = id;
         this.name = name;
@@ -65,11 +65,11 @@ public class User {
         this.updateTime = updateTime;
     }
 
-    public Long getId() {
+    public String getId() {
         return id;
     }
 
-    public void setId(Long id) {
+    public void setId(String id) {
         this.id = id;
     }
 
@@ -158,7 +158,7 @@ public class User {
     }
 
     public static class Builder {
-        private Long id;
+        private String id;
         private String name;
         private Integer age;
         private String email;
@@ -170,7 +170,7 @@ public class User {
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
 
-        public Builder id(Long id) {
+        public Builder id(String id) {
             this.id = id;
             return this;
         }
