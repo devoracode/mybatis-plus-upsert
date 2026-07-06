@@ -31,7 +31,7 @@ class UpsertMapperTest {
     @Test
     void upsert_insert_new_user() {
         User user = User.builder()
-                .id(1L)
+                .id("1")
                 .name("Test User")
                 .age(25)
                 .email("test@example.com")
@@ -56,7 +56,7 @@ class UpsertMapperTest {
     @Test
     void upsert_update_existing_user() {
         User user = User.builder()
-                .id(2L)
+                .id("2")
                 .name("Original Name")
                 .age(30)
                 .email("update@example.com")
@@ -71,7 +71,7 @@ class UpsertMapperTest {
         userService.upsert(user);
 
         User updatedUser = User.builder()
-                .id(2L)
+                .id("2")
                 .name("Updated Name")
                 .age(31)
                 .email("update@example.com")
@@ -99,7 +99,7 @@ class UpsertMapperTest {
         List<User> users = new ArrayList<>();
         for (int i = 10; i < 13; i++) {
             users.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Batch User " + i)
                     .age(20 + i)
                     .email("batch" + i + "@example.com")
@@ -123,7 +123,7 @@ class UpsertMapperTest {
         List<User> users = new ArrayList<>();
         for (int i = 20; i < 23; i++) {
             users.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Original " + i)
                     .age(25 + i)
                     .email("batchupdate" + i + "@example.com")
@@ -141,7 +141,7 @@ class UpsertMapperTest {
         List<User> updatedUsers = new ArrayList<>();
         for (int i = 20; i < 23; i++) {
             updatedUsers.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Updated " + i)
                     .age(30 + i)
                     .email("batchupdate" + i + "@example.com")
@@ -165,7 +165,7 @@ class UpsertMapperTest {
         List<User> users = new ArrayList<>();
         for (int i = 30; i < 33; i++) {
             users.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Result User " + i)
                     .age(22 + i)
                     .email("result" + i + "@example.com")
@@ -190,7 +190,7 @@ class UpsertMapperTest {
         List<User> users = new ArrayList<>();
         for (int i = 40; i < 43; i++) {
             users.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Original Result " + i)
                     .age(28 + i)
                     .email("resultupdate" + i + "@example.com")
@@ -208,7 +208,7 @@ class UpsertMapperTest {
         List<User> updatedUsers = new ArrayList<>();
         for (int i = 40; i < 43; i++) {
             updatedUsers.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Updated Result " + i)
                     .age(33 + i)
                     .email("resultupdate" + i + "@example.com")
@@ -233,7 +233,7 @@ class UpsertMapperTest {
         List<User> users = new ArrayList<>();
         for (int i = 50; i < 53; i++) {
             users.add(User.builder()
-                    .id((long) i)
+                    .id(String.valueOf(i))
                     .name("Find All User " + i)
                     .age(35 + i)
                     .email("findall" + i + "@example.com")
@@ -257,7 +257,7 @@ class UpsertMapperTest {
     @Test
     void deleteAll() {
         User user = User.builder()
-                .id(60L)
+                .id("60")
                 .name("Delete User")
                 .age(40)
                 .email("delete@example.com")
