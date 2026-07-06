@@ -17,10 +17,6 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <properties>
-        <maven.compiler.release>8</maven.compiler.release>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.baomidou</groupId>
