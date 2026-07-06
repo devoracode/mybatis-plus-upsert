@@ -9,7 +9,7 @@ import java.util.Map;
 public class UpsertDynamicProperties {
 
     private boolean enabled = true;
-    private Map<String, DataSourceConfig> datasources = new HashMap<>();
+    private Map<String, DataSourceConfig> datasource = new HashMap<>();
 
     public boolean isEnabled() {
         return enabled;
@@ -19,17 +19,22 @@ public class UpsertDynamicProperties {
         this.enabled = enabled;
     }
 
-    public Map<String, DataSourceConfig> getDatasources() {
-        return datasources;
+    public Map<String, DataSourceConfig> getDatasource() {
+        return datasource;
     }
 
-    public void setDatasources(Map<String, DataSourceConfig> datasources) {
-        this.datasources = datasources;
+    public void setDatasource(Map<String, DataSourceConfig> datasource) {
+        this.datasource = datasource;
     }
 
     public static class DataSourceConfig {
         private String dbType;
         private boolean useNewMysqlSyntax = false;
+        /**
+         * Bean name of a user-defined {@code UpsertDialect} to use when
+         * {@code db-type} is set to {@code custom}. Ignored for built-in db types.
+         */
+        private String dialectRef;
 
         public String getDbType() {
             return dbType;
@@ -45,6 +50,14 @@ public class UpsertDynamicProperties {
 
         public void setUseNewMysqlSyntax(boolean useNewMysqlSyntax) {
             this.useNewMysqlSyntax = useNewMysqlSyntax;
+        }
+
+        public String getDialectRef() {
+            return dialectRef;
+        }
+
+        public void setDialectRef(String dialectRef) {
+            this.dialectRef = dialectRef;
         }
     }
 }

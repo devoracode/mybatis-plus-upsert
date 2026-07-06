@@ -227,7 +227,7 @@ mybatis-plus:
   upsert:
     dynamic:
       enabled: true
-      datasources:
+      datasource:
         mysql:
           db-type: mysql
           use-new-mysql-syntax: false
@@ -267,7 +267,7 @@ public class UserService {
 
 ### 工作原理
 
-1. 启动时读取 `mybatis-plus.upsert.dynamic.datasources` 配置，为每个数据源创建对应的 `UpsertDialect` 实例
+1. 启动时读取 `mybatis-plus.upsert.dynamic.datasource` 配置，为每个数据源创建对应的 `UpsertDialect` 实例
 2. 注册 `DynamicUpsertDialect` Bean，运行时通过 `DynamicDataSourceContextHolder.peek()` 获取当前数据源名称
 3. 根据当前数据源路由到对应的方言，生成正确的 SQL 语法
 
@@ -276,8 +276,8 @@ public class UserService {
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
 | `mybatis-plus.upsert.dynamic.enabled` | `true` | 是否启用动态数据源支持 |
-| `mybatis-plus.upsert.dynamic.datasources.{dsName}.db-type` | - | **必填**，该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2） |
-| `mybatis-plus.upsert.dynamic.datasources.{dsName}.use-new-mysql-syntax` | `false` | MySQL 数据源是否使用新语法 |
+| `mybatis-plus.upsert.dynamic.datasource.{dsName}.db-type` | - | **必填**，该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2） |
+| `mybatis-plus.upsert.dynamic.datasource.{dsName}.use-new-mysql-syntax` | `false` | MySQL 数据源是否使用新语法 |
 
 > **注意**：
 > - 使用多数据源 starter 时，`mybatis-plus.upsert.db-type` 单数据源配置不再生效。
@@ -595,7 +595,47 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 | `insertFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 INSERT 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
 | `updateFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 UPDATE 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
 
-`FieldMeta` 包含三个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）。自定义方言若要支持单条动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">` + `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
+`FieldMeta` 包含三个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）。自定义方言若要支持单条动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
+
+---
+
+### 多数据源场景下的自定义方言
+
+使用 `mybatis-plus-upsert-dynamic-datasource-boot-starter` 时，自定义方言的配置方式与单数据源略有不同：
+
+**第一步：在配置中指定 `db-type: custom` 并提供 `dialect-ref`**
+
+```yaml
+mybatis-plus:
+  upsert:
+    dynamic:
+      enabled: true
+      datasource:
+        mysql:
+          db-type: mysql
+        clickhouse:
+          db-type: custom
+          dialect-ref: clickHouseUpsertDialect   # 指向 Spring Bean 名称
+```
+
+**第二步：像单数据源一样实现并注册方言 Bean**
+
+```java
+@Component("clickHouseUpsertDialect")
+public class ClickHouseUpsertDialect implements UpsertDialect {
+    // 实现与单数据源完全相同
+    @Override
+    public String buildUpsertSql(UpsertMeta meta) { ... }
+
+    @Override
+    public String buildUpsertBatchSql(UpsertMeta meta) { ... }
+}
+```
+
+> **注意**：
+> - `dialect-ref` 仅在 `db-type: custom` 时生效，内置数据库类型会被忽略。
+> - Bean 必须实现 `UpsertDialect` 接口，否则启动会抛出异常。
+> - 方言 Bean 的名称（`@Component("name")` 的 value）必须与配置中的 `dialect-ref` 一致。
 
 ---
 
