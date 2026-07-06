@@ -17,6 +17,10 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
+    <properties>
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.baomidou</groupId>
@@ -40,12 +44,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
             <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
         </dependency>
 
         <dependency>

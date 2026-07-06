@@ -1,33 +1,130 @@
 package io.github.devoracode.upsert.core;
 
-import lombok.Builder;
-import lombok.Getter;
-
 import java.util.List;
 import java.util.Map;
 
-/*
- * Immutable upsert metadata parsed from an entity class at startup.
- */
-@Getter
-@Builder
 public class UpsertMeta {
 
-    private String tableName;
+    private final String tableName;
+    private final List<String> insertColumns;
+    private final List<String> insertFields;
+    private final List<String> conflictColumns;
+    private final List<String> updateColumns;
+    private final List<String> updateFields;
+    private final List<FieldMeta> insertFieldMetas;
+    private final List<FieldMeta> updateFieldMetas;
+    private final Map<String, String> fieldToColumnMap;
 
-    private List<String> insertColumns;
+    private UpsertMeta(Builder builder) {
+        this.tableName = builder.tableName;
+        this.insertColumns = builder.insertColumns;
+        this.insertFields = builder.insertFields;
+        this.conflictColumns = builder.conflictColumns;
+        this.updateColumns = builder.updateColumns;
+        this.updateFields = builder.updateFields;
+        this.insertFieldMetas = builder.insertFieldMetas;
+        this.updateFieldMetas = builder.updateFieldMetas;
+        this.fieldToColumnMap = builder.fieldToColumnMap;
+    }
 
-    private List<String> insertFields;
+    public static Builder builder() {
+        return new Builder();
+    }
 
-    private List<String> conflictColumns;
+    public String getTableName() {
+        return tableName;
+    }
 
-    private List<String> updateColumns;
+    public List<String> getInsertColumns() {
+        return insertColumns;
+    }
 
-    private List<String> updateFields;
+    public List<String> getInsertFields() {
+        return insertFields;
+    }
 
-    private List<FieldMeta> insertFieldMetas;
+    public List<String> getConflictColumns() {
+        return conflictColumns;
+    }
 
-    private List<FieldMeta> updateFieldMetas;
+    public List<String> getUpdateColumns() {
+        return updateColumns;
+    }
 
-    private Map<String, String> fieldToColumnMap;
+    public List<String> getUpdateFields() {
+        return updateFields;
+    }
+
+    public List<FieldMeta> getInsertFieldMetas() {
+        return insertFieldMetas;
+    }
+
+    public List<FieldMeta> getUpdateFieldMetas() {
+        return updateFieldMetas;
+    }
+
+    public Map<String, String> getFieldToColumnMap() {
+        return fieldToColumnMap;
+    }
+
+    public static class Builder {
+        private String tableName;
+        private List<String> insertColumns;
+        private List<String> insertFields;
+        private List<String> conflictColumns;
+        private List<String> updateColumns;
+        private List<String> updateFields;
+        private List<FieldMeta> insertFieldMetas;
+        private List<FieldMeta> updateFieldMetas;
+        private Map<String, String> fieldToColumnMap;
+
+        public Builder tableName(String tableName) {
+            this.tableName = tableName;
+            return this;
+        }
+
+        public Builder insertColumns(List<String> insertColumns) {
+            this.insertColumns = insertColumns;
+            return this;
+        }
+
+        public Builder insertFields(List<String> insertFields) {
+            this.insertFields = insertFields;
+            return this;
+        }
+
+        public Builder conflictColumns(List<String> conflictColumns) {
+            this.conflictColumns = conflictColumns;
+            return this;
+        }
+
+        public Builder updateColumns(List<String> updateColumns) {
+            this.updateColumns = updateColumns;
+            return this;
+        }
+
+        public Builder updateFields(List<String> updateFields) {
+            this.updateFields = updateFields;
+            return this;
+        }
+
+        public Builder insertFieldMetas(List<FieldMeta> insertFieldMetas) {
+            this.insertFieldMetas = insertFieldMetas;
+            return this;
+        }
+
+        public Builder updateFieldMetas(List<FieldMeta> updateFieldMetas) {
+            this.updateFieldMetas = updateFieldMetas;
+            return this;
+        }
+
+        public Builder fieldToColumnMap(Map<String, String> fieldToColumnMap) {
+            this.fieldToColumnMap = fieldToColumnMap;
+            return this;
+        }
+
+        public UpsertMeta build() {
+            return new UpsertMeta(this);
+        }
+    }
 }

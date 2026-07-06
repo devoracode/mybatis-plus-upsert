@@ -1,0 +1,23 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mybatis-plus-upsert-dynamic-db-sb3-example
+  profiles:
+    active: mysql
+
+mybatis-plus:
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+  upsert:
+    dynamic:
+      enabled: true
+      datasources:
+        mysql:
+          db-type: mysql
+          use-new-mysql-syntax: true
+        postgresql:
+          db-type: postgresql

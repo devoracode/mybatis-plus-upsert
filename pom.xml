@@ -13,13 +13,6 @@
     <description>Parent POM for mybatis-plus-upsert modules</description>
     <url>https://github.com/devoracode/mybatis-plus-upsert</url>
 
-    <modules>
-        <module>mybatis-plus-upsert-core</module>
-        <module>mybatis-plus-upsert-boot-starter</module>
-        <module>mybatis-plus-upsert-dynamic-datasource-boot-starter</module>
-        <module>examples</module>
-    </modules>
-
     <properties>
         <java.version>8</java.version>
         <maven.compiler.source>8</maven.compiler.source>
@@ -30,6 +23,13 @@
         <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
         <revision>1.1.0</revision>
     </properties>
+
+    <modules>
+        <module>mybatis-plus-upsert-core</module>
+        <module>mybatis-plus-upsert-boot-starter</module>
+        <module>mybatis-plus-upsert-dynamic-datasource-boot-starter</module>
+        <module>examples</module>
+    </modules>
 
     <dependencyManagement>
         <dependencies>
@@ -50,6 +50,12 @@
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
                 <version>${mybatis-plus.version}</version>
             </dependency>
 
@@ -90,8 +96,20 @@
             </dependency>
 
             <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>example-dynamic-db-sb3</artifactId>
+                <version>${revision}</version>
+            </dependency>
+
+            <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
                 <version>${dynamic-datasource.version}</version>
             </dependency>
         </dependencies>
@@ -193,6 +211,37 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-javadoc-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.6.0</version>
+
+                <configuration>
+                    <!-- 关键：只解析 CI Friendly 变量 -->
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+
+                    <!-- install/deploy 时替换 pom -->
+                    <updatePomFile>true</updatePomFile>
+                </configuration>
+
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

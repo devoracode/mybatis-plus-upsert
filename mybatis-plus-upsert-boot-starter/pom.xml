@@ -17,6 +17,10 @@
     <name>mybatis-plus-upsert-boot-starter</name>
     <description>Spring Boot starter for mybatis-plus-upsert</description>
 
+    <properties>
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>io.github.devoracode</groupId>
@@ -31,12 +35,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
 
@@ -65,16 +63,4 @@
         </dependency>
     </dependencies>
 
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-gpg-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.sonatype.central</groupId>
-                <artifactId>central-publishing-maven-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>
