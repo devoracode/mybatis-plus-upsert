@@ -1,9 +1,9 @@
-package io.github.devoracode.upsert.example.dynamicdb.service.impl;
+package io.github.devoracode.upsert.example.dynamicdbsb3.service.impl;
 
 import com.baomidou.dynamic.datasource.annotation.DS;
-import io.github.devoracode.upsert.example.dynamicdb.entity.User;
-import io.github.devoracode.upsert.example.dynamicdb.mapper.UserMapper;
-import io.github.devoracode.upsert.example.dynamicdb.service.UserService;
+import io.github.devoracode.upsert.example.dynamicdbsb3.entity.User;
+import io.github.devoracode.upsert.example.dynamicdbsb3.mapper.UserMapper;
+import io.github.devoracode.upsert.example.dynamicdbsb3.service.UserService;
 import org.apache.ibatis.executor.BatchResult;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @DS("mysql")
+    @DS("postgresql")
     @Transactional
     public int upsertBatch(List<User> users) {
         return userMapper.upsertBatch(users);
@@ -42,7 +42,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @DS("mysql")
+    @DS("postgresql")
     @Transactional
     public List<BatchResult> upsertBatchWithResult(Collection<User> users, int batchSize) {
         return userMapper.upsert(users, batchSize);
@@ -58,7 +58,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @DS("mysql")
+    @DS("postgresql")
     public List<User> findAll() {
         return userMapper.selectList(new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<>());
     }

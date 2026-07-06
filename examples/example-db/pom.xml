@@ -17,6 +17,10 @@
     <name>example-db</name>
     <description>Example for mybatis-plus-upsert (supports MySQL and PostgreSQL)</description>
 
+    <properties>
+        <maven.compiler.release>8</maven.compiler.release>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>io.github.devoracode</groupId>
@@ -31,12 +35,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
         </dependency>
 
         <dependency>

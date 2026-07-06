@@ -4,21 +4,17 @@ import com.baomidou.dynamic.datasource.toolkit.DynamicDataSourceContextHolder;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.core.UpsertMeta;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.extern.slf4j.Slf4j;
+import io.github.devoracode.upsert.exception.UpsertException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-/**
- * Implementation of DynamicUpsertDialect that routes to the appropriate dialect
- * based on the current data source from DynamicDataSourceContextHolder.
- */
-@Slf4j
-@Getter
-@Setter
 public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
+
+    private static final Logger log = LoggerFactory.getLogger(DynamicUpsertDialectImpl.class);
 
     private final Map<String, UpsertDialect> dialectMap = new HashMap<>();
     private UpsertDialect primaryDialect;
@@ -27,11 +23,21 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
         dialectMap.put(dataSourceName, dialect);
     }
 
+    public Map<String, UpsertDialect> getDialectMap() {
+        return Collections.unmodifiableMap(dialectMap);
+    }
+
+    public UpsertDialect getPrimaryDialect() {
+        return primaryDialect;
+    }
+
+    public void setPrimaryDialect(UpsertDialect primaryDialect) {
+        this.primaryDialect = primaryDialect;
+    }
+
     @Override
     public UpsertDialect getCurrentDialect() {
-        // Get current data source name from dynamic-datasource context holder
         String dataSourceName = DynamicDataSourceContextHolder.peek();
-
         if (dataSourceName != null) {
             UpsertDialect dialect = dialectMap.get(dataSourceName);
             if (dialect != null) {
@@ -41,6 +47,11 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
             log.warn("No dialect configured for data source '{}', falling back to primary dialect", dataSourceName);
         }
 
+        if (primaryDialect == null) {
+            throw new UpsertException("Primary dialect has not been configured");
+        }
+
+        log.debug("Falling back to primary dialect {}", primaryDialect.getClass().getSimpleName());
         return primaryDialect;
     }
 

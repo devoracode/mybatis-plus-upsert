@@ -1,4 +1,4 @@
-package io.github.devoracode.upsert.example.sb3.entity;
+package io.github.devoracode.upsert.example.dynamicdbsb3.entity;
 
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,7 +14,7 @@ public class User {
 
     @ConflictKey
     @TableId(type = IdType.INPUT)
-    private String id;
+    private Long id;
 
     @TableField("name")
     private String name;
@@ -50,7 +50,7 @@ public class User {
     public User() {
     }
 
-    public User(String id, String name, Integer age, String email, String cellPhone, String idCardNo,
+    public User(Long id, String name, Integer age, String email, String cellPhone, String idCardNo,
                 String address, String province, String licensePlate, LocalDateTime createTime, LocalDateTime updateTime) {
         this.id = id;
         this.name = name;
@@ -65,11 +65,11 @@ public class User {
         this.updateTime = updateTime;
     }
 
-    public String getId() {
+    public Long getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(Long id) {
         this.id = id;
     }
 
@@ -158,7 +158,7 @@ public class User {
     }
 
     public static class Builder {
-        private String id;
+        private Long id;
         private String name;
         private Integer age;
         private String email;
@@ -170,7 +170,7 @@ public class User {
         private LocalDateTime createTime;
         private LocalDateTime updateTime;
 
-        public Builder id(String id) {
+        public Builder id(Long id) {
             this.id = id;
             return this;
         }
