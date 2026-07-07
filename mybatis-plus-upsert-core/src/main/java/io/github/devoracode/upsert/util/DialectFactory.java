@@ -18,14 +18,6 @@ public final class DialectFactory {
         return create(parseDbType(dbTypeStr), useNewMysqlSyntax);
     }
 
-    public static UpsertDialect create(String dbTypeStr) {
-        return create(parseDbType(dbTypeStr), false);
-    }
-
-    public static UpsertDialect create(DbType dbType) {
-        return create(dbType, false);
-    }
-
     public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax) {
         if (dbType == DbType.CUSTOM) {
             return null;

@@ -45,6 +45,9 @@ public class DbTypeDetector {
     }
 
     public static String normalize(String raw) {
+        if (raw == null) {
+            return "";
+        }
         return NORMALIZE_PATTERN.matcher(raw.trim().toLowerCase()).replaceAll("_");
     }
 }

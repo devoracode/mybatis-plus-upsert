@@ -14,17 +14,17 @@ class DialectFactoryTest {
     @Test
     void create_returns_correct_dialect_type() {
         assertThat(DialectFactory.create("mysql", false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create("postgresql")).isInstanceOf(PostgresUpsertDialect.class);
-        assertThat(DialectFactory.create("oracle")).isInstanceOf(OracleUpsertDialect.class);
-        assertThat(DialectFactory.create("h2")).isInstanceOf(H2UpsertDialect.class);
-        assertThat(DialectFactory.create(DbType.MYSQL)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create(DbType.H2)).isInstanceOf(H2UpsertDialect.class);
+        assertThat(DialectFactory.create("postgresql", false)).isInstanceOf(PostgresUpsertDialect.class);
+        assertThat(DialectFactory.create("oracle", false)).isInstanceOf(OracleUpsertDialect.class);
+        assertThat(DialectFactory.create("h2", false)).isInstanceOf(H2UpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.MYSQL, false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.H2, false)).isInstanceOf(H2UpsertDialect.class);
     }
 
     @Test
     void create_by_string_is_case_insensitive() {
-        assertThat(DialectFactory.create("MySQL")).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create("POSTGRESQL")).isInstanceOf(PostgresUpsertDialect.class);
+        assertThat(DialectFactory.create("MySQL", false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create("POSTGRESQL", false)).isInstanceOf(PostgresUpsertDialect.class);
     }
 
     @Test
@@ -35,15 +35,15 @@ class DialectFactoryTest {
 
     @Test
     void create_with_unknown_string_throws() {
-        assertThatThrownBy(() -> DialectFactory.create("oceanbase"))
+        assertThatThrownBy(() -> DialectFactory.create("oceanbase", false))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("Unknown db-type");
     }
 
     @Test
     void create_caches_instance_per_type() {
-        UpsertDialect first = DialectFactory.create("mysql");
-        UpsertDialect second = DialectFactory.create("mysql");
+        UpsertDialect first = DialectFactory.create("mysql", false);
+        UpsertDialect second = DialectFactory.create("mysql", false);
         assertThat(first).isSameAs(second);
 
         UpsertDialect legacy1 = DialectFactory.create(DbType.MYSQL, false);

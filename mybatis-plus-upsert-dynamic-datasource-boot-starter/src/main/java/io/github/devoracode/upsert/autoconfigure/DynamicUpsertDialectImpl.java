@@ -9,14 +9,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
 
     private static final Logger log = LoggerFactory.getLogger(DynamicUpsertDialectImpl.class);
 
-    private final Map<String, UpsertDialect> dialectMap = new HashMap<>();
+    private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
     private UpsertDialect primaryDialect;
 
     public void addDialect(String dataSourceName, UpsertDialect dialect) {
@@ -41,7 +41,9 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
         if (dataSourceName != null) {
             UpsertDialect dialect = dialectMap.get(dataSourceName);
             if (dialect != null) {
-                log.debug("Using dialect {} for data source {}", dialect.getClass().getSimpleName(), dataSourceName);
+                if (log.isDebugEnabled()) {
+                    log.debug("Using dialect {} for data source {}", dialect.getClass().getSimpleName(), dataSourceName);
+                }
                 return dialect;
             }
             log.warn("No dialect configured for data source '{}', falling back to primary dialect", dataSourceName);
@@ -51,19 +53,19 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
             throw new UpsertException("Primary dialect has not been configured");
         }
 
-        log.debug("Falling back to primary dialect {}", primaryDialect.getClass().getSimpleName());
+        if (log.isDebugEnabled()) {
+            log.debug("Falling back to primary dialect {}", primaryDialect.getClass().getSimpleName());
+        }
         return primaryDialect;
     }
 
     @Override
     public String buildUpsertSql(UpsertMeta meta) {
-        UpsertDialect dialect = getCurrentDialect();
-        return dialect != null ? dialect.buildUpsertSql(meta) : "";
+        return getCurrentDialect().buildUpsertSql(meta);
     }
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        UpsertDialect dialect = getCurrentDialect();
-        return dialect != null ? dialect.buildUpsertBatchSql(meta) : "";
+        return getCurrentDialect().buildUpsertBatchSql(meta);
     }
 }

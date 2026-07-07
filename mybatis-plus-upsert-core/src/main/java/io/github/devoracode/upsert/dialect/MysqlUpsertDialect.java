@@ -21,24 +21,12 @@ public class MysqlUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        List<String> insCols   = meta.getInsertColumns();
-        List<String> insFields = meta.getInsertFields();
         List<String> updCols   = meta.getUpdateColumns();
-        int insSize = insCols.size();
-        int updSize = updCols.size();
 
-        StringBuilder sb = new StringBuilder(128 + insSize * 20 + updSize * 20);
-        sb.append("INSERT INTO ").append(meta.getTableName()).append(" (");
-        DynamicSqlBuilder.appendJoin(sb, insCols);
-        sb.append(") VALUES ");
-        sb.append("<foreach collection=\"list\" item=\"item\" separator=\",\">(");
-        for (int i = 0; i < insSize; i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("#{item.").append(insFields.get(i)).append("}");
-        }
-        sb.append(")</foreach>");
+        StringBuilder sb = new StringBuilder(128 + meta.getInsertColumns().size() * 20 + updCols.size() * 20);
+        DynamicSqlBuilder.appendBatchInsertClause(sb, meta);
         sb.append(" AS new ON DUPLICATE KEY UPDATE ");
-        for (int i = 0; i < updSize; i++) {
+        for (int i = 0; i < updCols.size(); i++) {
             if (i > 0) sb.append(", ");
             sb.append(updCols.get(i)).append(" = new.").append(updCols.get(i));
         }

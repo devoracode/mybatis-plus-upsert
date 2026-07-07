@@ -68,43 +68,20 @@ public class SqlServerUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        List<String> insCols   = meta.getInsertColumns();
-        List<String> insFields = meta.getInsertFields();
-        List<String> confCols  = meta.getConflictColumns();
-        List<String> updCols   = meta.getUpdateColumns();
-        int insSize = insCols.size();
-        int updSize = updCols.size();
-
-        StringBuilder sb = new StringBuilder(256 + insSize * 30 + updSize * 20);
+        StringBuilder sb = new StringBuilder(256 + meta.getInsertColumns().size() * 30
+                + meta.getUpdateColumns().size() * 20);
         sb.append("MERGE INTO ").append(meta.getTableName()).append(" AS t USING (VALUES ");
         sb.append("<foreach collection=\"list\" item=\"item\" separator=\",\">(");
-        for (int i = 0; i < insSize; i++) {
+        for (int i = 0; i < meta.getInsertFields().size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append("#{item.").append(insFields.get(i)).append("}");
+            sb.append("#{item.").append(meta.getInsertFields().get(i)).append("}");
         }
         sb.append(")</foreach>");
         sb.append(") AS src(");
-        DynamicSqlBuilder.appendJoin(sb, insCols);
-        sb.append(") ON (");
-        for (int i = 0; i < confCols.size(); i++) {
-            if (i > 0) sb.append(" AND ");
-            String col = confCols.get(i);
-            sb.append("t.").append(col).append(" = src.").append(col);
-        }
-        sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        for (int i = 0; i < updSize; i++) {
-            if (i > 0) sb.append(", ");
-            String col = updCols.get(i);
-            sb.append("t.").append(col).append(" = src.").append(col);
-        }
-        sb.append(" WHEN NOT MATCHED THEN INSERT (");
-        DynamicSqlBuilder.appendJoin(sb, insCols);
-        sb.append(") VALUES (");
-        for (int i = 0; i < insSize; i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("src.").append(insCols.get(i));
-        }
-        sb.append(");");
+        DynamicSqlBuilder.appendJoin(sb, meta.getInsertColumns());
+        DynamicSqlBuilder.appendMergeOnClause(sb, meta.getConflictColumns());
+        DynamicSqlBuilder.appendMergeUpdateAndInsert(sb, meta);
+        sb.append(";");
         return sb.toString();
     }
 }

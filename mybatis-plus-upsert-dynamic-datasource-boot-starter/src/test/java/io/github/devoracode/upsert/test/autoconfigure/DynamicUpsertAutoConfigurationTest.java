@@ -1,7 +1,6 @@
 package io.github.devoracode.upsert.test.autoconfigure;
 
 import io.github.devoracode.upsert.autoconfigure.DynamicUpsertAutoConfiguration;
-import io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl;
 import io.github.devoracode.upsert.autoconfigure.UpsertDynamicProperties;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
@@ -9,9 +8,6 @@ import io.github.devoracode.upsert.util.DbTypeDetector;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.util.StringUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
