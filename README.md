@@ -47,7 +47,7 @@
 <dependency>
     <groupId>io.github.devoracode</groupId>
     <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
-    <version>${latestVersion}</version>
+    <version>latestVersion</version>
 </dependency>
 
 <dependency>

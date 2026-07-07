@@ -17,7 +17,7 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
     private static final Logger log = LoggerFactory.getLogger(DynamicUpsertDialectImpl.class);
 
     private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
-    private UpsertDialect primaryDialect;
+    private volatile String primary;
 
     public void addDialect(String dataSourceName, UpsertDialect dialect) {
         dialectMap.put(dataSourceName, dialect);
@@ -27,36 +27,28 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
         return Collections.unmodifiableMap(dialectMap);
     }
 
-    public UpsertDialect getPrimaryDialect() {
-        return primaryDialect;
+    public String getPrimary() {
+        return primary;
     }
 
-    public void setPrimaryDialect(UpsertDialect primaryDialect) {
-        this.primaryDialect = primaryDialect;
+    public void setPrimary(String primary) {
+        this.primary = primary;
     }
 
     @Override
     public UpsertDialect getCurrentDialect() {
         String dataSourceName = DynamicDataSourceContextHolder.peek();
-        if (dataSourceName != null) {
-            UpsertDialect dialect = dialectMap.get(dataSourceName);
-            if (dialect != null) {
-                if (log.isDebugEnabled()) {
-                    log.debug("Using dialect {} for data source {}", dialect.getClass().getSimpleName(), dataSourceName);
-                }
-                return dialect;
-            }
-            log.warn("No dialect configured for data source '{}', falling back to primary dialect", dataSourceName);
+        if(dataSourceName == null) {
+            dataSourceName = primary;
         }
-
-        if (primaryDialect == null) {
-            throw new UpsertException("Primary dialect has not been configured");
+        UpsertDialect dialect = dialectMap.get(dataSourceName);
+        if (dialect == null) {
+            throw new UpsertException("No upsert dialect configured for data source '" + dataSourceName + "'");
         }
-
         if (log.isDebugEnabled()) {
-            log.debug("Falling back to primary dialect {}", primaryDialect.getClass().getSimpleName());
+            log.debug("Using dialect {} for data source {}", dialect.getClass().getSimpleName(), dataSourceName);
         }
-        return primaryDialect;
+        return dialect;
     }
 
     @Override
