@@ -75,17 +75,13 @@ public class DynamicUpsertAutoConfiguration {
         if (dynamicDialect.getDialectMap().isEmpty()) {
             throw new UpsertException("No valid upsert dialects were registered from datasource configurations");
         }
-
-        String primaryDsName = dynamicDataSourceProperties.getPrimary();
-        UpsertDialect primary = dynamicDialect.getDialectMap().get(primaryDsName);
-
-        if (primary == null) {
-            throw new UpsertException("No upsert dialect registered for primary data source '" + primaryDsName + "'");
+        String primaryDs = dynamicDataSourceProperties.getPrimary();
+        if (!dynamicDialect.getDialectMap().containsKey(primaryDs)) {
+            throw new UpsertException("Primary data source '" + primaryDs
+                    + "' is not configured for upsert. Configure it in mybatis-plus.upsert.dynamic.datasource."
+                    + " Available upsert data sources: " + dynamicDialect.getDialectMap().keySet());
         }
-
-        dynamicDialect.setPrimaryDialect(primary);
-        log.info("Using {} as primary dialect", primary.getClass().getSimpleName());
-
+        dynamicDialect.setPrimary(dynamicDataSourceProperties.getPrimary());
         return dynamicDialect;
     }
 
@@ -102,19 +98,16 @@ public class DynamicUpsertAutoConfiguration {
         if (dbType == DbTypeDetector.DbType.CUSTOM) {
             String ref = config.getDialectRef();
             if (!StringUtils.hasText(ref)) {
-                throw new UpsertException("Data source '" + dsName
-                        + "' uses db-type=custom but no dialect-ref is configured. "
+                throw new UpsertException("Data source '" + dsName + "' uses db-type=custom but no dialect-ref is configured. "
                         + "Provide a dialect-ref pointing to a user-defined UpsertDialect bean.");
             }
             if (!beanFactory.containsBean(ref)) {
-                throw new UpsertException("Data source '" + dsName
-                        + "': dialect-ref '" + ref + "' not found in Spring container. "
+                throw new UpsertException("Data source '" + dsName + "': dialect-ref '" + ref + "' not found in Spring container. "
                         + "Ensure an UpsertDialect bean with that name exists (e.g. @Component(\"" + ref + "\")).");
             }
             Object bean = beanFactory.getBean(ref);
             if (!(bean instanceof UpsertDialect)) {
-                throw new UpsertException("Data source '" + dsName
-                        + "': bean '" + ref + "' (type " + bean.getClass().getName()
+                throw new UpsertException("Data source '" + dsName + "': bean '" + ref + "' (type " + bean.getClass().getName()
                         + ") does not implement UpsertDialect.");
             }
             return (UpsertDialect) bean;
