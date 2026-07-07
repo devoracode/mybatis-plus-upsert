@@ -68,46 +68,17 @@ public class OracleUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        return "<foreach collection=\"list\" item=\"item\" separator=\";\">"
-                + buildStaticMergeSql(meta, "item")
-                + "</foreach>";
-    }
-
-    private String buildStaticMergeSql(UpsertMeta meta, String prefix) {
-        List<String> insCols   = meta.getInsertColumns();
-        List<String> insFields = meta.getInsertFields();
-        List<String> confCols  = meta.getConflictColumns();
-        List<String> updCols   = meta.getUpdateColumns();
-        int insSize = insCols.size();
-        int updSize = updCols.size();
-
-        StringBuilder sb = new StringBuilder(256 + insSize * 30 + updSize * 20);
+        StringBuilder sb = new StringBuilder(256 + meta.getInsertColumns().size() * 30
+                + meta.getUpdateColumns().size() * 20);
         sb.append("MERGE INTO ").append(meta.getTableName()).append(" t USING (SELECT ");
-        for (int i = 0; i < insSize; i++) {
+        for (int i = 0; i < meta.getInsertColumns().size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append("#{").append(prefix).append(".").append(insFields.get(i))
-                    .append("} AS ").append(insCols.get(i));
+            sb.append("#{item.").append(meta.getInsertFields().get(i))
+                    .append("} AS ").append(meta.getInsertColumns().get(i));
         }
-        sb.append(" FROM dual) src ON (");
-        for (int i = 0; i < confCols.size(); i++) {
-            if (i > 0) sb.append(" AND ");
-            String col = confCols.get(i);
-            sb.append("t.").append(col).append(" = src.").append(col);
-        }
-        sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        for (int i = 0; i < updSize; i++) {
-            if (i > 0) sb.append(", ");
-            String col = updCols.get(i);
-            sb.append("t.").append(col).append(" = src.").append(col);
-        }
-        sb.append(" WHEN NOT MATCHED THEN INSERT (");
-        DynamicSqlBuilder.appendJoin(sb, insCols);
-        sb.append(") VALUES (");
-        for (int i = 0; i < insSize; i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("src.").append(insCols.get(i));
-        }
-        sb.append(")");
-        return sb.toString();
+        sb.append(" FROM dual) src");
+        DynamicSqlBuilder.appendMergeOnClause(sb, meta.getConflictColumns());
+        DynamicSqlBuilder.appendMergeUpdateAndInsert(sb, meta);
+        return "<foreach collection=\"list\" item=\"item\" separator=\";\">" + sb + "</foreach>";
     }
 }

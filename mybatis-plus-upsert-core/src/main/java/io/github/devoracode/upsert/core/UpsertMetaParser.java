@@ -17,6 +17,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * Parses an entity class into UpsertMeta and caches the result. Written once at startup,
  * then read-only.
  *
+ * A single CACHE holds CacheEntry per entity class, which stores both the AnnotationScan
+ * (eagerly computed, lightweight) and the UpsertMeta (lazily computed on first getMeta call).
+ * This reduces hasConflictKey + getMeta from 3 cache lookups to 2.
+ *
  * Known limitation: CACHE is a JVM-wide static map keyed only by entity Class. In a single
  * Spring ApplicationContext per JVM (the normal case) this is safe. If multiple independent
  * contexts in the same JVM register the same entity class against different MyBatis-Plus
@@ -25,26 +29,38 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class UpsertMetaParser {
 
-    private static final Map<Class<?>, UpsertMeta> CACHE = new ConcurrentHashMap<>();
-
-    private static final Map<Class<?>, AnnotationScan> ANNOTATION_SCAN_CACHE = new ConcurrentHashMap<>();
+    private static final Map<Class<?>, CacheEntry> CACHE = new ConcurrentHashMap<>();
 
     public static boolean hasConflictKey(Class<?> entityClass) {
-        return getAnnotationScan(entityClass).hasConflictKey;
+        return getOrCreateEntry(entityClass).scan.hasConflictKey;
     }
 
     public static UpsertMeta getMeta(Class<?> entityClass) {
-        return CACHE.computeIfAbsent(entityClass, UpsertMetaParser::parse);
+        CacheEntry entry = getOrCreateEntry(entityClass);
+        UpsertMeta meta = entry.meta;
+        if (meta == null) {
+            synchronized (entry) {
+                meta = entry.meta;
+                if (meta == null) {
+                    meta = parse(entityClass, entry.scan);
+                    entry.meta = meta;
+                }
+            }
+        }
+        return meta;
     }
 
-    private static UpsertMeta parse(Class<?> entityClass) {
+    private static CacheEntry getOrCreateEntry(Class<?> entityClass) {
+        return CACHE.computeIfAbsent(entityClass, c -> new CacheEntry(scanAnnotations(c)));
+    }
+
+    private static UpsertMeta parse(Class<?> entityClass, AnnotationScan scan) {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entityClass);
         if (tableInfo == null) {
             throw new UpsertMetaException("Cannot find MyBatis Plus TableInfo for: " + entityClass.getName()
                     + ". Ensure the entity is scanned by MyBatis Plus.");
         }
 
-        AnnotationScan scan = getAnnotationScan(entityClass);
         if (!scan.hasConflictKey) {
             throw new UpsertMetaException(entityClass.getName() + ": no @ConflictKey field found");
         }
@@ -145,10 +161,6 @@ public class UpsertMetaParser {
         return conflictColumns;
     }
 
-    private static AnnotationScan getAnnotationScan(Class<?> entityClass) {
-        return ANNOTATION_SCAN_CACHE.computeIfAbsent(entityClass, UpsertMetaParser::scanAnnotations);
-    }
-
     private static AnnotationScan scanAnnotations(Class<?> entityClass) {
         Map<String, Integer> conflictFieldOrder = new HashMap<>();
         Set<String> ignoreFieldNames = new HashSet<>();
@@ -211,6 +223,19 @@ public class UpsertMetaParser {
             }
         }
         return result;
+    }
+
+    /**
+     * Combined cache entry: holds the eagerly-computed AnnotationScan and the
+     * lazily-computed UpsertMeta (null until first getMeta call).
+     */
+    private static final class CacheEntry {
+        final AnnotationScan scan;
+        volatile UpsertMeta meta;
+
+        CacheEntry(AnnotationScan scan) {
+            this.scan = scan;
+        }
     }
 
     private static final class AnnotationScan {

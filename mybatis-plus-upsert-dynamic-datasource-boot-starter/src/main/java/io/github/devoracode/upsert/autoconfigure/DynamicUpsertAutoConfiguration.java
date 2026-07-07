@@ -1,6 +1,8 @@
 package io.github.devoracode.upsert.autoconfigure;
 
+import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceAutoConfiguration;
 import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties;
+import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
@@ -22,10 +24,10 @@ import org.springframework.util.StringUtils;
 import java.util.Map;
 
 @Configuration
-@AutoConfigureBefore(name = "com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration")
-@AutoConfigureAfter(name = "com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DruidDynamicDataSourceConfiguration")
 @ConditionalOnProperty(prefix = "mybatis-plus.upsert.dynamic", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(value = {UpsertDynamicProperties.class})
+@AutoConfigureBefore(MybatisPlusAutoConfiguration.class)
+@AutoConfigureAfter(DynamicDataSourceAutoConfiguration.class)
 public class DynamicUpsertAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(DynamicUpsertAutoConfiguration.class);
