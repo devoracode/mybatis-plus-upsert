@@ -167,37 +167,6 @@
                     <autoPublish>true</autoPublish>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>flatten-maven-plugin</artifactId>
-                <version>1.6.0</version>
-
-                <configuration>
-                    <!-- 关键：只解析 CI Friendly 变量 -->
-                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
-
-                    <!-- install/deploy 时替换 pom -->
-                    <updatePomFile>true</updatePomFile>
-                </configuration>
-
-                <executions>
-                    <execution>
-                        <id>flatten</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>flatten</goal>
-                        </goals>
-                    </execution>
-
-                    <execution>
-                        <id>flatten.clean</id>
-                        <phase>clean</phase>
-                        <goals>
-                            <goal>clean</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
         </plugins>
     </build>
 
