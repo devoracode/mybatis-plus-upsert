@@ -5,16 +5,14 @@ import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.exception.UpsertException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+@Slf4j
 public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
-
-    private static final Logger log = LoggerFactory.getLogger(DynamicUpsertDialectImpl.class);
 
     private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
     private volatile String primary;

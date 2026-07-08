@@ -2,6 +2,7 @@ package io.github.devoracode.upsert.autoconfigure;
 
 import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceAutoConfiguration;
 import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties;
+import com.baomidou.dynamic.datasource.creator.DataSourceProperty;
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
@@ -9,8 +10,7 @@ import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import io.github.devoracode.upsert.util.DialectFactory;
 import io.github.devoracode.upsert.util.DbTypeDetector;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
@@ -28,9 +28,8 @@ import java.util.Map;
 @EnableConfigurationProperties(value = {UpsertDynamicProperties.class})
 @AutoConfigureBefore(MybatisPlusAutoConfiguration.class)
 @AutoConfigureAfter(DynamicDataSourceAutoConfiguration.class)
+@Slf4j
 public class DynamicUpsertAutoConfiguration {
-
-    private static final Logger log = LoggerFactory.getLogger(DynamicUpsertAutoConfiguration.class);
 
     private final UpsertDynamicProperties upsertDynamicProperties;
     private final DynamicDataSourceProperties dynamicDataSourceProperties;
@@ -49,27 +48,51 @@ public class DynamicUpsertAutoConfiguration {
     public DynamicUpsertDialect dynamicUpsertDialect() {
         DynamicUpsertDialectImpl dynamicDialect = new DynamicUpsertDialectImpl();
 
-        Map<String, UpsertDynamicProperties.DataSourceConfig> datasourceConfigs = upsertDynamicProperties.getDatasource();
-        if (datasourceConfigs == null || datasourceConfigs.isEmpty()) {
-            throw new UpsertException("No datasource configurations found for mybatis-plus.upsert.dynamic.datasource");
+        Map<String, DataSourceProperty> allDatasources = dynamicDataSourceProperties.getDatasource();
+        if (allDatasources == null || allDatasources.isEmpty()) {
+            throw new UpsertException("No data sources configured in spring.datasource.dynamic.datasource");
         }
 
-        for (Map.Entry<String, UpsertDynamicProperties.DataSourceConfig> entry : datasourceConfigs.entrySet()) {
+        Map<String, UpsertDynamicProperties.DataSourceConfig> upsertConfigs = upsertDynamicProperties.getDatasource();
+        if (upsertConfigs == null) {
+            upsertConfigs = java.util.Collections.emptyMap();
+        }
+
+        for (Map.Entry<String, DataSourceProperty> entry : allDatasources.entrySet()) {
             String dsName = entry.getKey();
-            UpsertDynamicProperties.DataSourceConfig config = entry.getValue();
+            DataSourceProperty dsProp = entry.getValue();
 
-            if (!StringUtils.hasText(config.getDbType())) {
-                throw new UpsertException("No db-type configured for data source '" + dsName + "'");
+            UpsertDynamicProperties.DataSourceConfig upsertConfig = upsertConfigs.get(dsName);
+
+            DbTypeDetector.DbType dbType;
+            if (upsertConfig != null && StringUtils.hasText(upsertConfig.getDbType())) {
+                dbType = DbTypeDetector.tryParseDbType(upsertConfig.getDbType());
+                if (dbType == DbTypeDetector.DbType.UNKNOWN) {
+                    throw new UpsertException("Unknown db-type '" + upsertConfig.getDbType() + "' for data source '" + dsName + "'");
+                }
+            } else {
+                String url = dsProp.getUrl();
+                dbType = DbTypeDetector.parseDbTypeByJdbcUrl(url);
+                if (dbType == DbTypeDetector.DbType.UNKNOWN) {
+                    throw new UpsertException("Cannot infer db-type from JDBC URL '" + url + "' for data source '" + dsName
+                            + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName);
+                }
             }
 
-            DbTypeDetector.DbType dbType = DbTypeDetector.tryParseDbType(config.getDbType());
-            if (dbType == DbTypeDetector.DbType.UNKNOWN) {
-                throw new UpsertException("Unknown db-type '" + config.getDbType() + "' for data source '" + dsName + "'");
+            boolean useNewMysqlSyntax = upsertDynamicProperties.isUseNewMysqlSyntax();
+            if (upsertConfig != null) {
+                useNewMysqlSyntax = upsertConfig.isUseNewMysqlSyntax();
             }
 
-            UpsertDialect dialect = resolveDialect(dsName, config, dbType);
+            UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType, useNewMysqlSyntax);
             dynamicDialect.addDialect(dsName, dialect);
             log.info("Registered upsert dialect {} for data source '{}'", dialect.getClass().getSimpleName(), dsName);
+        }
+
+        for (String configuredDs : upsertConfigs.keySet()) {
+            if (!allDatasources.containsKey(configuredDs)) {
+                log.warn("Upsert configuration exists for data source '{}' but it is not configured in spring.datasource.dynamic.datasource", configuredDs);
+            }
         }
 
         if (dynamicDialect.getDialectMap().isEmpty()) {
@@ -78,24 +101,20 @@ public class DynamicUpsertAutoConfiguration {
         String primaryDs = dynamicDataSourceProperties.getPrimary();
         if (!dynamicDialect.getDialectMap().containsKey(primaryDs)) {
             throw new UpsertException("Primary data source '" + primaryDs
-                    + "' is not configured for upsert. Configure it in mybatis-plus.upsert.dynamic.datasource."
-                    + " Available upsert data sources: " + dynamicDialect.getDialectMap().keySet());
+                    + "' is not configured for upsert. Available upsert data sources: " + dynamicDialect.getDialectMap().keySet());
         }
         dynamicDialect.setPrimary(dynamicDataSourceProperties.getPrimary());
         return dynamicDialect;
     }
 
-    /**
-     * Resolve the {@link UpsertDialect} for one data source.
-     *
-     * <p>Built-in db types are instantiated by {@link DialectFactory}. When
-     * {@code db-type} is {@code custom}, the dialect is fetched from the Spring
-     * container by the bean name configured via {@code dialect-ref}.
-     */
     public UpsertDialect resolveDialect(String dsName,
                                         UpsertDynamicProperties.DataSourceConfig config,
-                                        DbTypeDetector.DbType dbType) {
+                                        DbTypeDetector.DbType dbType,
+                                        boolean useNewMysqlSyntax) {
         if (dbType == DbTypeDetector.DbType.CUSTOM) {
+            if (config == null) {
+                throw new UpsertException("Data source '" + dsName + "' requires custom dialect configuration");
+            }
             String ref = config.getDialectRef();
             if (!StringUtils.hasText(ref)) {
                 throw new UpsertException("Data source '" + dsName + "' uses db-type=custom but no dialect-ref is configured. "
@@ -112,9 +131,10 @@ public class DynamicUpsertAutoConfiguration {
             }
             return (UpsertDialect) bean;
         }
-        UpsertDialect dialect = DialectFactory.create(dbType, config.isUseNewMysqlSyntax());
+        UpsertDialect dialect = DialectFactory.create(dbType, useNewMysqlSyntax);
         if (dialect == null) {
-            throw new UpsertException("Failed to create upsert dialect for db-type '" + config.getDbType()
+            String dbTypeName = dbType.name().toLowerCase();
+            throw new UpsertException("Failed to create upsert dialect for db-type '" + dbTypeName
                     + "' on data source '" + dsName + "'");
         }
         return dialect;

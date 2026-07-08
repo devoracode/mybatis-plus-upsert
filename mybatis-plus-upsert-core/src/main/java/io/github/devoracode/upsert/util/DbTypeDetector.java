@@ -1,14 +1,12 @@
 package io.github.devoracode.upsert.util;
 
 import io.github.devoracode.upsert.exception.UpsertException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 
 import java.util.regex.Pattern;
 
+@Slf4j
 public class DbTypeDetector {
-
-    private static final Logger log = LoggerFactory.getLogger(DbTypeDetector.class);
 
     private static final Pattern NORMALIZE_PATTERN = Pattern.compile("[^a-z0-9./-]+");
 
@@ -22,11 +20,11 @@ public class DbTypeDetector {
         UNKNOWN
     }
 
-    public static DbType tryParseDbType(String value) {
-        if (value == null) {
+    public static DbType tryParseDbType(String dbType) {
+        if (dbType == null) {
             return DbType.UNKNOWN;
         }
-        String upper = value.toUpperCase();
+        String upper = dbType.toUpperCase();
         if (upper.contains("MYSQL") || upper.contains("MARIADB")) return DbType.MYSQL;
         if (upper.contains("POSTGRESQL"))                          return DbType.POSTGRESQL;
         if (upper.contains("ORACLE"))                              return DbType.ORACLE;
@@ -36,12 +34,28 @@ public class DbTypeDetector {
         return DbType.UNKNOWN;
     }
 
-    public static DbType parseDbType(String value) {
-        DbType type = tryParseDbType(value);
+    public static DbType parseDbType(String dbType) {
+        DbType type = tryParseDbType(dbType);
         if (type == DbType.UNKNOWN) {
-            throw new UpsertException("Unknown db-type: " + value);
+            throw new UpsertException("Unknown db-type: " + dbType);
         }
         return type;
+    }
+
+    public static DbType parseDbTypeByJdbcUrl(String jdbcUrl) {
+        String url = jdbcUrl.toLowerCase();
+        if (url.contains(":mysql:") || url.contains(":mariadb:")) {
+            return DbType.MYSQL;
+        } else if (url.contains(":oracle:")) {
+            return DbType.ORACLE;
+        } else if (url.contains(":sqlserver:") || url.contains(":microsoft:")) {
+            return DbType.SQLSERVER;
+        } else if (url.contains(":postgresql:")) {
+            return DbType.POSTGRESQL;
+        } else if (url.contains(":h2:")) {
+            return DbType.H2;
+        }
+        return DbType.UNKNOWN;
     }
 
     public static String normalize(String raw) {
