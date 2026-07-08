@@ -1,5 +1,7 @@
 package io.github.devoracode.upsert.test.autoconfigure;
 
+import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties;
+import com.baomidou.dynamic.datasource.creator.DataSourceProperty;
 import io.github.devoracode.upsert.autoconfigure.DynamicUpsertAutoConfiguration;
 import io.github.devoracode.upsert.autoconfigure.UpsertDynamicProperties;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
@@ -9,30 +11,29 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-/**
- * Unit tests for {@link DynamicUpsertAutoConfiguration#resolveDialect(String, UpsertDynamicProperties.DataSourceConfig, DbTypeDetector.DbType)}.
- * These tests verify the custom dialect resolution logic without requiring full Spring context bootstrap.
- */
 class DynamicUpsertAutoConfigurationTest {
 
     private ConfigurableListableBeanFactory beanFactory;
     private DynamicUpsertAutoConfiguration config;
+    private DynamicDataSourceProperties dynamicDataSourceProperties;
 
     @BeforeEach
     void setUp() {
-        // Use a simple test configuration that registers our test beans
         beanFactory = new org.springframework.beans.factory.support.DefaultListableBeanFactory();
         
-        // Register custom dialect bean
         beanFactory.registerSingleton("clickHouseDialect", new ClickHouseTestDialect());
         beanFactory.registerSingleton("wrongTypeBean", "not a dialect");
         
+        dynamicDataSourceProperties = new DynamicDataSourceProperties();
         config = new DynamicUpsertAutoConfiguration(
                 new UpsertDynamicProperties(),
-                new com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties(),
+                dynamicDataSourceProperties,
                 beanFactory);
     }
 
@@ -40,9 +41,8 @@ class DynamicUpsertAutoConfigurationTest {
     void resolveDialect_builtin_mysql_returns_mysql_dialect() {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("mysql");
-        cfg.setUseNewMysqlSyntax(false);
 
-        UpsertDialect dialect = config.resolveDialect("mysql", cfg, DbTypeDetector.DbType.MYSQL);
+        UpsertDialect dialect = config.resolveDialect("mysql", cfg, DbTypeDetector.DbType.MYSQL, false);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
@@ -53,7 +53,7 @@ class DynamicUpsertAutoConfigurationTest {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("postgresql");
 
-        UpsertDialect dialect = config.resolveDialect("pg", cfg, DbTypeDetector.DbType.POSTGRESQL);
+        UpsertDialect dialect = config.resolveDialect("pg", cfg, DbTypeDetector.DbType.POSTGRESQL, false);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect.getClass().getSimpleName()).contains("Postgres");
@@ -65,7 +65,7 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("clickHouseDialect");
 
-        UpsertDialect dialect = config.resolveDialect("clickhouse", cfg, DbTypeDetector.DbType.CUSTOM);
+        UpsertDialect dialect = config.resolveDialect("clickhouse", cfg, DbTypeDetector.DbType.CUSTOM, false);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect).isSameAs(beanFactory.getBean("clickHouseDialect"));
@@ -76,9 +76,8 @@ class DynamicUpsertAutoConfigurationTest {
     void resolveDialect_custom_without_dialect_ref_throws() {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("custom");
-        // no dialect-ref set
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("dialect-ref is configured");
     }
@@ -89,7 +88,7 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("nonExistentBean");
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("not found in Spring container");
     }
@@ -100,12 +99,26 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("wrongTypeBean");
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("does not implement UpsertDialect");
     }
 
-    // Minimal custom dialect for testing
+    @Test
+    void resolveDialect_custom_with_null_config_throws() {
+        assertThatThrownBy(() -> config.resolveDialect("custom", null, DbTypeDetector.DbType.CUSTOM, false))
+                .isInstanceOf(UpsertException.class)
+                .hasMessageContaining("requires custom dialect configuration");
+    }
+
+    @Test
+    void resolveDialect_with_null_config_and_builtin_dbtype_works() {
+        UpsertDialect dialect = config.resolveDialect("mysql", null, DbTypeDetector.DbType.MYSQL, false);
+
+        assertThat(dialect).isNotNull();
+        assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
+    }
+
     static class ClickHouseTestDialect implements UpsertDialect {
         @Override
         public String buildUpsertSql(io.github.devoracode.upsert.core.UpsertMeta meta) {

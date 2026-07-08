@@ -9,7 +9,7 @@
     {
       "name": "mybatis-plus.upsert.db-type",
       "type": "java.lang.String",
-      "description": "Database type. Required: mysql | postgresql | oracle | sqlserver | h2 | custom",
+      "description": "Database type. Optional: auto-inferred from JDBC URL if not specified. Values: mysql | postgresql | oracle | sqlserver | h2 | custom",
       "defaultValue": ""
     },
     {

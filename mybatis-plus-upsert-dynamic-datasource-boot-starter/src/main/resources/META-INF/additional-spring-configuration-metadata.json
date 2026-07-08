@@ -7,19 +7,25 @@
       "defaultValue": true
     },
     {
+      "name": "mybatis-plus.upsert.dynamic.use-new-mysql-syntax",
+      "type": "java.lang.Boolean",
+      "description": "Global default for whether to use the new MySQL upsert syntax (AS new). Can be overridden per data source.",
+      "defaultValue": false
+    },
+    {
       "name": "mybatis-plus.upsert.dynamic.datasource",
       "type": "java.util.Map",
-      "description": "Data source configurations for dynamic upsert. Key is data source name (must match spring.datasource.dynamic.datasource keys). Value contains db-type and use-new-mysql-syntax."
+      "description": "Data source configurations for dynamic upsert. Key is data source name (must match spring.datasource.dynamic.datasource keys). When db-type is not specified, it is automatically inferred from the JDBC URL."
     },
     {
       "name": "mybatis-plus.upsert.dynamic.datasource.*.db-type",
       "type": "java.lang.String",
-      "description": "Database type for this data source. Required: mysql | postgresql | oracle | sqlserver | h2 | custom"
+      "description": "Database type for this data source. Optional: auto-inferred from JDBC URL if not specified. Values: mysql | postgresql | oracle | sqlserver | h2 | custom"
     },
     {
       "name": "mybatis-plus.upsert.dynamic.datasource.*.use-new-mysql-syntax",
       "type": "java.lang.Boolean",
-      "description": "Whether to use the new MySQL upsert syntax (AS new) for this data source. Only applicable for MySQL.",
+      "description": "Whether to use the new MySQL upsert syntax (AS new) for this data source. Overrides the global setting. Only applicable for MySQL.",
       "defaultValue": false
     },
     {
@@ -30,7 +36,7 @@
   ],
   "hints": [
     {
-      "name": "mybatis-plus.upsert.dynamic.datasources.*.db-type",
+      "name": "mybatis-plus.upsert.dynamic.datasource.*.db-type",
       "values": [
         {"value": "mysql"},
         {"value": "postgresql"},

@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.devoracode</groupId>
         <artifactId>examples</artifactId>
-        <version>1.2.0</version>
+        <version>1.0.0</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -25,6 +25,12 @@
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>

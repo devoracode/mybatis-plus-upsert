@@ -4,19 +4,23 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>io.github.devoracode</groupId>
-        <artifactId>mybatis-plus-upsert-parent</artifactId>
-        <version>1.2.0</version>
-        <relativePath>../pom.xml</relativePath>
-    </parent>
-
+    <groupId>io.github.devoracode</groupId>
     <artifactId>examples</artifactId>
+    <version>1.0.0</version>
     <packaging>pom</packaging>
 
     <name>examples</name>
     <description>Examples for mybatis-plus-upsert</description>
     <properties>
+        <java.version>8</java.version>
+        <maven.compiler.source>8</maven.compiler.source>
+        <maven.compiler.target>8</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>2.4.5</spring-boot.version>
+        <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
+        <lombok.version>1.18.38</lombok.version>
+        <mybatis-plus-upsert.version>1.3.0</mybatis-plus-upsert.version>
         <maven.deploy.skip>true</maven.deploy.skip>
     </properties>
     <modules>
@@ -25,4 +29,80 @@
         <module>example-dynamic-db</module>
         <module>example-dynamic-db-sb3</module>
     </modules>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-boot-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-core</artifactId>
+                <version>${mybatis-plus-upsert.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
+                <version>${mybatis-plus-upsert.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.github.devoracode</groupId>
+                <artifactId>mybatis-plus-upsert-dynamic-datasource-boot-starter</artifactId>
+                <version>${mybatis-plus-upsert.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
+                <version>${dynamic-datasource.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
 </project>
