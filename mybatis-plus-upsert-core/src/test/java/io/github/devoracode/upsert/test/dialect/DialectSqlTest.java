@@ -88,8 +88,8 @@ class DialectSqlTest {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(staticMeta);
         assertThat(sql).containsIgnoringCase("INSERT INTO t_user");
         assertThat(sql).containsIgnoringCase("ON DUPLICATE KEY UPDATE");
-        assertThat(sql).contains("#{et.email}");
-        assertThat(sql).contains("#{et.updateTime}");
+        assertThat(sql).contains("VALUES(email)");
+        assertThat(sql).contains("VALUES(update_time)");
         assertThat(sql).doesNotContain("AS new");
     }
 
@@ -98,8 +98,8 @@ class DialectSqlTest {
         String sql = new MysqlUpsertDialect().buildUpsertSql(staticMeta);
         assertThat(sql).containsIgnoringCase("INSERT INTO t_user");
         assertThat(sql).contains("AS new ON DUPLICATE KEY UPDATE");
-        assertThat(sql).contains("#{et.email}");
-        assertThat(sql).contains("#{et.updateTime}");
+        assertThat(sql).contains("new.email");
+        assertThat(sql).contains("new.update_time");
     }
 
     @Test
@@ -137,7 +137,7 @@ class DialectSqlTest {
     @Test
     void mysql_legacy_single_sql_update_set_dynamic_field() {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(dynamicMeta);
-        assertThat(sql).contains("<if test=\"et.email != null\">email = #{et.email}, </if>");
+        assertThat(sql).contains("<if test=\"et.email != null\">email = VALUES(email), </if>");
     }
 
     @Test
@@ -162,7 +162,7 @@ class DialectSqlTest {
         String sql = new PostgresUpsertDialect().buildUpsertSql(staticMeta);
         assertThat(sql).containsIgnoringCase("ON CONFLICT (username)");
         assertThat(sql).containsIgnoringCase("DO UPDATE SET");
-        assertThat(sql).contains("#{et.email}");
+        assertThat(sql).contains("EXCLUDED.email");
     }
 
     @Test
@@ -190,7 +190,8 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("FROM dual");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql).containsIgnoringCase("WHEN NOT MATCHED THEN INSERT");
-        assertThat(sql).contains("#{et.email}");
+        // Single-row UPDATE SET now references the src alias (same as INSERT VALUES and batch)
+        assertThat(sql).contains("email = src.email");
     }
 
     @Test
@@ -226,6 +227,8 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("AS src");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql.trim()).endsWith(";");
+        // Single-row UPDATE SET references the src alias (same as INSERT VALUES and batch)
+        assertThat(sql).contains("email = src.email");
     }
 
     @Test

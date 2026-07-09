@@ -15,18 +15,6 @@ import java.lang.annotation.Target;
  *
  * <p>This is useful for fine-grained control over which columns should be updated on conflict.
  *
- * <p>Example:
- * <pre>{@code
- * &#64;UpdateColumn
- * private String name;
- *
- * &#64;UpdateColumn
- * private String age;
- *
- * // email will NOT be updated on conflict
- * private String email;
- * }</pre>
- *
  * @author devoracode
  * @since 1.0.0
  */

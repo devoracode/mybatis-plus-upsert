@@ -27,7 +27,7 @@ public class MysqlUpsertDialect implements UpsertDialect {
         sb.append(" VALUES ");
         sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas(), "et"));
         sb.append(" AS new ON DUPLICATE KEY UPDATE ");
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et"));
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "new.", ""));
         return sb.toString();
     }
 

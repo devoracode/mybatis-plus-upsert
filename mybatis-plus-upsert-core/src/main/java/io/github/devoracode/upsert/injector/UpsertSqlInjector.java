@@ -10,12 +10,6 @@ import java.util.List;
 
 /**
  * Custom SQL injector that registers upsert methods into MyBatis-Plus.
- * This injector adds three methods:
- * <ul>
- *   <li>{@code upsert} - single-row upsert</li>
- *   <li>{@code upsertBatch} - batch upsert</li>
- *   <li>{@code upsertExecutor} - batch upsert with result</li>
- * </ul>
  *
  * @author devoracode
  * @since 1.0.0

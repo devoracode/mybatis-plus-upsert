@@ -41,7 +41,7 @@ public class SqlServerUpsertDialect implements UpsertDialect {
             sb.append("t.").append(col).append(" = src.").append(col);
         }
         sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et"));
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", ""));
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");
         for (FieldMeta fm : insertMetas) {

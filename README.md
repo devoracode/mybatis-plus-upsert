@@ -730,7 +730,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 
 ### MySQL / MariaDB
 
-**单条（实际是 MyBatis 动态 SQL，`<trim>` 自动去除收尾逗号）：**
+**单条（实际是 MyBatis 动态 SQL，`<trim>` 自动去除收尾逗号）：** UPDATE 部分默认用 `VALUES(col)` 引用当次插入值（开启 `use-new-mysql-syntax: true` 时改用 `new.col`）。
 ```xml
 INSERT INTO t_user (<trim suffixOverrides=",">
   id, username,
@@ -745,9 +745,9 @@ VALUES (<trim suffixOverrides=",">
   <if test="et.updateTime != null">#{et.updateTime}, </if>
 </trim>)
 ON DUPLICATE KEY UPDATE <trim suffixOverrides=",">
-  <if test="et.email != null">email = #{et.email}, </if>
-  <if test="et.age != null">age = #{et.age}, </if>
-  <if test="et.updateTime != null">update_time = #{et.updateTime}, </if>
+  <if test="et.email != null">email = VALUES(email), </if>
+  <if test="et.age != null">age = VALUES(age), </if>
+  <if test="et.updateTime != null">update_time = VALUES(update_time), </if>
 </trim>
 ```
 若调用时 `email` 为 `null`，MyBatis 执行期会跳过对应的 `<if>` 块，实际生效的 SQL 等价于 `INSERT INTO t_user (id, username, age, update_time) VALUES (...) ON DUPLICATE KEY UPDATE age = ..., update_time = ...`，`email` 既不参与插入也不参与更新。
@@ -764,13 +764,13 @@ ON DUPLICATE KEY UPDATE
 
 ### PostgreSQL
 
-**单条：** 结构与 MySQL 一致，`ON DUPLICATE KEY UPDATE` 替换为 `ON CONFLICT (username) DO UPDATE SET`，UPDATE 部分直接绑定 `#{et.xxx}`（不依赖 `EXCLUDED.col`，因为该列可能因 `<if>` 未出现在 INSERT 列表中）。
+**单条：** 结构与 MySQL 一致，`ON DUPLICATE KEY UPDATE` 替换为 `ON CONFLICT (username) DO UPDATE SET`，UPDATE 部分引用 `EXCLUDED.col`（当次插入行的值）。由于 UPDATE 与 INSERT 取值列表使用完全相同的 `<if>` 判空条件，凡被引用的 `EXCLUDED.col` 必然同时出现在当次插入行中，因此可安全引用。
 
 ```xml
 INSERT INTO t_user (<trim suffixOverrides=",">...</trim>)
 VALUES (<trim suffixOverrides=",">...</trim>)
 ON CONFLICT (username) DO UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">email = #{et.email}, </if>
+  <if test="et.email != null">email = EXCLUDED.email, </if>
   ...
 </trim>
 ```
@@ -795,7 +795,7 @@ MERGE INTO t_user t USING (SELECT <trim suffixOverrides=",">
 </trim> FROM dual) src
 ON (t.username = src.username)
 WHEN MATCHED THEN UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">t.email = #{et.email}, </if>
+  <if test="et.email != null">email = src.email, </if>
   ...
 </trim>
 WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
@@ -833,7 +833,7 @@ MERGE INTO t_user AS t USING (SELECT <trim suffixOverrides=",">
 </trim>) AS src
 ON (t.username = src.username)
 WHEN MATCHED THEN UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">t.email = #{et.email}, </if>
+  <if test="et.email != null">email = src.email, </if>
   ...
 </trim>
 WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">...</trim>)

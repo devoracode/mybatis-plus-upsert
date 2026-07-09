@@ -21,11 +21,6 @@ import java.util.Map;
  * Extends {@link BaseMapper} to provide upsert (insert on conflict update) capabilities.
  * The entity class must have at least one field annotated with {@link io.github.devoracode.upsert.annotation.ConflictKey}.
  *
- * <p>Usage example:
- * <pre>{@code
- * public interface UserMapper extends UpsertMapper<User> {}
- * }</pre>
- *
  * @param <T> the entity type
  * @author devoracode
  * @since 1.0.0
