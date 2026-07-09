@@ -5,6 +5,8 @@ import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.exception.UpsertException;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Collections;
@@ -26,6 +28,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
 
     private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
+    /**
+     * The primary data source.
+     */
+    @Getter
+    @Setter
     private volatile String primary;
 
     /**
@@ -45,24 +52,6 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
      */
     public Map<String, UpsertDialect> getDialectMap() {
         return Collections.unmodifiableMap(dialectMap);
-    }
-
-    /**
-     * Returns the name of the primary data source.
-     *
-     * @return the primary data source name, or null if not set
-     */
-    public String getPrimary() {
-        return primary;
-    }
-
-    /**
-     * Sets the primary data source name.
-     *
-     * @param primary the primary data source name
-     */
-    public void setPrimary(String primary) {
-        this.primary = primary;
     }
 
     @Override

@@ -64,4 +64,12 @@ public class UpsertMeta {
      * Mapping from Java field name to database column name.
      */
     private final Map<String, String> fieldToColumnMap;
+
+    /**
+     * The entity class this metadata was parsed from.
+     * Used as part of the SQL cache key so that entities mapped to the same
+     * table name but with different structures (for example across data
+     * sources) get their own cached upsert SQL instead of sharing a wrong one.
+     */
+    private final Class<?> entityClass;
 }

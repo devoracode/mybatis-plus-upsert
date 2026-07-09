@@ -138,6 +138,7 @@ public class UpsertMetaParser {
                 .insertFieldMetas(Collections.unmodifiableList(insertFieldMetas))
                 .updateFieldMetas(Collections.unmodifiableList(updateFieldMetas))
                 .fieldToColumnMap(Collections.unmodifiableMap(fieldToColumnMap))
+                .entityClass(entityClass)
                 .build();
     }
 

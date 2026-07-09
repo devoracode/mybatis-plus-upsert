@@ -72,7 +72,8 @@ final class RoutingUpsertSqlSource implements SqlSource {
         String dialectClassName = currentDialect.getClass().getSimpleName();
         
         // Build cache key
-        String cacheKey = dialectClassName + ":" + meta.getTableName() + ":" + (batch ? "batch" : "single");
+        String entityKey = meta.getEntityClass() != null ? meta.getEntityClass().getName() : meta.getTableName();
+        String cacheKey = dialectClassName + ":" + entityKey + ":" + (batch ? "batch" : "single");
         
         // Get or create SqlSource for this dialect
         SqlSource sqlSource = sqlSourceCache.computeIfAbsent(cacheKey, createSqlSource(currentDialect));

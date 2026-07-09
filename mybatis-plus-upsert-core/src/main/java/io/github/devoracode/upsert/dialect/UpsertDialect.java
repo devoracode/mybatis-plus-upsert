@@ -34,7 +34,8 @@ public interface UpsertDialect {
      * @return the cached or newly generated SQL string
      */
     default String getCachedUpsertSql(UpsertMeta meta) {
-        String key = getClass().getSimpleName() + ":" + meta.getTableName() + ":single";
+        String entityKey = meta.getEntityClass() != null ? meta.getEntityClass().getName() : meta.getTableName();
+        String key = getClass().getSimpleName() + ":" + entityKey + ":single";
         return UpsertSqlCache.get(key, k -> buildUpsertSql(meta));
     }
 
@@ -45,7 +46,8 @@ public interface UpsertDialect {
      * @return the cached or newly generated SQL string
      */
     default String getCachedUpsertBatchSql(UpsertMeta meta) {
-        String key = getClass().getSimpleName() + ":" + meta.getTableName() + ":batch";
+        String entityKey = meta.getEntityClass() != null ? meta.getEntityClass().getName() : meta.getTableName();
+        String key = getClass().getSimpleName() + ":" + entityKey + ":batch";
         return UpsertSqlCache.get(key, k -> buildUpsertBatchSql(meta));
     }
 }
