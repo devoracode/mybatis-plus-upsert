@@ -20,6 +20,7 @@
 - [各数据库生成的 SQL 示例](#各数据库生成的-sql-示例)
 - [异常说明](#异常说明)
 - [常见问题](#常见问题)
+- [各数据库 UPSERT 对比](#各数据库-upsert-对比)
 - [数据库注意事项](#数据库注意事项)
 
 ---
@@ -933,6 +934,17 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 **Q：如何实现"只有字段不为 null 时才更新"？**
 
 这是默认行为，无需任何额外配置。单条 `upsert` 会按字段的 MP `FieldStrategy`（`insertStrategy`/`updateStrategy`）自动生成 `<if test="field != null">` 动态判断，行为与 MP 原生 `insert`/`updateById` 完全一致：未显式标注 `@TableField` 的字段默认遵循全局策略 `NOT_NULL`，字段为 null 时不会出现在 SQL 中，因此插入时由数据库默认值接管，更新时不会覆盖原值。详见[字段动态判断](#字段动态判断)。
+
+---
+
+## 各数据库 UPSERT 对比
+
+| 数据库 | 支持 UPSERT 的版本 | 语法关键字 | 是否依赖唯一键冲突 | 并发安全性 | 备注 |
+| --- | --- | --- | --- | --- | --- |
+| **MySQL** | 4.1+ | `INSERT ... ON DUPLICATE KEY UPDATE` | ✅ 是 | ✅ 安全（事务内） | 简单高效，但仅支持单表 |
+| **Oracle** | 9i+ | `MERGE INTO ... USING ...` | ❌ 否，可自定义匹配条件 | ⚠️ 需谨慎 | 灵活但复杂 |
+| **SQL Server** | 2008+ | `MERGE INTO ... USING ...` | ❌ 否，可自定义匹配条件 | ⚠️ 不推荐高并发使用 | 功能强大但存在潜在 BUG |
+| **PostgreSQL** | 9.5+ | `INSERT ... ON CONFLICT (...) DO UPDATE` | ✅ 是 | ✅ 安全可靠 | 语义最清晰的 UPSERT 实现 |
 
 ---
 

@@ -55,9 +55,6 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
      * @return list of batch results, or empty list if input is null/empty
      */
     default List<BatchResult> upsert(Collection<T> entityList) {
-        if (entityList == null || entityList.isEmpty()) {
-            return Collections.emptyList();
-        }
         return upsert(entityList, Constants.DEFAULT_BATCH_SIZE);
     }
 
