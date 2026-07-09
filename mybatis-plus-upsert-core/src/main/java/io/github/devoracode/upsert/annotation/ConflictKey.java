@@ -15,10 +15,10 @@ import java.lang.annotation.Target;
  *
  * <p>Example:
  * <pre>{@code
- * @ConflictKey(order = 0)
+ * &#64;ConflictKey(order = 0)
  * private String email;
  *
- * @ConflictKey(order = 1)
+ * &#64;ConflictKey(order = 1)
  * private String phone;
  * }</pre>
  *

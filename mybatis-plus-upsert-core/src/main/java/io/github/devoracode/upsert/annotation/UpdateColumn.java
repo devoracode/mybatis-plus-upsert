@@ -17,11 +17,11 @@ import java.lang.annotation.Target;
  *
  * <p>Example:
  * <pre>{@code
- * @UpdateColumn
+ * &#64;UpdateColumn
  * private String name;
  *
- * @UpdateColumn
- * private Integer age;
+ * &#64;UpdateColumn
+ * private String age;
  *
  * // email will NOT be updated on conflict
  * private String email;
