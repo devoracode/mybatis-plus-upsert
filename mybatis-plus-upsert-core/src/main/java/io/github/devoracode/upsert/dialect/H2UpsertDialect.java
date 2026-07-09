@@ -4,6 +4,15 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
+/**
+ * H2 database dialect using {@code MERGE INTO ... KEY(...) VALUES(...)}.
+ *
+ * <p>H2 uses a simplified MERGE syntax that does not require a WHEN clause.
+ * The conflict is determined by the primary key or unique constraint specified in KEY().
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 public class H2UpsertDialect implements UpsertDialect {
 
     @Override

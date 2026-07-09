@@ -19,6 +19,15 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+/**
+ * Auto-configuration for single-datasource upsert support.
+ *
+ * <p>Automatically detects the database type from the JDBC URL if not explicitly configured,
+ * creates the appropriate {@link UpsertDialect}, and registers the {@link UpsertSqlInjector}.
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 @Configuration
 @EnableConfigurationProperties(UpsertProperties.class)
 @ConditionalOnProperty(prefix = "mybatis-plus.upsert", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -30,11 +39,25 @@ public class UpsertAutoConfiguration {
     private final UpsertProperties properties;
     private final DataSourceProperties dataSourceProperties;
 
+    /**
+     * Creates a new UpsertAutoConfiguration.
+     *
+     * @param properties the upsert configuration properties
+     * @param dataSourceProperties the data source properties (used for JDBC URL inference)
+     */
     public UpsertAutoConfiguration(UpsertProperties properties, DataSourceProperties dataSourceProperties) {
         this.properties = properties;
         this.dataSourceProperties = dataSourceProperties;
     }
 
+    /**
+     * Creates the {@link UpsertDialect} bean.
+     *
+     * <p>If {@code mybatis-plus.upsert.db-type} is configured, it is used directly.
+     * Otherwise, the library attempts to auto-infer the database type from the JDBC URL.
+     *
+     * @return the configured UpsertDialect
+     */
     @Bean
     @ConditionalOnMissingBean(UpsertDialect.class)
     @Conditional(ConditionalOnNotCustomDbType.class)
@@ -62,6 +85,12 @@ public class UpsertAutoConfiguration {
         return dialect;
     }
 
+    /**
+     * Creates the {@link UpsertSqlInjector} bean.
+     *
+     * @param dialect the upsert dialect to use for SQL generation
+     * @return the configured UpsertSqlInjector
+     */
     @Bean
     @ConditionalOnMissingBean(com.baomidou.mybatisplus.core.injector.ISqlInjector.class)
     public UpsertSqlInjector upsertSqlInjector(UpsertDialect dialect) {

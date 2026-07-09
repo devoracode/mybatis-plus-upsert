@@ -5,7 +5,15 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
-// Oracle dialect: MERGE INTO table t USING (SELECT ... FROM dual) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...
+/**
+ * Oracle dialect using {@code MERGE INTO ... USING (SELECT ...) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...}.
+ *
+ * <p>Oracle does not support native upsert syntax, so this dialect generates a MERGE statement
+ * with MyBatis XML tags ({@code <if>}, {@code <trim>}) to handle dynamic fields.
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 public class OracleUpsertDialect implements UpsertDialect {
 
     @Override
@@ -79,6 +87,6 @@ public class OracleUpsertDialect implements UpsertDialect {
         sb.append(" FROM dual) src");
         DynamicSqlBuilder.appendMergeOnClause(sb, meta.getConflictColumns());
         DynamicSqlBuilder.appendMergeUpdateAndInsert(sb, meta);
-        return "<foreach collection=\"list\" item=\"item\" separator=\";\">" + sb + "</foreach>";
+        return "<foreach collection=\"list\" item=\"item\" separator=\";\">>" + sb + "</foreach>";
     }
 }

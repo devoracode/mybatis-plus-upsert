@@ -4,6 +4,18 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
+/**
+ * MySQL / MariaDB dialect using the new syntax (AS alias) introduced in MySQL 8.0.20+.
+ *
+ * <p>This dialect uses the {@code INSERT ... AS new ON DUPLICATE KEY UPDATE} syntax,
+ * where updated values reference the alias of the inserted row (e.g., {@code name = new.name}).
+ *
+ * <p>For MySQL 5.x or MariaDB, use {@link MysqlLegacyUpsertDialect} instead,
+ * which uses the deprecated {@code VALUES()} function.
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 public class MysqlUpsertDialect implements UpsertDialect {
 
     @Override

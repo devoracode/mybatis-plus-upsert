@@ -17,16 +17,43 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/*
- * Extend this interface to gain upsert capabilities.
- * The entity class must have at least one @ConflictKey field.
+/**
+ * Extends {@link BaseMapper} to provide upsert (insert on conflict update) capabilities.
+ * The entity class must have at least one field annotated with {@link io.github.devoracode.upsert.annotation.ConflictKey}.
+ *
+ * <p>Usage example:
+ * <pre>{@code
+ * public interface UserMapper extends UpsertMapper<User> {}
+ * }</pre>
+ *
+ * @param <T> the entity type
+ * @author devoracode
+ * @since 1.0.0
  */
 public interface UpsertMapper<T> extends BaseMapper<T> {
 
+    /**
+     * Inserts a single entity, or updates it if a conflict occurs on the conflict key.
+     *
+     * @param entity the entity to upsert (must not be null)
+     * @return the number of affected rows
+     */
     int upsert(@Param("et") T entity);
 
+    /**
+     * Batch inserts multiple entities, or updates them if conflicts occur on the conflict key.
+     *
+     * @param list the list of entities to upsert (must not be null or empty)
+     * @return the number of affected rows
+     */
     int upsertBatch(@Param("list") List<T> list);
 
+    /**
+     * Batch upserts a collection of entities using the default batch size.
+     *
+     * @param entityList the collection of entities to upsert (may be null or empty)
+     * @return list of batch results, or empty list if input is null/empty
+     */
     default List<BatchResult> upsert(Collection<T> entityList) {
         if (entityList == null || entityList.isEmpty()) {
             return Collections.emptyList();
@@ -34,6 +61,13 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
         return upsert(entityList, Constants.DEFAULT_BATCH_SIZE);
     }
 
+    /**
+     * Batch upserts a collection of entities with a custom batch size.
+     *
+     * @param entityList the collection of entities to upsert (may be null or empty)
+     * @param batchSize  the batch size to use (must be positive)
+     * @return list of batch results, or empty list if input is null/empty
+     */
     default List<BatchResult> upsert(Collection<T> entityList, int batchSize) {
         if (entityList == null || entityList.isEmpty()) {
             return Collections.emptyList();

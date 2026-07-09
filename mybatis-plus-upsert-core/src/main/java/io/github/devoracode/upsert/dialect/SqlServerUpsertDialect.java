@@ -5,10 +5,14 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
-/*
- * SQL Server dialect: MERGE INTO ... USING (...) AS src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...
+/**
+ * SQL Server dialect using {@code MERGE INTO ... USING (...) AS src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...}.
  *
- * Note: SQL Server's MERGE statement must end with a semicolon.
+ * <p>SQL Server's MERGE statement must end with a semicolon. This dialect generates
+ * MyBatis XML with conditional tags to handle dynamic fields.
+ *
+ * @author devoracode
+ * @since 1.0.0
  */
 public class SqlServerUpsertDialect implements UpsertDialect {
 

@@ -27,6 +27,7 @@
         <dependency>
             <groupId>io.github.devoracode</groupId>
             <artifactId>mybatis-plus-upsert-core</artifactId>
+            <version>${revision}</version>
         </dependency>
 
         <dependency>
