@@ -7,6 +7,19 @@ import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
 
+/**
+ * Factory for creating MyBatis {@link SqlSource} instances for upsert methods.
+ *
+ * <p>In single-datasource mode, a static {@link UpsertDialect} is used and the SQL is built
+ * once and cached by the dialect. In dynamic-datasource mode (when the dialect is a
+ * {@link DynamicUpsertDialect}), a {@link RoutingUpsertSqlSource} is created instead so the
+ * actual dialect can be resolved at runtime per data source.
+ *
+ * <p>This class is package-private and stateless. All methods are thread-safe.
+ *
+ * @author devoracode
+ * @since 1.2.0
+ */
 final class UpsertSqlSourceFactory {
 
     private UpsertSqlSourceFactory() {

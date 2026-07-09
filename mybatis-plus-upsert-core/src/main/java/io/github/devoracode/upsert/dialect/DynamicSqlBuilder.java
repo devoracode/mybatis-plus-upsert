@@ -5,13 +5,19 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
-/*
- * Builds dynamic SQL fragments for single-row upsert, reusable across all dialects.
+/**
+ * Builds dynamic SQL fragments for upsert, reusable across all dialects.
  *
- * Core problem: when some fields require dynamic value checks, column and value lists must
- * stay in sync -- a field skipped in one list must be skipped in the corresponding position
- * of the other. Solved the same way as MyBatis-Plus itself: wrap with <trim suffixOverrides=",">,
- * wrap each dynamic field with <if>, and let trim strip the trailing comma.
+ * <p>Core problem: when some fields require dynamic value checks, the column list and the
+ * value list must stay in sync — a field skipped in one list must be skipped in the
+ * corresponding position of the other. This is solved the same way as MyBatis-Plus itself:
+ * wrap the list with {@code <trim suffixOverrides=",">}, wrap each dynamic field with
+ * {@code <if>}, and let {@code <trim>} strip the trailing comma.
+ *
+ * <p>This class is package-private and stateless. All methods are thread-safe.
+ *
+ * @author devoracode
+ * @since 1.0.0
  */
 final class DynamicSqlBuilder {
 

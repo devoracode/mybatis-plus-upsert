@@ -8,10 +8,27 @@ import org.apache.ibatis.session.Configuration;
 
 import java.util.List;
 
+/**
+ * Custom SQL injector that registers upsert methods into MyBatis-Plus.
+ * This injector adds three methods:
+ * <ul>
+ *   <li>{@code upsert} - single-row upsert</li>
+ *   <li>{@code upsertBatch} - batch upsert</li>
+ *   <li>{@code upsertExecutor} - batch upsert with result</li>
+ * </ul>
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 public class UpsertSqlInjector extends DefaultSqlInjector {
 
     private final UpsertDialect dialect;
 
+    /**
+     * Creates a new UpsertSqlInjector with the specified dialect.
+     *
+     * @param dialect the upsert dialect to use for SQL generation (must not be null)
+     */
     public UpsertSqlInjector(UpsertDialect dialect) {
         this.dialect = dialect;
     }

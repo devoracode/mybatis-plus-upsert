@@ -4,21 +4,29 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
-/*
- * MySQL / MariaDB dialect using the VALUES() reference syntax.
+/**
+ * MySQL / MariaDB dialect using the legacy {@code VALUES()} reference syntax.
  *
- * Used for MySQL < 8.0.20 and MariaDB. The VALUES() function references the value
- * of the column that would have been inserted for the current row.
+ * <p>Used for MySQL versions prior to 8.0.20 and MariaDB. The {@code VALUES(col)} function references
+ * the value of the column that would have been inserted for the current row.
  *
- * Example single-row:
- *   INSERT INTO t (id, name) VALUES (#{et.id}, #{et.name})
- *   ON DUPLICATE KEY UPDATE name = #{et.name}
+ * <p>Example single-row:
+ * <pre>{@code
+ * INSERT INTO t (id, name) VALUES (#{et.id}, #{et.name})
+ * ON DUPLICATE KEY UPDATE name = #{et.name}
+ * }</pre>
  *
- * Example batch:
- *   INSERT INTO t (id, name) VALUES (...),(...)
- *   ON DUPLICATE KEY UPDATE name = VALUES(name)
+ * <p>Example batch:
+ * <pre>{@code
+ * INSERT INTO t (id, name) VALUES (...),(...)
+ * ON DUPLICATE KEY UPDATE name = VALUES(name)
+ * }</pre>
  *
- * Note: VALUES() is deprecated in MySQL 8.0.20+. Use {@link MysqlUpsertDialect} for 8.0.20+.
+ * <p>Note: {@code VALUES()} is deprecated in MySQL 8.0.20+.
+ * For MySQL 8.0.20+, use {@link MysqlUpsertDialect} instead.
+ *
+ * @author devoracode
+ * @since 1.0.0
  */
 public class MysqlLegacyUpsertDialect implements UpsertDialect {
 

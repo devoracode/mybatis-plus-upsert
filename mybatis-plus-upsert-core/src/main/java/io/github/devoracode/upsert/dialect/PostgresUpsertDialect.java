@@ -4,7 +4,15 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 
 import java.util.List;
 
-// PostgreSQL dialect: INSERT ... ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col
+/**
+ * PostgreSQL dialect using {@code INSERT ... ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col}.
+ *
+ * <p>The {@code EXCLUDED} keyword references the row that would have been inserted,
+ * allowing clean conflict resolution without needing a table alias.
+ *
+ * @author devoracode
+ * @since 1.0.0
+ */
 public class PostgresUpsertDialect implements UpsertDialect {
 
     @Override

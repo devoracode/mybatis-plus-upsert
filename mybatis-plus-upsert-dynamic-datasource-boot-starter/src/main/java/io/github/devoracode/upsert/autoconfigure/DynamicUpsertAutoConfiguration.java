@@ -23,6 +23,17 @@ import org.springframework.util.StringUtils;
 
 import java.util.Map;
 
+/**
+ * Auto-configuration for dynamic-datasource upsert support.
+ *
+ * <p>Automatically registers an {@link UpsertDialect} for each data source defined
+ * in {@code spring.datasource.dynamic.datasource}. The database type is inferred from
+ * the JDBC URL if not explicitly configured. Supports custom dialect beans via
+ * {@code db-type=custom} and {@code dialect-ref}.
+ *
+ * @author devoracode
+ * @since 1.2.0
+ */
 @Configuration
 @ConditionalOnProperty(prefix = "mybatis-plus.upsert.dynamic", name = "enabled", havingValue = "true", matchIfMissing = true)
 @EnableConfigurationProperties(value = {UpsertDynamicProperties.class})
@@ -35,6 +46,13 @@ public class DynamicUpsertAutoConfiguration {
     private final DynamicDataSourceProperties dynamicDataSourceProperties;
     private final ConfigurableListableBeanFactory beanFactory;
 
+    /**
+     * Creates a new DynamicUpsertAutoConfiguration.
+     *
+     * @param properties the upsert dynamic configuration properties
+     * @param dynamicDataSourceProperties the dynamic datasource properties
+     * @param beanFactory the Spring bean factory (for resolving custom dialect beans)
+     */
     public DynamicUpsertAutoConfiguration(UpsertDynamicProperties properties,
                                           DynamicDataSourceProperties dynamicDataSourceProperties,
                                           ConfigurableListableBeanFactory beanFactory) {
@@ -43,6 +61,14 @@ public class DynamicUpsertAutoConfiguration {
         this.beanFactory = beanFactory;
     }
 
+    /**
+     * Creates the {@link DynamicUpsertDialect} bean.
+     *
+     * <p>Iterates over all data sources defined in {@code spring.datasource.dynamic.datasource},
+     * infers or uses the configured database type, and registers the appropriate dialect.
+     *
+     * @return the DynamicUpsertDialect instance
+     */
     @Bean
     @ConditionalOnMissingBean(DynamicUpsertDialect.class)
     public DynamicUpsertDialect dynamicUpsertDialect() {
@@ -107,6 +133,16 @@ public class DynamicUpsertAutoConfiguration {
         return dynamicDialect;
     }
 
+    /**
+     * Resolves the {@link UpsertDialect} for a given data source.
+     *
+     * @param dsName the data source name
+     * @param config the per-datasource configuration (may be null)
+     * @param dbType the detected or configured database type
+     * @param useNewMysqlSyntax whether to use the new MySQL 8.0.20+ syntax
+     * @return the resolved UpsertDialect instance
+     * @throws UpsertException if the dialect cannot be resolved
+     */
     public UpsertDialect resolveDialect(String dsName,
                                         UpsertDynamicProperties.DataSourceConfig config,
                                         DbTypeDetector.DbType dbType,
@@ -140,6 +176,12 @@ public class DynamicUpsertAutoConfiguration {
         return dialect;
     }
 
+    /**
+     * Creates the {@link UpsertSqlInjector} bean with the dynamic dialect.
+     *
+     * @param dynamicDialect the dynamic upsert dialect
+     * @return the configured UpsertSqlInjector
+     */
     @Bean
     @ConditionalOnMissingBean(name = "sqlInjector")
     public UpsertSqlInjector upsertSqlInjector(DynamicUpsertDialect dynamicDialect) {

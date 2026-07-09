@@ -13,28 +13,49 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
-/*
- * Parses an entity class into UpsertMeta and caches the result. Written once at startup,
- * then read-only.
+/**
+ * Parses an entity class into {@link UpsertMeta} and caches the result.
+ * The annotation scan is performed eagerly at first access; the full UpsertMeta
+ * is built lazily on first {@code getMeta} call. Both are cached for the lifetime
+ * of the JVM (or until the Spring context is refreshed).
  *
- * A single CACHE holds CacheEntry per entity class, which stores both the AnnotationScan
- * (eagerly computed, lightweight) and the UpsertMeta (lazily computed on first getMeta call).
- * This reduces hasConflictKey + getMeta from 3 cache lookups to 2.
+ * <p>Thread-safety: All public methods are thread-safe. The internal cache uses
+ * {@link ConcurrentHashMap} and double-checked locking for the lazy UpsertMeta
+ * initialization.
  *
- * Known limitation: CACHE is a JVM-wide static map keyed only by entity Class. In a single
- * Spring ApplicationContext per JVM (the normal case) this is safe. If multiple independent
- * contexts in the same JVM register the same entity class against different MyBatis-Plus
- * TableInfo configurations, the second context would incorrectly reuse the first one's
- * cached UpsertMeta. A real fix requires scoping the cache per ApplicationContext.
+ * <p>Known limitation: The cache is JVM-wide and keyed only by entity class. In the
+ * typical single {@code ApplicationContext} per JVM scenario this is safe. If multiple
+ * independent contexts register the same entity class against different MyBatis-Plus
+ * {@code TableInfo} configurations, the second context would incorrectly reuse the
+ * first one's cached metadata. A proper fix requires scoping the cache per context.
+ *
+ * @author devoracode
+ * @since 1.0.0
  */
 public class UpsertMetaParser {
 
     private static final Map<Class<?>, CacheEntry> CACHE = new ConcurrentHashMap<>();
 
+    /**
+     * Checks whether the entity class has at least one {@link ConflictKey} field.
+     * This is a lightweight check that only scans annotations.
+     *
+     * @param entityClass the entity class to check (must not be null)
+     * @return true if the entity has at least one @ConflictKey field, false otherwise
+     */
     public static boolean hasConflictKey(Class<?> entityClass) {
         return getOrCreateEntry(entityClass).scan.hasConflictKey;
     }
 
+    /**
+     * Gets the full {@link UpsertMeta} for the entity class, parsing and caching it
+     * on first access.
+     *
+     * @param entityClass the entity class (must not be null)
+     * @return the UpsertMeta containing all SQL generation metadata
+     * @throws UpsertMetaException if the entity lacks @ConflictKey, has no updatable columns,
+     *         or MyBatis-Plus TableInfo is not available
+     */
     public static UpsertMeta getMeta(Class<?> entityClass) {
         CacheEntry entry = getOrCreateEntry(entityClass);
         UpsertMeta meta = entry.meta;
