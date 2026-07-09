@@ -41,7 +41,7 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
     /**
      * Returns an unmodifiable view of the registered dialect map.
      *
-     * @return the dialect map (data source name -> UpsertDialect)
+     * @return the dialect map (data source name &rarr; UpsertDialect)
      */
     public Map<String, UpsertDialect> getDialectMap() {
         return Collections.unmodifiableMap(dialectMap);
