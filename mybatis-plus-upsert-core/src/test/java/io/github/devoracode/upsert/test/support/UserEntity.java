@@ -12,6 +12,19 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 
+/**
+ * Core-module test fixture for {@code UpsertMetaParser} unit tests.
+ *
+ * <p>This is a deliberately small, self-contained copy so the parser test does not depend on
+ * the boot-starter module (which keeps its own {@code UserEntity} for integration tests). The
+ * MyBatis-Plus {@code TableInfo} for this class is populated directly via
+ * {@code TableInfoHelper.initTableInfo} in the test, so no Spring context is required.
+ */
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 @TableName("t_user")
 public class UserEntity {
 

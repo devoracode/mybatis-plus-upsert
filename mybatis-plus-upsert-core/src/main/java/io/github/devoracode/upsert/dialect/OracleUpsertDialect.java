@@ -44,8 +44,8 @@ public class OracleUpsertDialect implements UpsertDialect {
             sb.append("t.").append(col).append(" = src.").append(col);
         }
         sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        // UPDATE binds #{et.xxx} directly (src columns may be excluded by <if>)
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et"));
+        // UPDATE references src.* — same <if> conditions keep it in sync with the USING select
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", ""));
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
         // INSERT column names and values both reference src; identical <if> conditions keep them in sync
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");

@@ -13,15 +13,6 @@ import java.lang.annotation.Target;
  * The order attribute controls the sequence in which conflict key fields are evaluated
  * during conflict resolution. Lower values are checked first.
  *
- * <p>Example:
- * <pre>{@code
- * &#64;ConflictKey(order = 0)
- * private String email;
- *
- * &#64;ConflictKey(order = 1)
- * private String phone;
- * }</pre>
- *
  * @author devoracode
  * @since 1.0.0
  */

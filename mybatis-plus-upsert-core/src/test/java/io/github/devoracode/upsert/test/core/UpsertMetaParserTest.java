@@ -1,17 +1,28 @@
 package io.github.devoracode.upsert.test.core;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.core.UpsertMetaParser;
-import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.support.UserEntity;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.test.context.SpringBootTest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest(classes = TestApplication.class)
 class UpsertMetaParserTest {
+
+    @BeforeAll
+    static void initTableInfo() {
+        // UpsertMetaParser reads the MyBatis-Plus TableInfo registry, which is normally populated
+        // by MP's auto-configuration under Spring. For a plain unit test we populate it directly,
+        // so no Spring context (and thus no @SpringBootTest) is required.
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
+        TableInfoHelper.initTableInfo(assistant, UserEntity.class);
+    }
 
     @Test
     void parse_default_update_columns() {

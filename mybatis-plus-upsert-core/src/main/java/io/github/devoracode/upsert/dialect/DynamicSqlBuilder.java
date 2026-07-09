@@ -55,11 +55,28 @@ final class DynamicSqlBuilder {
         return sb.toString();
     }
 
-    static String updateSetTrim(List<FieldMeta> updateFieldMetas, String paramPrefix) {
+    /**
+     * Builds the {@code SET col = <value>, ...} fragment of an UPDATE clause, wrapped in a
+     * {@code <trim suffixOverrides=",">} that also skips dynamic fields via {@code <if>}.
+     *
+     * <p>The assigned value is {@code valuePrefix + column + valueSuffix}, which lets each
+     * dialect reference the inserted/conflicting row instead of the MyBatis parameter:
+     * {@code EXCLUDED.col} (PostgreSQL), {@code new.col} (MySQL alias),
+     * {@code VALUES(col)} (legacy MySQL), or {@code src.col} (Oracle / SQL Server MERGE).
+     *
+     * <p>Using the row reference (instead of {@code #{prefix.col}}) keeps the single-row and
+     * batch forms consistent: the MERGE UPDATE SET now reads the same {@code src} alias that the
+     * INSERT VALUES clause already references.
+     *
+     * @param valuePrefix prefix before the column name in the assigned value
+     * @param valueSuffix suffix after the column name in the assigned value
+     */
+    static String updateSetTrim(List<FieldMeta> updateFieldMetas, String paramPrefix,
+                                String valuePrefix, String valueSuffix) {
         StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 32);
         sb.append("<trim suffixOverrides=\",\">");
         for (FieldMeta fm : updateFieldMetas) {
-            String assignment = fm.getColumn() + " = #{" + paramPrefix + "." + fm.getProperty() + "}, ";
+            String assignment = fm.getColumn() + " = " + valuePrefix + fm.getColumn() + valueSuffix + ", ";
             if (fm.isDynamic()) {
                 sb.append("<if test=\"").append(ifTestExpr(paramPrefix, fm)).append("\">")
                         .append(assignment).append("</if>");
