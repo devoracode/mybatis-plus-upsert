@@ -31,8 +31,14 @@
 |---|---|
 | JDK | 8+（Spring Boot 2.x）/ 17+（Spring Boot 3.x） |
 | Spring Boot | 2.4.5+ / 3.2.x |
-| MyBatis Plus | 3.5.9 |
+| MyBatis Plus | 3.5.7+ |
 | 数据库 | MySQL / MariaDB、PostgreSQL、Oracle、SQL Server、H2（内置）；其他数据库需自行实现 `UpsertDialect`，见[自定义方言](#自定义方言) |
+
+> **MyBatis Plus 版本说明**：最低要求 **3.5.7**。
+>
+> - **下限来源**：批量写入路径依赖 3.5.7 才引入的 API——`MybatisBatchUtils.execute(SqlSessionFactory, Collection, BatchMethod, int batchSize)` 以及 `MybatisUtils.getMybatisMapperProxy(Object)` / `getSqlSessionFactory(MybatisMapperProxy)`（均 `@since 3.5.7`）；3.5.6 及以下因找不到对应方法重载而无法编译。单条 `upsert(entity)` 与 SQL 注入逻辑本身兼容更早的 3.4.0+ API，但受批量路径约束，整体下限仍为 3.5.7。
+> - **项目实测通过的版本（已编译 + 测试）**：`3.5.7`、`3.5.8`、`3.5.9`。
+> - **经源码 API 兼容性分析确认支持（未在项目中实际运行验证）**：`3.5.10` 至最新 `3.5.17` 及更高版本。这些版本中本库所调用的上述 API 签名均保持不变，因此可认为向后兼容，但如使用未列出的更高版本建议自行验证。
 
 ---
 
