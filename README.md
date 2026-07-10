@@ -933,7 +933,37 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 **Q：upsert 与 MP 的自动填充（`@TableField(fill = ...)`) 兼容吗？**
 
-当前版本 upsert 绕过了 MP 的 `MetaObjectHandler`，自动填充**不会触发**。需要填充的字段（如 `updateTime`）请在调用前在业务代码中手动赋值。
+**兼容。** 从 v1.5.0 起，upsert 在执行前会主动调用 `MetaObjectHandler.insertFill` 和 `updateFill`，确保所有 `@TableField(fill = ...)` 字段都能被正确填充。
+
+由于 upsert 使用 `SqlCommandType.INSERT`，`insertFill` 实际上会被调用两次：
+1. 第一次在本库的 `getBoundSql` 阶段（确保字段在 SQL 生成前被填充）
+2. 第二次由 MP 原生的 `MybatisParameterHandler` 触发
+
+这是**无害的**，因为 MP 的 `strictInsertFill`/`strictUpdateFill` 方法在字段已有值时会跳过。
+
+这意味着：
+
+- `createTime`（`fill = INSERT`）：插入时填充 ✅
+- `updateTime`（`fill = UPDATE`）：冲突更新时填充 ✅
+- `updateTime`（`fill = INSERT_UPDATE`）：插入和冲突更新时都会填充 ✅
+- 任何自定义 `MetaObjectHandler`（如填充当前用户 ID）：均可复用，无需改动
+
+**关闭自动填充：** 若不需要此功能，可通过配置关闭（默认开启）：
+
+```yaml
+# 单数据源
+mybatis-plus:
+  upsert:
+    auto-fill: false
+
+# 多数据源
+mybatis-plus:
+  upsert:
+    dynamic:
+      auto-fill: false
+```
+
+关闭后仅 `insertFill` 由 MP 原生机制触发，`updateFill` 在冲突更新时不触发。
 
 ---
 

@@ -32,4 +32,14 @@ public class UpsertProperties {
      * Only applies when the database type is MySQL. Default is false (legacy VALUES() syntax).
      */
     private boolean useNewMysqlSyntax = false;
+
+    /**
+     * Whether to auto-fill entity fields before upsert using MyBatis-Plus'
+     * {@code MetaObjectHandler}. When enabled, both {@code insertFill} and
+     * {@code updateFill} are invoked because upsert is semantically
+     * "insert or update". Default is true.
+     *
+     * @since 1.5.0
+     */
+    private boolean autoFill = true;
 }

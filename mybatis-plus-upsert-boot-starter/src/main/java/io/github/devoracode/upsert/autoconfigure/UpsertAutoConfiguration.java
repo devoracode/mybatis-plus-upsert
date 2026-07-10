@@ -1,6 +1,9 @@
 package io.github.devoracode.upsert.autoconfigure;
 
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
+import io.github.devoracode.upsert.core.fill.MetaObjectHandlerFillHandler;
+import io.github.devoracode.upsert.core.fill.NoOpFillHandler;
+import io.github.devoracode.upsert.core.fill.UpsertFieldFillHandler;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
@@ -88,12 +91,33 @@ public class UpsertAutoConfiguration {
     /**
      * Creates the {@link UpsertSqlInjector} bean.
      *
-     * @param dialect the upsert dialect to use for SQL generation
+     * @param dialect     the upsert dialect to use for SQL generation
+     * @param fillHandler the field fill handler for auto-filling
      * @return the configured UpsertSqlInjector
      */
     @Bean
     @ConditionalOnMissingBean(com.baomidou.mybatisplus.core.injector.ISqlInjector.class)
-    public UpsertSqlInjector upsertSqlInjector(UpsertDialect dialect) {
-        return new UpsertSqlInjector(dialect);
+    public UpsertSqlInjector upsertSqlInjector(UpsertDialect dialect, UpsertFieldFillHandler fillHandler) {
+        return new UpsertSqlInjector(dialect, fillHandler);
+    }
+
+    /**
+     * Creates the {@link UpsertFieldFillHandler} bean.
+     *
+     * <p>When {@code auto-fill} is enabled (default), returns a
+     * {@link MetaObjectHandlerFillHandler} that bridges to MyBatis-Plus'
+     * {@code MetaObjectHandler}. When disabled, returns a {@link NoOpFillHandler}
+     * that does nothing, preserving backward-compatible behavior.
+     *
+     * @return the fill handler
+     * @since 1.5.0
+     */
+    @Bean
+    @ConditionalOnMissingBean(UpsertFieldFillHandler.class)
+    public UpsertFieldFillHandler upsertFieldFillHandler() {
+        if (!properties.isAutoFill()) {
+            return new NoOpFillHandler();
+        }
+        return new MetaObjectHandlerFillHandler();
     }
 }

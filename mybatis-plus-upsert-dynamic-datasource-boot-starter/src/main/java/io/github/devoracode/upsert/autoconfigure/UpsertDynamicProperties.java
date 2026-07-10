@@ -32,6 +32,16 @@ public class UpsertDynamicProperties {
     private boolean useNewMysqlSyntax = false;
 
     /**
+     * Whether to auto-fill entity fields before upsert using MyBatis-Plus'
+     * {@code MetaObjectHandler}. When enabled, both {@code insertFill} and
+     * {@code updateFill} are invoked because upsert is semantically
+     * "insert or update". Default is true.
+     *
+     * @since 1.5.0
+     */
+    private boolean autoFill = true;
+
+    /**
      * Map of per-datasource upsert configuration.
      * Keys are datasource names matching those in {@code spring.datasource.dynamic.datasource}.
      */
