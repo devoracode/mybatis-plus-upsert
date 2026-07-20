@@ -4,9 +4,7 @@ import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSour
 import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties;
 import com.baomidou.dynamic.datasource.creator.DataSourceProperty;
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
-import io.github.devoracode.upsert.core.fill.MetaObjectHandlerFillHandler;
-import io.github.devoracode.upsert.core.fill.NoOpFillHandler;
-import io.github.devoracode.upsert.core.fill.UpsertFieldFillHandler;
+import io.github.devoracode.upsert.core.fill.UpsertFillInterceptor;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
@@ -183,32 +181,31 @@ public class DynamicUpsertAutoConfiguration {
      * Creates the {@link UpsertSqlInjector} bean with the dynamic dialect.
      *
      * @param dynamicDialect the dynamic upsert dialect
-     * @param fillHandler    the field fill handler for auto-filling
      * @return the configured UpsertSqlInjector
      */
     @Bean
     @ConditionalOnMissingBean(name = "sqlInjector")
-    public UpsertSqlInjector upsertSqlInjector(DynamicUpsertDialect dynamicDialect, UpsertFieldFillHandler fillHandler) {
+    public UpsertSqlInjector upsertSqlInjector(DynamicUpsertDialect dynamicDialect) {
         log.info("Registering UpsertSqlInjector with DynamicUpsertDialect");
-        return new UpsertSqlInjector(dynamicDialect, fillHandler);
+        return new UpsertSqlInjector(dynamicDialect);
     }
 
     /**
-     * Creates the {@link UpsertFieldFillHandler} bean.
+     * Creates the {@link UpsertFillInterceptor} bean.
      *
-     * <p>When {@code auto-fill} is enabled (default), returns a
-     * {@link MetaObjectHandlerFillHandler} that bridges to MyBatis-Plus'
-     * {@code MetaObjectHandler}. When disabled, returns a {@link NoOpFillHandler}.
+     * <p>Registered only when {@code auto-fill} is enabled (default). The interceptor
+     * supplements {@code updateFill} for upsert operations, complementing MyBatis-Plus'
+     * native {@code insertFill} which is triggered by {@code MybatisParameterHandler}
+     * for {@code SqlCommandType.INSERT}.
      *
-     * @return the fill handler
-     * @since 1.5.0
+     * @return the upsert fill interceptor
+     * @since 1.5.1
      */
     @Bean
-    @ConditionalOnMissingBean(UpsertFieldFillHandler.class)
-    public UpsertFieldFillHandler upsertFieldFillHandler() {
-        if (!upsertDynamicProperties.isAutoFill()) {
-            return new NoOpFillHandler();
-        }
-        return new MetaObjectHandlerFillHandler();
+    @ConditionalOnMissingBean(UpsertFillInterceptor.class)
+    @ConditionalOnProperty(prefix = "mybatis-plus.upsert.dynamic", name = "auto-fill",
+            havingValue = "true", matchIfMissing = true)
+    public UpsertFillInterceptor upsertFillInterceptor() {
+        return new UpsertFillInterceptor();
     }
 }

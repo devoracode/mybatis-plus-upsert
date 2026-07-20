@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.core.injector.AbstractMethod;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.core.UpsertMetaParser;
-import io.github.devoracode.upsert.core.fill.UpsertFieldFillHandler;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import org.apache.ibatis.executor.keygen.NoKeyGenerator;
 import org.apache.ibatis.mapping.MappedStatement;
@@ -29,22 +28,19 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
     final UpsertDialect dialect;
     private final boolean batch;
     private final String methodName;
-    final UpsertFieldFillHandler fillHandler;
 
     /**
      * Creates a new upsert injection method.
      *
-     * @param methodName  the mapper method name to register (e.g. "upsert", "upsertBatch")
-     * @param dialect     the dialect used to build the upsert SQL
-     * @param batch       whether this method uses batch upsert SQL
-     * @param fillHandler the field fill handler for auto-filling
+     * @param methodName the mapper method name to register (e.g. "upsert", "upsertBatch")
+     * @param dialect    the dialect used to build the upsert SQL
+     * @param batch      whether this method uses batch upsert SQL
      */
-    AbstractUpsertMethod(String methodName, UpsertDialect dialect, boolean batch, UpsertFieldFillHandler fillHandler) {
+    AbstractUpsertMethod(String methodName, UpsertDialect dialect, boolean batch) {
         super(methodName);
         this.methodName = methodName;
         this.dialect = dialect;
         this.batch = batch;
-        this.fillHandler = fillHandler;
     }
 
     /**
@@ -65,7 +61,7 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
         }
         UpsertMeta meta = UpsertMetaParser.getMeta(modelClass);
         SqlSource sqlSource = UpsertSqlSourceFactory.create(
-                configuration, languageDriver, meta, dialect, batch, modelClass, fillHandler);
+                configuration, languageDriver, meta, dialect, batch, modelClass);
         return this.addInsertMappedStatement(
                 mapperClass, modelClass, methodName, sqlSource,
                 new NoKeyGenerator(), null, null);
