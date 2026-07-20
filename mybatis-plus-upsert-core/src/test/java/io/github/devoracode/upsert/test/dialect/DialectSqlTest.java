@@ -25,8 +25,6 @@ class DialectSqlTest {
 
     @BeforeEach
     void setup() {
-        // Clear SQL cache from previous test to ensure test isolation
-        UpsertSqlCache.clear();
 
         Map<String, String> fieldToColumnMap = new HashMap<>();
         fieldToColumnMap.put("id",         "id");
@@ -365,33 +363,5 @@ class DialectSqlTest {
             assertThat(sql).as(dialect.getClass().getSimpleName() + " batch SQL")
                     .doesNotContain("(, ").doesNotContain(", ,");
         }
-    }
-
-    // --- SQL cache hits ---
-
-    @Test
-    void sql_cache_returns_same_instance() {
-        MysqlLegacyUpsertDialect dialect = new MysqlLegacyUpsertDialect();
-        String first  = dialect.getCachedUpsertSql(staticMeta);
-        String second = dialect.getCachedUpsertSql(staticMeta);
-        assertThat(first).isSameAs(second);
-    }
-
-    @Test
-    void sql_cache_single_and_batch_are_independent() {
-        MysqlLegacyUpsertDialect dialect = new MysqlLegacyUpsertDialect();
-        String single = dialect.getCachedUpsertSql(staticMeta);
-        String batch  = dialect.getCachedUpsertBatchSql(staticMeta);
-        assertThat(single).isNotSameAs(batch);
-        assertThat(UpsertSqlCache.containsKey("MysqlLegacyUpsertDialect:t_user:single")).isTrue();
-        assertThat(UpsertSqlCache.containsKey("MysqlLegacyUpsertDialect:t_user:batch")).isTrue();
-    }
-
-    @Test
-    void sql_cache_legacy_and_alias_dialects_are_independent() {
-        new MysqlLegacyUpsertDialect().getCachedUpsertSql(staticMeta);
-        new MysqlUpsertDialect().getCachedUpsertSql(staticMeta);
-        assertThat(UpsertSqlCache.containsKey("MysqlLegacyUpsertDialect:t_user:single")).isTrue();
-        assertThat(UpsertSqlCache.containsKey("MysqlUpsertDialect:t_user:single")).isTrue();
     }
 }

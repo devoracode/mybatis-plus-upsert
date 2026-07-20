@@ -3,7 +3,6 @@ package io.github.devoracode.upsert.injector;
 import com.baomidou.mybatisplus.core.injector.AbstractMethod;
 import com.baomidou.mybatisplus.core.injector.DefaultSqlInjector;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
-import io.github.devoracode.upsert.core.fill.UpsertFieldFillHandler;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import org.apache.ibatis.session.Configuration;
 
@@ -18,25 +17,22 @@ import java.util.List;
 public class UpsertSqlInjector extends DefaultSqlInjector {
 
     private final UpsertDialect dialect;
-    private final UpsertFieldFillHandler fillHandler;
 
     /**
-     * Creates a new UpsertSqlInjector with the specified dialect and fill handler.
+     * Creates a new UpsertSqlInjector with the specified dialect.
      *
-     * @param dialect     the upsert dialect to use for SQL generation (must not be null)
-     * @param fillHandler the field fill handler for auto-filling (must not be null)
+     * @param dialect the upsert dialect to use for SQL generation (must not be null)
      */
-    public UpsertSqlInjector(UpsertDialect dialect, UpsertFieldFillHandler fillHandler) {
+    public UpsertSqlInjector(UpsertDialect dialect) {
         this.dialect = dialect;
-        this.fillHandler = fillHandler;
     }
 
     @Override
     public List<AbstractMethod> getMethodList(Configuration configuration, Class<?> mapperClass, TableInfo tableInfo) {
         List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
-        methods.add(new UpsertMethod(dialect, fillHandler));
-        methods.add(new UpsertBatchMethod(dialect, fillHandler));
-        methods.add(new UpsertExecutorMethod(dialect, fillHandler));
+        methods.add(new UpsertMethod(dialect));
+        methods.add(new UpsertBatchMethod(dialect));
+        methods.add(new UpsertExecutorMethod(dialect));
         return methods;
     }
 }

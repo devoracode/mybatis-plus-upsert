@@ -45,9 +45,9 @@ class UpsertFillCountTest {
 
         userMapper.upsert(user);
 
-        // FillableSqlSource invokes both insertFill and updateFill before SQL
-        // generation; MyBatis-Plus' native handler may also invoke insertFill
-        // depending on the database. Either way, each is invoked at least once.
+        // UpsertFillInterceptor invokes updateFill before execution;
+        // MyBatis-Plus' native MybatisParameterHandler invokes insertFill
+        // during parameter processing. Each is invoked at least once.
         assertThat(countingHandler.getInsertFillCount()).isGreaterThanOrEqualTo(1);
         assertThat(countingHandler.getUpdateFillCount()).isGreaterThanOrEqualTo(1);
 

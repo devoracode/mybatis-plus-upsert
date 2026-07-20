@@ -1,7 +1,6 @@
 package io.github.devoracode.upsert.injector;
 
 import io.github.devoracode.upsert.core.UpsertMethodNames;
-import io.github.devoracode.upsert.core.fill.UpsertFieldFillHandler;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 
 /**
@@ -19,12 +18,11 @@ public class UpsertExecutorMethod extends AbstractUpsertMethod {
     public static final String METHOD_NAME = UpsertMethodNames.UPSERT_EXECUTOR;
 
     /**
-     * Creates a new UpsertExecutorMethod with the given dialect and fill handler.
+     * Creates a new UpsertExecutorMethod with the given dialect.
      *
-     * @param dialect     the upsert dialect to use for SQL generation
-     * @param fillHandler the field fill handler for auto-filling
+     * @param dialect the upsert dialect to use for SQL generation
      */
-    public UpsertExecutorMethod(UpsertDialect dialect, UpsertFieldFillHandler fillHandler) {
-        super(METHOD_NAME, dialect, false, fillHandler);
+    public UpsertExecutorMethod(UpsertDialect dialect) {
+        super(METHOD_NAME, dialect, false);
     }
 }
