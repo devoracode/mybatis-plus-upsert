@@ -7,11 +7,10 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Metadata container for upsert SQL generation.
- * Contains all information needed to build upsert statements: table name, columns,
- * conflict keys, update columns, and field-to-column mappings.
+ * Upsert SQL 生成所需的元数据容器。
+ * 包含构建 Upsert 语句所需的全部信息：表名、列名、冲突键、更新列以及字段到列的映射。
  *
- * <p>Instances are created by {@link UpsertMetaParser} and cached per entity class.
+ * <p>实例由 {@link UpsertMetaParser} 创建并按实体类缓存。
  *
  * @author devoracode
  * @since 1.0.0
@@ -21,55 +20,54 @@ import java.util.Map;
 public class UpsertMeta {
 
     /**
-     * The database table name.
+     * 数据库表名。
      */
     private final String tableName;
 
     /**
-     * Column names for the INSERT clause.
+     * INSERT 子句的列名列表。
      */
     private final List<String> insertColumns;
 
     /**
-     * Java field names for the INSERT clause (corresponds to insertColumns).
+     * INSERT 子句的 Java 字段名列表（与 insertColumns 一一对应）。
      */
     private final List<String> insertFields;
 
     /**
-     * Column names that form the conflict key (used in ON CONFLICT / ON DUPLICATE KEY / MERGE ON).
+     * 构成冲突键的列名列表（用于 ON CONFLICT / ON DUPLICATE KEY / MERGE ON 子句）。
      */
     private final List<String> conflictColumns;
 
     /**
-     * Column names for the UPDATE clause (excludes conflict key columns).
+     * UPDATE 子句的列名列表（不含冲突键列）。
      */
     private final List<String> updateColumns;
 
     /**
-     * Java field names for the UPDATE clause (corresponds to updateColumns).
+     * UPDATE 子句的 Java 字段名列表（与 updateColumns 一一对应）。
      */
     private final List<String> updateFields;
 
     /**
-     * Field metadata for insert columns (includes dynamic/empty-check flags).
+     * INSERT 列的字段元数据列表（包含动态标记和空值检查标记）。
      */
     private final List<FieldMeta> insertFieldMetas;
 
     /**
-     * Field metadata for update columns (includes dynamic/empty-check flags).
+     * UPDATE 列的字段元数据列表（包含动态标记和空值检查标记）。
      */
     private final List<FieldMeta> updateFieldMetas;
 
     /**
-     * Mapping from Java field name to database column name.
+     * Java 字段名到数据库列名的映射。
      */
     private final Map<String, String> fieldToColumnMap;
 
     /**
-     * The entity class this metadata was parsed from.
-     * Used as part of the SQL cache key so that entities mapped to the same
-     * table name but with different structures (for example across data
-     * sources) get their own cached upsert SQL instead of sharing a wrong one.
+     * 此元数据所解析自的实体类。
+     * 作为 SQL 缓存键的一部分，确保映射到相同表名但结构不同的实体
+     * （例如跨数据源场景）拥有各自独立的缓存 Upsert SQL，而非共享一个错误的 SQL。
      */
     private final Class<?> entityClass;
 }

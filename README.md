@@ -933,37 +933,43 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 **Q：upsert 与 MP 的自动填充（`@TableField(fill = ...)`) 兼容吗？**
 
-**兼容。** 从 v1.5.0 起，upsert 在执行前会主动调用 `MetaObjectHandler.insertFill` 和 `updateFill`，确保所有 `@TableField(fill = ...)` 字段都能被正确填充。
+**兼容。** 从 v1.6.0 起，自动填充内嵌在注入的 upsert `SqlSource` 中（`PreFillSqlSource`），在**动态 SQL 绑定之前**调用 `MetaObjectHandler`，确保所有 `@TableField(fill = ...)` 字段都能被正确填充。该机制只作用于 upsert 语句本身——不再注册全局 MyBatis 拦截器，与分页、乐观锁等插件的顺序无关，其他语句零开销。
 
-由于 upsert 使用 `SqlCommandType.INSERT`，`insertFill` 实际上会被调用两次：
-1. 第一次在本库的 `getBoundSql` 阶段（确保字段在 SQL 生成前被填充）
-2. 第二次由 MP 原生的 `MybatisParameterHandler` 触发
+由于 upsert 使用 `SqlCommandType.INSERT`，`insertFill` 实际上会被调用**两次**（MyBatis-Plus 机制决定，无法从外部禁用）——单条和批量 upsert 均如此，批量时对**每个实体**各调用两次：
 
-这是**无害的**，因为 MP 的 `strictInsertFill`/`strictUpdateFill` 方法在字段已有值时会跳过。
+1. **第一次（预绑定）**：由本库的 `PreFillSqlSource` → `UpsertFillProcessor` 在 `getBoundSql()` 阶段触发——确保字段在动态 SQL 列裁剪**之前**已被填充
+2. **第二次（原生）**：由 MP 原生的 `MybatisParameterHandler` 在参数处理阶段触发——发生在 SQL 绑定**之后**，且同样会遍历集合参数；其中 `updateFill` 对 INSERT 命令从不调用，因此只会重复触发 `insertFill`
+
+这是**无害的**，因为 MP 的 `strictInsertFill`/`strictUpdateFill` 方法在字段已有值时会跳过，第二次调用等价于空操作。若你使用了非 strict 的自定义 `MetaObjectHandler`（无条件 `setFieldValByName`），建议改为 strict 写法以避免二次覆盖；若填充逻辑有性能开销（如远程调用取号），也请注意第二次调用会重复执行。
+
+> **如何验证/排查两次调用**：在自定义 `MetaObjectHandler.insertFill` 中打印 `Thread.currentThread().getStackTrace()`，两次调用的堆栈来源帧不同——预绑定那次包含 `UpsertFillProcessor` / `PreFillSqlSource`，原生那次包含 `MybatisParameterHandler` / `BaseStatementHandler`。本仓库的 `UpsertFillCountTest.upsertBatch_insertFill_invoked_twice_per_entity_with_source_breakdown` 测试即通过堆栈来源断言锁定了这一行为。
 
 这意味着：
 
 - `createTime`（`fill = INSERT`）：插入时填充 ✅
 - `updateTime`（`fill = UPDATE`）：冲突更新时填充 ✅
 - `updateTime`（`fill = INSERT_UPDATE`）：插入和冲突更新时都会填充 ✅
+- `upsertBatch` 的集合参数：逐实体填充 ✅（本库预绑定填充先于 SQL 绑定执行；原生填充虽也会遍历集合，但在绑定后执行，字段已有值时为空操作）
 - 任何自定义 `MetaObjectHandler`（如填充当前用户 ID）：均可复用，无需改动
 
-**关闭自动填充：** 若不需要此功能，可通过配置关闭（默认开启）：
+**配置填充策略（v1.6.0+）：**
 
 ```yaml
 # 单数据源
 mybatis-plus:
   upsert:
-    auto-fill: false
+    fill-strategy: insert_update   # none | insert | insert_update（默认）
 
 # 多数据源
 mybatis-plus:
   upsert:
     dynamic:
-      auto-fill: false
+      fill-strategy: insert_update
 ```
 
-关闭后仅 `insertFill` 由 MP 原生机制触发，`updateFill` 在冲突更新时不触发。
+- `insert_update`（默认）：绑定前调用 `insertFill` + `updateFill`，对应"插入或更新"语义
+- `insert`：绑定前仅调用 `insertFill`
+- `none`：不做绑定前填充，仅剩 MP 原生 `insertFill`（SQL 绑定后执行，null 字段可能被 NOT_NULL 策略从 SQL 中剔除）
 
 ---
 

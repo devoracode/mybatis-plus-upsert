@@ -5,10 +5,10 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * H2 database dialect using {@code MERGE INTO ... KEY(...) VALUES(...)}.
+ * H2 数据库方言，使用 {@code MERGE INTO ... KEY(...) VALUES(...)} 语法。
  *
- * <p>H2 uses a simplified MERGE syntax that does not require a WHEN clause.
- * The conflict is determined by the primary key or unique constraint specified in KEY().
+ * <p>H2 采用简化的 MERGE 语法，不需要 WHEN 子句。
+ * 冲突由 KEY() 中指定的主键或唯一约束决定。
  *
  * @author devoracode
  * @since 1.0.0

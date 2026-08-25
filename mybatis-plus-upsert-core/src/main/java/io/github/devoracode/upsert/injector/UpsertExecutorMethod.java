@@ -1,11 +1,12 @@
 package io.github.devoracode.upsert.injector;
 
 import io.github.devoracode.upsert.core.UpsertMethodNames;
+import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 
 /**
- * Batch upsert SQL injection method that returns a list of {@code BatchResult}.
- * Used by the {@code upsert(Collection)} and {@code upsert(Collection, int)} methods in UpsertMapper.
+ * 返回 {@code BatchResult} 列表的批量 Upsert SQL 注入方法。
+ * 由 UpsertMapper 中的 {@code upsert(Collection)} 和 {@code upsert(Collection, int)} 方法使用。
  *
  * @author devoracode
  * @since 1.0.0
@@ -13,16 +14,27 @@ import io.github.devoracode.upsert.dialect.UpsertDialect;
 public class UpsertExecutorMethod extends AbstractUpsertMethod {
 
     /**
-     * The method name registered in the mapper.
+     * 在 Mapper 中注册的方法名。
      */
     public static final String METHOD_NAME = UpsertMethodNames.UPSERT_EXECUTOR;
 
     /**
-     * Creates a new UpsertExecutorMethod with the given dialect.
+     * 使用给定的方言和默认填充策略创建新的 UpsertExecutorMethod。
      *
-     * @param dialect the upsert dialect to use for SQL generation
+     * @param dialect 用于 SQL 生成的 Upsert 方言
      */
     public UpsertExecutorMethod(UpsertDialect dialect) {
         super(METHOD_NAME, dialect, false);
+    }
+
+    /**
+     * 使用给定的方言和填充策略创建新的 UpsertExecutorMethod。
+     *
+     * @param dialect      用于 SQL 生成的 Upsert 方言
+     * @param fillStrategy SQL 绑定前应用的自动填充策略
+     * @since 1.6.0
+     */
+    public UpsertExecutorMethod(UpsertDialect dialect, FillStrategy fillStrategy) {
+        super(METHOD_NAME, dialect, false, fillStrategy);
     }
 }

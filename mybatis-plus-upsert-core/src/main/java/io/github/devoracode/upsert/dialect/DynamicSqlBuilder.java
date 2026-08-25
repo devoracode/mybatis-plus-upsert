@@ -6,15 +6,14 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * Builds dynamic SQL fragments for upsert, reusable across all dialects.
+ * 为 Upsert 构建动态 SQL 片段，可被所有方言复用。
  *
- * <p>Core problem: when some fields require dynamic value checks, the column list and the
- * value list must stay in sync — a field skipped in one list must be skipped in the
- * corresponding position of the other. This is solved the same way as MyBatis-Plus itself:
- * wrap the list with {@code <trim suffixOverrides=",">}, wrap each dynamic field with
- * {@code <if>}, and let {@code <trim>} strip the trailing comma.
+ * <p>核心问题：当某些字段需要动态值检查时，列列表和值列表必须保持同步——
+ * 在一个列表中跳过的字段，必须在另一个列表的对应位置也跳过。
+ * 解决方案与 MyBatis-Plus 自身一致：用 {@code <trim suffixOverrides=",">} 包裹列表，
+ * 用 {@code <if>} 包裹每个动态字段，再由 {@code <trim>} 去掉末尾逗号。
  *
- * <p>This class is package-private and stateless. All methods are thread-safe.
+ * <p>本类为包私有且无状态，所有方法均线程安全。
  *
  * @author devoracode
  * @since 1.0.0
@@ -56,20 +55,19 @@ final class DynamicSqlBuilder {
     }
 
     /**
-     * Builds the {@code SET col = <value>, ...} fragment of an UPDATE clause, wrapped in a
-     * {@code <trim suffixOverrides=",">} that also skips dynamic fields via {@code <if>}.
+     * 构建 UPDATE 子句的 {@code SET col = <value>, ...} 片段，包裹在
+     * {@code <trim suffixOverrides=",">} 中，并通过 {@code <if>} 跳过动态字段。
      *
-     * <p>The assigned value is {@code valuePrefix + column + valueSuffix}, which lets each
-     * dialect reference the inserted/conflicting row instead of the MyBatis parameter:
-     * {@code EXCLUDED.col} (PostgreSQL), {@code new.col} (MySQL alias),
-     * {@code VALUES(col)} (legacy MySQL), or {@code src.col} (Oracle / SQL Server MERGE).
+     * <p>赋值为 {@code valuePrefix + column + valueSuffix}，使每种方言都能引用
+     * 已插入/冲突的行而不是 MyBatis 参数：
+     * {@code EXCLUDED.col}（PostgreSQL）、{@code new.col}（MySQL 别名）、
+     * {@code VALUES(col)}（旧版 MySQL）、或 {@code src.col}（Oracle / SQL Server MERGE）。
      *
-     * <p>Using the row reference (instead of {@code #{prefix.col}}) keeps the single-row and
-     * batch forms consistent: the MERGE UPDATE SET now reads the same {@code src} alias that the
-     * INSERT VALUES clause already references.
+     * <p>使用行引用（而非 {@code #{prefix.col}}）能保证单行与批量形式一致：
+     * MERGE 的 UPDATE SET 现在读取与 INSERT VALUES 子句相同的 {@code src} 别名。
      *
-     * @param valuePrefix prefix before the column name in the assigned value
-     * @param valueSuffix suffix after the column name in the assigned value
+     * @param valuePrefix 赋值表达式中列名前的固定前缀
+     * @param valueSuffix 赋值表达式中列名后的固定后缀
      */
     static String updateSetTrim(List<FieldMeta> updateFieldMetas, String paramPrefix,
                                 String valuePrefix, String valueSuffix) {
@@ -104,8 +102,8 @@ final class DynamicSqlBuilder {
     }
 
     /**
-     * Appends {@code INSERT INTO {table} ({columns}) VALUES <foreach...>(values)</foreach>}
-     * to the StringBuilder. Used by MySQL (both syntaxes) and PostgreSQL batch SQL.
+     * 向 StringBuilder 追加 {@code INSERT INTO {table} ({columns}) VALUES <foreach...>(values)</foreach>}。
+     * 用于 MySQL（新旧两种语法）和 PostgreSQL 的批量 SQL。
      */
     static void appendBatchInsertClause(StringBuilder sb, UpsertMeta meta) {
         List<String> insCols = meta.getInsertColumns();
@@ -122,8 +120,8 @@ final class DynamicSqlBuilder {
     }
 
     /**
-     * Appends {@code ) ON (t.col = src.col AND ...)} for MERGE statements.
-     * Used by Oracle and SQL Server batch SQL.
+     * 为 MERGE 语句追加 {@code ) ON (t.col = src.col AND ...)}。
+     * Oracle 和 SQL Server 批量 SQL 使用。
      */
     static void appendMergeOnClause(StringBuilder sb, List<String> confCols) {
         sb.append(") ON (");
@@ -135,9 +133,9 @@ final class DynamicSqlBuilder {
     }
 
     /**
-     * Appends {@code ) WHEN MATCHED THEN UPDATE SET t.col = src.col, ...
-     * WHEN NOT MATCHED THEN INSERT (cols) VALUES (src.cols)} for MERGE statements.
-     * Used by Oracle and SQL Server batch SQL.
+     * 为 MERGE 语句追加 {@code ) WHEN MATCHED THEN UPDATE SET t.col = src.col, ...
+     * WHEN NOT MATCHED THEN INSERT (cols) VALUES (src.cols)}。
+     * Oracle 和 SQL Server 批量 SQL 使用。
      */
     static void appendMergeUpdateAndInsert(StringBuilder sb, UpsertMeta meta) {
         List<String> insCols = meta.getInsertColumns();

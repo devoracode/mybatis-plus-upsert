@@ -32,9 +32,23 @@
       "name": "mybatis-plus.upsert.dynamic.datasource.*.dialect-ref",
       "type": "java.lang.String",
       "description": "Bean name of a user-defined UpsertDialect to use when db-type=custom. Required only when db-type is custom; ignored for built-in db types."
+    },
+    {
+      "name": "mybatis-plus.upsert.dynamic.fill-strategy",
+      "type": "io.github.devoracode.upsert.core.fill.FillStrategy",
+      "description": "Auto-fill strategy applied before the upsert SQL is bound (fill runs before dialect routing).",
+      "defaultValue": "insert_update"
     }
   ],
   "hints": [
+    {
+      "name": "mybatis-plus.upsert.dynamic.fill-strategy",
+      "values": [
+        {"value": "none"},
+        {"value": "insert"},
+        {"value": "insert_update"}
+      ]
+    },
     {
       "name": "mybatis-plus.upsert.dynamic.datasource.*.db-type",
       "values": [

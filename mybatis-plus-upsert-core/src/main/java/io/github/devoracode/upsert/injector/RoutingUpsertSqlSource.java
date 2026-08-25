@@ -12,16 +12,17 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 /**
- * {@link SqlSource} that resolves the actual dialect at runtime based on the current data source.
+ * 根据当前数据源在运行时解析实际方言的 {@link SqlSource}。
  *
- * <p>Used in dynamic-datasource mode. Instead of binding to a fixed {@link UpsertDialect}, it
- * asks the {@link DynamicUpsertDialect} (via {@code DynamicDataSourceContextHolder}) which
- * dialect applies to the current thread's data source, then delegates SQL building to that dialect.
- * Each resolved dialect's parsed {@link SqlSource} is cached by a composite key.
+ * <p>用于动态数据源模式。不绑定到固定的 {@link UpsertDialect}，
+ * 而是通过 {@code DynamicDataSourceContextHolder} 询问
+ * {@link DynamicUpsertDialect} 当前线程的数据源适用哪种方言，
+ * 然后将 SQL 构建委托给该方言。每个已解析方言的解析 {@link SqlSource}
+ * 都通过复合键进行缓存。
  *
- * <p>The per-dialect {@code SqlSource} cache serves the same role as MyBatis-Plus'
- * {@code MappedStatement.SqlSource} in single-datasource mode: the SQL is generated once
- * and never regenerated.
+ * <p>按方言的 {@code SqlSource} 缓存在单数据源模式下扮演的角色与
+ * MyBatis-Plus 的 {@code MappedStatement.SqlSource} 相同：
+ * SQL 生成一次且永不重新生成。
  *
  * @author devoracode
  * @since 1.2.0
@@ -35,19 +36,19 @@ final class RoutingUpsertSqlSource implements SqlSource {
     private final boolean batch;
     private final Class<?> modelClass;
 
-    // Cache for parsed SqlSource per dialect class name
-    // Key: dialectClassName + ":" + tableName + ":" + (batch ? "batch" : "single")
+    // 按方言类名缓存已解析的 SqlSource
+    // 键：方言类名 + ":" + 表名 + ":" + (批量 ? "batch" : "single")
     private final ConcurrentHashMap<String, SqlSource> sqlSourceCache = new ConcurrentHashMap<>();
 
     /**
-     * Creates a new routing SqlSource.
+     * 创建新的路由 SqlSource。
      *
-     * @param configuration  the MyBatis configuration
-     * @param languageDriver the language driver used to build per-dialect SqlSources
-     * @param dynamicDialect the dynamic dialect that resolves the current data source's dialect
-     * @param meta           the parsed upsert metadata
-     * @param batch          whether to use batch upsert SQL
-     * @param modelClass     the entity class
+     * @param configuration    MyBatis 配置
+     * @param languageDriver   用于构建按方言 SqlSource 的语言驱动
+     * @param dynamicDialect   解析当前数据源方言的动态方言
+     * @param meta             已解析的 Upsert 元数据
+     * @param batch            是否使用批量 Upsert SQL
+     * @param modelClass       实体类
      */
     RoutingUpsertSqlSource(Configuration configuration,
                            LanguageDriver languageDriver,
@@ -64,33 +65,33 @@ final class RoutingUpsertSqlSource implements SqlSource {
     }
 
     /**
-     * Resolves the current data source's dialect and delegates to its cached SqlSource.
+     * 解析当前数据源的方言并委托给其缓存的 SqlSource。
      *
-     * @param parameterObject the mapper invocation parameters
-     * @return the bound SQL produced by the current dialect's SqlSource
+     * @param parameterObject 映射器调用参数
+     * @return 当前方言 SqlSource 产生的已绑定 SQL
      */
     @Override
     public BoundSql getBoundSql(Object parameterObject) {
-        // Get current dialect at runtime
+        // 运行时获取当前方言
         UpsertDialect currentDialect = dynamicDialect.getCurrentDialect();
         String dialectClassName = currentDialect.getClass().getSimpleName();
 
-        // Build cache key
+        // 构建缓存键
         String entityKey = meta.getEntityClass() != null ? meta.getEntityClass().getName() : meta.getTableName();
         String cacheKey = dialectClassName + ":" + entityKey + ":" + (batch ? "batch" : "single");
 
-        // Get or create SqlSource for this dialect
+        // 获取或创建该方言的 SqlSource
         SqlSource sqlSource = sqlSourceCache.computeIfAbsent(cacheKey, createSqlSource(currentDialect));
 
         return sqlSource.getBoundSql(parameterObject);
     }
 
     /**
-     * Builds (and caches) a per-dialect SqlSource by generating upsert SQL from the
-     * resolved dialect and wrapping it as a MyBatis script SqlSource.
+     * 通过从已解析方言生成 Upsert SQL 并将其包装为 MyBatis 脚本 SqlSource，
+     * 构建（并缓存）按方言的 SqlSource。
      *
-     * @param dialect the dialect to build the SqlSource for
-     * @return a factory that creates the SqlSource for the given dialect cache key
+     * @param dialect 要构建 SqlSource 的方言
+     * @return 为给定方言缓存键创建 SqlSource 的工厂函数
      */
     private Function<String, SqlSource> createSqlSource(UpsertDialect dialect) {
         return key -> {

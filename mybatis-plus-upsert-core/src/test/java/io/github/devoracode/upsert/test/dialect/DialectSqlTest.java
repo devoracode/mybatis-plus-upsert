@@ -16,11 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DialectSqlTest {
 
-    // All static fields meta (all FieldMeta.dynamic=false), used to verify basic SQL structure is unaffected by dynamic logic
+    // 全静态字段元数据（所有 FieldMeta.dynamic=false），用于验证基础 SQL 结构不受动态逻辑影响
     private UpsertMeta staticMeta;
 
-    // Meta with dynamic fields: email uses NOT_NULL (dynamic, !checkEmpty),
-    // updateTime is always appended (non-dynamic), used to verify <if>/<trim> generation correctness
+    // 含动态字段的元数据：email 使用 NOT_NULL（dynamic=true, !checkEmpty），
+    // updateTime 始终追加（非动态），用于验证 <if>/<trim> 生成是否正确
     private UpsertMeta dynamicMeta;
 
     @BeforeEach
@@ -79,7 +79,7 @@ class DialectSqlTest {
                 .build();
     }
 
-    // --- MySQL: Static field scenarios (basic structure unchanged) ---
+    // --- MySQL：静态字段场景（基础结构不变） ---
 
     @Test
     void mysql_legacy_single_sql() {
@@ -120,7 +120,7 @@ class DialectSqlTest {
         assertThat(sql).contains("#{item.email}");
     }
 
-    // --- MySQL: Dynamic field scenarios ---
+    // --- MySQL：动态字段场景 ---
 
     @Test
     void mysql_legacy_single_sql_wraps_dynamic_field_with_if() {
@@ -188,18 +188,18 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("FROM dual");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql).containsIgnoringCase("WHEN NOT MATCHED THEN INSERT");
-        // Single-row UPDATE SET now references the src alias (same as INSERT VALUES and batch)
+        // 单行 UPDATE SET 现在引用 src 别名（与 INSERT VALUES 和批量形式一致）
         assertThat(sql).contains("email = src.email");
     }
 
     @Test
     void oracle_single_sql_dynamic_field_consistent_across_src_and_insert() {
         String sql = new OracleUpsertDialect().buildUpsertSql(dynamicMeta);
-        // email must be wrapped with the same <if> condition in four places:
-        // src subquery columns, INSERT column names, INSERT values, and UPDATE SET.
-        // Otherwise, column count mismatch would generate invalid SQL.
+        // email 必须在四个位置使用相同的 <if> 条件包裹：
+        // src 子查询列、INSERT 列名、INSERT 值、UPDATE SET。
+        // 否则列数量不匹配会导致生成非法 SQL。
         long ifCount = sql.split("<if test=\"et\\.email != null\">", -1).length - 1;
-        assertThat(ifCount).isEqualTo(4); // src columns, INSERT column names, INSERT values, UPDATE SET
+        assertThat(ifCount).isEqualTo(4); // src 列、INSERT 列名、INSERT 值、UPDATE SET
     }
 
     @Test
@@ -225,14 +225,14 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("AS src");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql.trim()).endsWith(";");
-        // Single-row UPDATE SET references the src alias (same as INSERT VALUES and batch)
+        // 单行 UPDATE SET 引用 src 别名（与 INSERT VALUES 和批量形式一致）
         assertThat(sql).contains("email = src.email");
     }
 
     @Test
     void sqlserver_single_sql_uses_select_based_src_for_dynamic_support() {
         String sql = new SqlServerUpsertDialect().buildUpsertSql(dynamicMeta);
-        // Single-row scenario uses SELECT-based src (instead of VALUES(...) AS src(cols)) to support dynamic columns
+        // 单行场景使用基于 SELECT 的 src（而非 VALUES(...) AS src(cols)）以支持动态列
         assertThat(sql).containsIgnoringCase("USING (SELECT");
         assertThat(sql).contains("<if test=\"et.email != null\">");
     }
@@ -243,7 +243,7 @@ class DialectSqlTest {
         assertThat(sql).contains("<foreach");
         assertThat(sql).contains("#{item.email}");
         assertThat(sql.trim()).endsWith(";");
-        // Batch scenarios still use VALUES(...) AS src(cols)) multi-row syntax
+        // 批量场景仍然使用 VALUES(...) AS src(cols)) 多行语法
         assertThat(sql).containsIgnoringCase("USING (VALUES");
     }
 
@@ -277,7 +277,7 @@ class DialectSqlTest {
         assertThat(sql).contains("separator=\";\"");
     }
 
-    // --- checkEmpty (NOT_EMPTY strategy) ---
+    // --- checkEmpty（NOT_EMPTY 策略） ---
 
     @Test
     void not_empty_strategy_generates_blank_check() {
@@ -299,7 +299,7 @@ class DialectSqlTest {
         assertThat(sql).contains("et.name != null and et.name != ''");
     }
 
-    // --- multi-column conflict handling ---
+    // --- 多列冲突键处理 ---
 
     @Test
     void multi_conflict_columns_are_comma_joined_across_dialects() {

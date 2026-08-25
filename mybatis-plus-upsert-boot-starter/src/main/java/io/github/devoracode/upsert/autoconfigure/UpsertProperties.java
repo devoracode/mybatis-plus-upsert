@@ -1,14 +1,14 @@
 package io.github.devoracode.upsert.autoconfigure;
 
+import io.github.devoracode.upsert.core.fill.FillStrategy;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * Configuration properties for single-datasource upsert support.
+ * 单数据源 upsert 支持的配置属性。
  *
- * <p>These properties are bound to the {@code mybatis-plus.upsert} prefix.
- * The {@code db-type} property is optional — if not specified, the library
- * attempts to auto-infer it from the JDBC URL.
+ * <p>这些属性绑定到 {@code mybatis-plus.upsert} 前缀下。
+ * {@code db-type} 属性为可选 —— 如果未指定，库会尝试从 JDBC URL 自动推断。
  *
  * @author devoracode
  * @since 1.0.0
@@ -18,28 +18,38 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class UpsertProperties {
 
     /**
-     * Whether upsert support is enabled. Default is true.
+     * 是否启用 upsert 支持。默认为 true。
      */
     private boolean enabled = true;
 
     /**
-     * The database type (e.g., "mysql", "postgresql"). Optional — auto-inferred from JDBC URL if not specified.
+     * 数据库类型（例如："mysql"、"postgresql"）。可选 —— 如果未指定，则从 JDBC URL 自动推断。
      */
     private String dbType;
 
     /**
-     * Whether to use the new MySQL 8.0.20+ syntax (AS alias) for MySQL upserts.
-     * Only applies when the database type is MySQL. Default is false (legacy VALUES() syntax).
+     * 是否在 MySQL upsert 中使用新的 MySQL 8.0.20+ 语法（AS 别名）。
+     * 仅在数据库类型为 MySQL 时生效。默认为 false（使用旧版 VALUES() 语法）。
      */
     private boolean useNewMysqlSyntax = false;
 
     /**
-     * Whether to auto-fill entity fields before upsert using MyBatis-Plus'
-     * {@code MetaObjectHandler}. When enabled, both {@code insertFill} and
-     * {@code updateFill} are invoked because upsert is semantically
-     * "insert or update". Default is true.
+     * 在 upsert SQL 绑定前应用的自动填充策略。
+     * 默认解析为 {@code insert_update}（参见 {@link #resolveFillStrategy()}）。
      *
-     * @since 1.5.0
+     * @since 1.6.0
      */
-    private boolean autoFill = true;
+    private FillStrategy fillStrategy;
+
+    /**
+     * 解析有效的填充策略：显式配置的
+     * {@link #fillStrategy} 优先；未配置时默认返回
+     * {@link FillStrategy#INSERT_UPDATE}。
+     *
+     * @return 有效的填充策略
+     * @since 1.6.0
+     */
+    public FillStrategy resolveFillStrategy() {
+        return fillStrategy != null ? fillStrategy : FillStrategy.INSERT_UPDATE;
+    }
 }

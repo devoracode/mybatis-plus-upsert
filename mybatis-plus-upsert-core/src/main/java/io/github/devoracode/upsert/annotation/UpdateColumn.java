@@ -7,13 +7,12 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Restricts the UPDATE clause to only the fields annotated with {@code @UpdateColumn}.
+ * 限制 UPDATE 子句仅包含使用 {@code @UpdateColumn} 注解的字段。
  *
- * <p>By default, all non-conflict-key, non-{@link IgnoreOnUpdate} fields are included
- * in the UPDATE clause. When any field is annotated with {@code @UpdateColumn},
- * ONLY those annotated fields will be included in the UPDATE clause.
+ * <p>默认情况下，所有非冲突键、非 {@link IgnoreOnUpdate} 的字段都会被包含在 UPDATE 子句中。
+ * 当任意字段使用 {@code @UpdateColumn} 注解时，UPDATE 子句中仅包含被注解的字段。
  *
- * <p>This is useful for fine-grained control over which columns should be updated on conflict.
+ * <p>此注解适用于需要精确控制冲突时哪些列应被更新的场景。
  *
  * @author devoracode
  * @since 1.0.0

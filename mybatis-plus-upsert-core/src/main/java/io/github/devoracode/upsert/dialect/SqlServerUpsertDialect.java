@@ -6,10 +6,10 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * SQL Server dialect using {@code MERGE INTO ... USING (...) AS src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...}.
+ * SQL Server 方言，使用 {@code MERGE INTO ... USING (...) AS src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...} 语法。
  *
- * <p>SQL Server's MERGE statement must end with a semicolon. This dialect generates
- * MyBatis XML with conditional tags to handle dynamic fields.
+ * <p>SQL Server 的 MERGE 语句必须以分号结尾。该方言生成带有条件标签
+ * 的 MyBatis XML 以处理动态字段。
  *
  * @author devoracode
  * @since 1.0.0

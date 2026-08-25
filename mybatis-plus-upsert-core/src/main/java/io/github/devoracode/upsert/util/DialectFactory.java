@@ -8,8 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
- * Factory for creating {@link UpsertDialect} instances based on database type.
- * Instances are cached and reused across threads. This class is stateless and thread-safe.
+ * 根据数据库类型创建 {@link UpsertDialect} 实例的工厂类。
+ * 实例被缓存并在所有线程间共享复用，此类无状态且线程安全。
  *
  * @author devoracode
  * @since 1.0.0
@@ -22,24 +22,24 @@ public final class DialectFactory {
     }
 
     /**
-     * Creates an UpsertDialect for the given database type string.
+     * 根据数据库类型字符串创建对应的 {@link UpsertDialect} 实例。
      *
-     * @param dbTypeStr        the database type string (e.g., "mysql", "postgresql")
-     * @param useNewMysqlSyntax whether to use the new MySQL 8.0.20+ syntax (AS alias) for MySQL
-     * @return the corresponding UpsertDialect instance
-     * @throws UpsertException if the database type is unknown or unsupported
+     * @param dbTypeStr         数据库类型字符串（如 "mysql"、"postgresql"）
+     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @return 对应的 UpsertDialect 实例
+     * @throws UpsertException 如果数据库类型未知或不支持
      */
     public static UpsertDialect create(String dbTypeStr, boolean useNewMysqlSyntax) {
         return create(parseDbType(dbTypeStr), useNewMysqlSyntax);
     }
 
     /**
-     * Creates an UpsertDialect for the given database type enum.
+     * 根据数据库类型枚举创建对应的 {@link UpsertDialect} 实例。
      *
-     * @param dbType        the database type enum
-     * @param useNewMysqlSyntax whether to use the new MySQL 8.0.20+ syntax (AS alias) for MySQL
-     * @return the corresponding UpsertDialect instance, or null if dbType is CUSTOM
-     * @throws UpsertException if the database type is unsupported
+     * @param dbType            数据库类型枚举值
+     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @return 对应的 UpsertDialect 实例；若 dbType 为 CUSTOM 则返回 null
+     * @throws UpsertException 如果数据库类型不支持
      */
     public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax) {
         if (dbType == DbType.CUSTOM) {
@@ -58,16 +58,16 @@ public final class DialectFactory {
             case SQLSERVER:  return new SqlServerUpsertDialect();
             case H2:         return new H2UpsertDialect();
             default:
-                throw new UpsertException("Unsupported database type: " + dbType
-                        + ". Set db-type explicitly or implement UpsertDialect.");
+                throw new UpsertException("不支持的数据库类型: " + dbType
+                        + "，请显式设置 db-type 或实现 UpsertDialect 接口。");
         }
     }
 
     /**
-     * Creates a new MySQL dialect instance.
+     * 根据是否使用新语法创建新的 MySQL 方言实例。
      *
-     * @param useNewMysqlSyntax whether to use the new MySQL 8.0.20+ syntax (AS alias)
-     * @return the MySQL UpsertDialect instance
+     * @param useNewMysqlSyntax 是否使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @return 对应的 MySQL UpsertDialect 实例
      */
     public static UpsertDialect newMysqlInstance(boolean useNewMysqlSyntax) {
         if (useNewMysqlSyntax) {
@@ -77,11 +77,11 @@ public final class DialectFactory {
     }
 
     /**
-     * Parses a database type string and throws if unknown.
+     * 解析数据库类型字符串，无法识别时抛出异常。
      *
-     * @param value the database type string
-     * @return the parsed DbType enum
-     * @throws UpsertException if the value cannot be parsed
+     * @param value 数据库类型字符串
+     * @return 解析后的 DbType 枚举
+     * @throws UpsertException 如果字符串无法解析
      */
     public static DbType parseDbType(String value) {
         return DbTypeDetector.parseDbType(value);

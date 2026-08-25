@@ -4,7 +4,6 @@ import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSour
 import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSourceProperties;
 import com.baomidou.dynamic.datasource.creator.DataSourceProperty;
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
-import io.github.devoracode.upsert.core.fill.UpsertFillInterceptor;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
@@ -25,12 +24,11 @@ import org.springframework.util.StringUtils;
 import java.util.Map;
 
 /**
- * Auto-configuration for dynamic-datasource upsert support.
+ * 动态数据源 upsert 支持的自动配置。
  *
- * <p>Automatically registers an {@link UpsertDialect} for each data source defined
- * in {@code spring.datasource.dynamic.datasource}. The database type is inferred from
- * the JDBC URL if not explicitly configured. Supports custom dialect beans via
- * {@code db-type=custom} and {@code dialect-ref}.
+ * <p>自动为 {@code spring.datasource.dynamic.datasource} 中定义的每个数据源注册
+ * {@link UpsertDialect}。如果未显式配置，则从 JDBC URL 推断数据库类型。支持通过
+ * {@code db-type=custom} 和 {@code dialect-ref} 配置自定义方言 Bean。
  *
  * @author devoracode
  * @since 1.2.0
@@ -48,11 +46,11 @@ public class DynamicUpsertAutoConfiguration {
     private final ConfigurableListableBeanFactory beanFactory;
 
     /**
-     * Creates a new DynamicUpsertAutoConfiguration.
+     * 创建新的 DynamicUpsertAutoConfiguration 实例。
      *
-     * @param properties the upsert dynamic configuration properties
-     * @param dynamicDataSourceProperties the dynamic datasource properties
-     * @param beanFactory the Spring bean factory (for resolving custom dialect beans)
+     * @param properties upsert 动态配置属性
+     * @param dynamicDataSourceProperties 动态数据源属性
+     * @param beanFactory Spring Bean 工厂（用于解析自定义方言 Bean）
      */
     public DynamicUpsertAutoConfiguration(UpsertDynamicProperties properties,
                                           DynamicDataSourceProperties dynamicDataSourceProperties,
@@ -63,12 +61,12 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * Creates the {@link DynamicUpsertDialect} bean.
+     * 创建 {@link DynamicUpsertDialect} Bean。
      *
-     * <p>Iterates over all data sources defined in {@code spring.datasource.dynamic.datasource},
-     * infers or uses the configured database type, and registers the appropriate dialect.
+     * <p>遍历 {@code spring.datasource.dynamic.datasource} 中定义的所有数据源，
+     * 推断或使用配置的数据库类型，并注册相应的方言。
      *
-     * @return the DynamicUpsertDialect instance
+     * @return DynamicUpsertDialect 实例
      */
     @Bean
     @ConditionalOnMissingBean(DynamicUpsertDialect.class)
@@ -135,14 +133,14 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * Resolves the {@link UpsertDialect} for a given data source.
+     * 为指定数据源解析 {@link UpsertDialect}。
      *
-     * @param dsName the data source name
-     * @param config the per-datasource configuration (may be null)
-     * @param dbType the detected or configured database type
-     * @param useNewMysqlSyntax whether to use the new MySQL 8.0.20+ syntax
-     * @return the resolved UpsertDialect instance
-     * @throws UpsertException if the dialect cannot be resolved
+     * @param dsName 数据源名称
+     * @param config 按数据源配置的参数（可能为 null）
+     * @param dbType 检测到的或配置的数据库类型
+     * @param useNewMysqlSyntax 是否使用 MySQL 8.0.20+ 的新语法
+     * @return 解析出的 UpsertDialect 实例
+     * @throws UpsertException 如果无法解析方言
      */
     public UpsertDialect resolveDialect(String dsName,
                                         UpsertDynamicProperties.DataSourceConfig config,
@@ -178,34 +176,20 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * Creates the {@link UpsertSqlInjector} bean with the dynamic dialect.
+     * 创建带有动态方言的 {@link UpsertSqlInjector} Bean。
      *
-     * @param dynamicDialect the dynamic upsert dialect
-     * @return the configured UpsertSqlInjector
+     * <p>解析的填充策略（来自 {@code fill-strategy}）
+     * 由注入器携带，以便注入的 upsert
+     * SqlSources 在动态 SQL 绑定之前、方言路由之前应用自动填充——
+     * 不需要注册全局 MyBatis 拦截器。
+     *
+     * @param dynamicDialect 动态 upsert 方言
+     * @return 配置好的 UpsertSqlInjector
      */
     @Bean
     @ConditionalOnMissingBean(name = "sqlInjector")
     public UpsertSqlInjector upsertSqlInjector(DynamicUpsertDialect dynamicDialect) {
         log.info("Registering UpsertSqlInjector with DynamicUpsertDialect");
-        return new UpsertSqlInjector(dynamicDialect);
-    }
-
-    /**
-     * Creates the {@link UpsertFillInterceptor} bean.
-     *
-     * <p>Registered only when {@code auto-fill} is enabled (default). The interceptor
-     * supplements {@code updateFill} for upsert operations, complementing MyBatis-Plus'
-     * native {@code insertFill} which is triggered by {@code MybatisParameterHandler}
-     * for {@code SqlCommandType.INSERT}.
-     *
-     * @return the upsert fill interceptor
-     * @since 1.5.1
-     */
-    @Bean
-    @ConditionalOnMissingBean(UpsertFillInterceptor.class)
-    @ConditionalOnProperty(prefix = "mybatis-plus.upsert.dynamic", name = "auto-fill",
-            havingValue = "true", matchIfMissing = true)
-    public UpsertFillInterceptor upsertFillInterceptor() {
-        return new UpsertFillInterceptor();
+        return new UpsertSqlInjector(dynamicDialect, upsertDynamicProperties.resolveFillStrategy());
     }
 }

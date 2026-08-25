@@ -14,20 +14,17 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Parses an entity class into {@link UpsertMeta} and caches the result.
- * The annotation scan is performed eagerly at first access; the full UpsertMeta
- * is built lazily on first {@code getMeta} call. Both are cached for the lifetime
- * of the JVM (or until the Spring context is refreshed).
+ * 将实体类解析为 {@link UpsertMeta} 并缓存结果。
+ * 注解扫描在首次访问时立即执行；完整的 UpsertMeta 则在首次调用 {@code getMeta} 时惰性构建。
+ * 两者均在 JVM 生命周期内（或 Spring 上下文刷新前）保持缓存。
  *
- * <p>Thread-safety: All public methods are thread-safe. The internal cache uses
- * {@link ConcurrentHashMap} and double-checked locking for the lazy UpsertMeta
- * initialization.
+ * <p>线程安全：所有公共方法均为线程安全的。内部缓存使用
+ * {@link ConcurrentHashMap}，惰性 UpsertMeta 初始化采用双重检查锁。
  *
- * <p>Known limitation: The cache is JVM-wide and keyed only by entity class. In the
- * typical single {@code ApplicationContext} per JVM scenario this is safe. If multiple
- * independent contexts register the same entity class against different MyBatis-Plus
- * {@code TableInfo} configurations, the second context would incorrectly reuse the
- * first one's cached metadata. A proper fix requires scoping the cache per context.
+ * <p>已知限制：缓存为 JVM 全局级别，仅以实体类为键。在典型的每个 JVM 单一
+ * {@code ApplicationContext} 场景下这是安全的。如果多个独立的上下文将同一个实体类
+ * 注册到不同的 MyBatis-Plus {@code TableInfo} 配置上，第二个上下文会错误地复用第一个上下文的缓存元数据。
+ * 正确的修复方式是将缓存按上下文作用域进行限定。
  *
  * @author devoracode
  * @since 1.0.0
@@ -37,24 +34,22 @@ public class UpsertMetaParser {
     private static final Map<Class<?>, CacheEntry> CACHE = new ConcurrentHashMap<>();
 
     /**
-     * Checks whether the entity class has at least one {@link ConflictKey} field.
-     * This is a lightweight check that only scans annotations.
+     * 检查实体类是否至少包含一个 {@link ConflictKey} 字段。
+     * 这是一个轻量级检查，仅扫描注解。
      *
-     * @param entityClass the entity class to check (must not be null)
-     * @return true if the entity has at least one @ConflictKey field, false otherwise
+     * @param entityClass 待检查的实体类（不能为 null）
+     * @return 如果实体包含至少一个 @ConflictKey 字段则返回 true，否则返回 false
      */
     public static boolean hasConflictKey(Class<?> entityClass) {
         return getOrCreateEntry(entityClass).scan.hasConflictKey;
     }
 
     /**
-     * Gets the full {@link UpsertMeta} for the entity class, parsing and caching it
-     * on first access.
+     * 获取实体类的完整 {@link UpsertMeta}，在首次访问时进行解析和缓存。
      *
-     * @param entityClass the entity class (must not be null)
-     * @return the UpsertMeta containing all SQL generation metadata
-     * @throws UpsertMetaException if the entity lacks @ConflictKey, has no updatable columns,
-     *         or MyBatis-Plus TableInfo is not available
+     * @param entityClass 实体类（不能为 null）
+     * @return 包含全部 SQL 生成元数据的 UpsertMeta
+     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列或 MyBatis-Plus TableInfo 不可用
      */
     public static UpsertMeta getMeta(Class<?> entityClass) {
         CacheEntry entry = getOrCreateEntry(entityClass);
@@ -78,16 +73,16 @@ public class UpsertMetaParser {
     private static UpsertMeta parse(Class<?> entityClass, AnnotationScan scan) {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entityClass);
         if (tableInfo == null) {
-            throw new UpsertMetaException("Cannot find MyBatis Plus TableInfo for: " + entityClass.getName()
-                    + ". Ensure the entity is scanned by MyBatis Plus.");
+            throw new UpsertMetaException("无法找到实体 " + entityClass.getName()
+                    + " 对应的 MyBatis Plus TableInfo。请确保该实体已被 MyBatis Plus 扫描。");
         }
 
         if (!scan.hasConflictKey) {
-            throw new UpsertMetaException(entityClass.getName() + ": no @ConflictKey field found");
+            throw new UpsertMetaException(entityClass.getName() + "：未找到任何 @ConflictKey 字段");
         }
         List<String> sortedConflictFields = sortConflictFields(scan.conflictFieldOrder);
 
-        int fieldCount = tableInfo.getFieldList().size() + 1; // +1 for pk
+        int fieldCount = tableInfo.getFieldList().size() + 1; // +1 用于主键
         List<String> insertColumns      = new ArrayList<>(fieldCount);
         List<String> insertFields       = new ArrayList<>(fieldCount);
         List<FieldMeta> insertFieldMetas = new ArrayList<>(fieldCount);
@@ -122,8 +117,7 @@ public class UpsertMetaParser {
 
         if (updateColumns.isEmpty()) {
             throw new UpsertMetaException(entityClass.getName()
-                    + ": no updatable columns found. At least one non-@ConflictKey, "
-                    + "non-@IgnoreOnUpdate field with non-NEVER update strategy is required.");
+                    + "：未找到可更新列。至少需要一个非 @ConflictKey、非 @IgnoreOnUpdate 且具有非 NEVER 更新策略的字段。");
         }
 
         List<String> conflictColumns = resolveConflictColumns(entityClass, sortedConflictFields, fieldToColumnMap);
@@ -176,7 +170,7 @@ public class UpsertMetaParser {
             String col = fieldToColumnMap.get(fieldName);
             if (col == null) {
                 throw new UpsertMetaException(entityClass.getName()
-                        + ": @ConflictKey field '" + fieldName + "' not found in TableInfo, check property name");
+                        + "：@ConflictKey 字段 '" + fieldName + "' 在 TableInfo 中未找到，请检查属性名映射");
             }
             conflictColumns.add(col);
         }
@@ -248,8 +242,8 @@ public class UpsertMetaParser {
     }
 
     /**
-     * Combined cache entry: holds the eagerly-computed AnnotationScan and the
-     * lazily-computed UpsertMeta (null until first getMeta call).
+     * 组合缓存条目：持有立即计算的 AnnotationScan 和惰性计算的 UpsertMeta
+     * （在首次调用 getMeta 之前为 null）。
      */
     private static final class CacheEntry {
         final AnnotationScan scan;

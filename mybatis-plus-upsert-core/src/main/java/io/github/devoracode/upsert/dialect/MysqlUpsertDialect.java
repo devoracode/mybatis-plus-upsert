@@ -5,13 +5,13 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * MySQL / MariaDB dialect using the new syntax (AS alias) introduced in MySQL 8.0.20+.
+ * MySQL / MariaDB 方言，使用 MySQL 8.0.20+ 引入的新语法（AS 别名）。
  *
- * <p>This dialect uses the {@code INSERT ... AS new ON DUPLICATE KEY UPDATE} syntax,
- * where updated values reference the alias of the inserted row (e.g., {@code name = new.name}).
+ * <p>该方言使用 {@code INSERT ... AS new ON DUPLICATE KEY UPDATE} 语法，
+ * 更新值引用插入行的别名（如 {@code name = new.name}）。
  *
- * <p>For MySQL 5.x or MariaDB, use {@link MysqlLegacyUpsertDialect} instead,
- * which uses the deprecated {@code VALUES()} function.
+ * <p>MySQL 5.x 或 MariaDB 请使用 {@link MysqlLegacyUpsertDialect}，
+ * 后者使用已废弃的 {@code VALUES()} 函数。
  *
  * @author devoracode
  * @since 1.0.0

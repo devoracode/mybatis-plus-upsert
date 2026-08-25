@@ -18,47 +18,49 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Extends {@link BaseMapper} to provide upsert (insert on conflict update) capabilities.
- * The entity class must have at least one field annotated with {@link io.github.devoracode.upsert.annotation.ConflictKey}.
+ * 继承自 {@link BaseMapper} 的 Upsert（插入即更新 / insert on conflict update）操作扩展接口。
+ * 实体类必须至少有一个字段使用 {@link io.github.devoracode.upsert.annotation.ConflictKey} 注解标记冲突键。
  *
- * @param <T> the entity type
+ * @param <T> 实体类型
  * @author devoracode
  * @since 1.0.0
  */
 public interface UpsertMapper<T> extends BaseMapper<T> {
 
     /**
-     * Inserts a single entity, or updates it if a conflict occurs on the conflict key.
+     * 插入单条实体，若发生冲突键冲突则执行更新。
      *
-     * @param entity the entity to upsert (must not be null)
-     * @return the number of affected rows
+     * @param entity 待 upsert 的实体对象（不能为 null）
+     * @return 受影响行数
      */
     int upsert(@Param("et") T entity);
 
     /**
-     * Batch inserts multiple entities, or updates them if conflicts occur on the conflict key.
+     * 批量插入多条实体，若发生冲突键冲突则执行更新（单条 SQL，多行 VALUES）。
      *
-     * @param list the list of entities to upsert (must not be null or empty)
-     * @return the number of affected rows
+     * @param list 待批量 upsert 的实体列表（不能为 null 或空）
+     * @return 受影响行数
      */
     int upsertBatch(@Param("list") List<T> list);
 
     /**
-     * Batch upserts a collection of entities using the default batch size.
+     * 使用默认批次大小逐条 upsert 实体集合（内部委托给 {@code upsert(entity, DEFAULT_BATCH_SIZE)}）。
      *
-     * @param entityList the collection of entities to upsert (may be null or empty)
-     * @return list of batch results, or empty list if input is null/empty
+     * @param entityList 待 upsert 的实体集合（可为 null 或空）
+     * @return 批量执行结果列表；输入为 null 或空时返回空列表
      */
     default List<BatchResult> upsert(Collection<T> entityList) {
         return upsert(entityList, Constants.DEFAULT_BATCH_SIZE);
     }
 
     /**
-     * Batch upserts a collection of entities with a custom batch size.
+     * 按指定批次大小逐条 upsert 实体集合，使用 {@code MybatisBatch} 执行以提高性能。
+     * 每个批次中的每行单独调用单条 upsert SQL，返回各行 BatchResult，
+     * 可从中精确获取每行的实际受影响行数（MySQL 下 0=更新/1=插入，其他数据库为实际行数）。
      *
-     * @param entityList the collection of entities to upsert (may be null or empty)
-     * @param batchSize  the batch size to use (must be positive)
-     * @return list of batch results, or empty list if input is null/empty
+     * @param entityList 待 upsert 的实体集合（可为 null 或空）
+     * @param batchSize  批次大小（必须为正整数）
+     * @return 批量执行结果列表；输入为 null 或空时返回空列表
      */
     default List<BatchResult> upsert(Collection<T> entityList, int batchSize) {
         if (entityList == null || entityList.isEmpty()) {

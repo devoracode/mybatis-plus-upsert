@@ -1,8 +1,8 @@
 package io.github.devoracode.upsert.dialect;
 
 /**
- * Extension of {@link UpsertDialect} for dynamic datasource support.
- * Allows resolving the actual dialect at runtime based on the current data source context.
+ * {@link UpsertDialect} 的动态数据源扩展接口。
+ * 允许根据当前数据源上下文在运行时解析实际方言。
  *
  * @author devoracode
  * @since 1.2.0
@@ -10,10 +10,10 @@ package io.github.devoracode.upsert.dialect;
 public interface DynamicUpsertDialect extends UpsertDialect {
 
     /**
-     * Gets the dialect for the current data source context.
-     * Called at runtime when executing upsert operations.
+     * 获取当前数据源上下文对应的方言。
+     * 在执行 Upsert 操作时在运行时调用。
      *
-     * @return the {@link UpsertDialect} to use for the current data source
+     * @return 当前数据源应使用的 {@link UpsertDialect}
      */
     UpsertDialect getCurrentDialect();
 }

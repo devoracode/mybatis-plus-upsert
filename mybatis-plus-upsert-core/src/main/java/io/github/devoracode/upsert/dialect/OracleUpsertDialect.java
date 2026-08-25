@@ -6,10 +6,10 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * Oracle dialect using {@code MERGE INTO ... USING (SELECT ...) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...}.
+ * Oracle 方言，使用 {@code MERGE INTO ... USING (SELECT ...) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...} 语法。
  *
- * <p>Oracle does not support native upsert syntax, so this dialect generates a MERGE statement
- * with MyBatis XML tags ({@code <if>}, {@code <trim>}) to handle dynamic fields.
+ * <p>Oracle 不支持原生 upsert 语法，因此该方言生成带有 MyBatis XML 标签
+ * （{@code <if>}、{@code <trim>}）的 MERGE 语句以处理动态字段。
  *
  * @author devoracode
  * @since 1.0.0
@@ -24,8 +24,8 @@ public class OracleUpsertDialect implements UpsertDialect {
         StringBuilder sb = new StringBuilder(384 + insertMetas.size() * 32
                 + meta.getUpdateFieldMetas().size() * 32);
         sb.append("MERGE INTO ").append(meta.getTableName()).append(" t USING (SELECT ");
-        // USING dual: each dynamic field is individually wrapped in <if>,
-        // <trim suffixOverrides=","> handles the trailing comma.
+        // USING dual：每个动态字段单独包裹在 <if> 中，
+        // <trim suffixOverrides=","> 负责处理末尾逗号。
         sb.append("<trim suffixOverrides=\",\">");
         for (FieldMeta fm : insertMetas) {
             String expr = "#{et." + fm.getProperty() + "} AS " + fm.getColumn() + ", ";
@@ -44,10 +44,10 @@ public class OracleUpsertDialect implements UpsertDialect {
             sb.append("t.").append(col).append(" = src.").append(col);
         }
         sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        // UPDATE references src.* — same <if> conditions keep it in sync with the USING select
+        // UPDATE 引用 src.*——相同的 <if> 条件使其与 USING 中的查询保持一致
         sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", ""));
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
-        // INSERT column names and values both reference src; identical <if> conditions keep them in sync
+        // INSERT 的列名和值都引用 src；相同的 <if> 条件使二者保持同步
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");
         for (FieldMeta fm : insertMetas) {
             String expr = fm.getColumn() + ", ";

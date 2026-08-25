@@ -55,7 +55,7 @@ class UpsertMapperTest {
 
     @Test
     void upsert_update_existing_user() {
-        // Insert first
+        // 先插入初始数据
         User user = User.builder()
                 .id("2")
                 .name("Original Name")
@@ -71,7 +71,7 @@ class UpsertMapperTest {
                 .build();
         userService.upsert(user);
 
-        // Update with upsert
+        // 使用 upsert 进行更新
         User updatedUser = User.builder()
                 .id("2")
                 .name("Updated Name")
@@ -122,7 +122,7 @@ class UpsertMapperTest {
 
     @Test
     void upsertBatch_update_existing_users() {
-        // Insert first batch
+        // 先插入一批初始数据
         List<User> users = new ArrayList<>();
         for (int i = 20; i < 23; i++) {
             users.add(User.builder()
@@ -141,7 +141,7 @@ class UpsertMapperTest {
         }
         userService.upsertBatch(users);
 
-        // Update with new batch
+        // 使用新批次进行更新
         List<User> updatedUsers = new ArrayList<>();
         for (int i = 20; i < 23; i++) {
             updatedUsers.add(User.builder()
@@ -191,7 +191,7 @@ class UpsertMapperTest {
 
     @Test
     void upsertBatchWithResult_update_existing_users() {
-        // Insert first
+        // 先插入初始数据
         List<User> users = new ArrayList<>();
         for (int i = 40; i < 43; i++) {
             users.add(User.builder()
@@ -210,7 +210,7 @@ class UpsertMapperTest {
         }
         userService.upsertBatchWithResult(users);
 
-        // Update
+        // 更新数据
         List<User> updatedUsers = new ArrayList<>();
         for (int i = 40; i < 43; i++) {
             updatedUsers.add(User.builder()
@@ -236,7 +236,7 @@ class UpsertMapperTest {
 
     @Test
     void findAll() {
-        // Insert some users first
+        // 先插入一些用户数据
         List<User> users = new ArrayList<>();
         for (int i = 50; i < 53; i++) {
             users.add(User.builder()
@@ -263,7 +263,7 @@ class UpsertMapperTest {
 
     @Test
     void deleteAll() {
-        // Insert some users first
+        // 先插入一些用户数据
         User user = User.builder()
                 .id("60")
                 .name("Delete User")

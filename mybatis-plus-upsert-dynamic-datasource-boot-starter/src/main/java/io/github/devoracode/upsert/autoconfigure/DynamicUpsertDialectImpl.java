@@ -14,12 +14,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Implementation of {@link DynamicUpsertDialect} for dynamic datasource environments.
+ * 动态数据源环境下的 {@link DynamicUpsertDialect} 实现。
  *
- * <p>Maintains a mapping of data source names to {@link UpsertDialect} instances.
- * At runtime, resolves the correct dialect by inspecting the current data source
- * context via {@link DynamicDataSourceContextHolder}. Falls back to the configured
- * primary data source if no context is active.
+ * <p>维护数据源名称到 {@link UpsertDialect} 实例的映射。
+ * 运行时通过检查当前数据源上下文（{@link DynamicDataSourceContextHolder}）
+ * 解析正确的方言。如果没有活动上下文，则回退到已配置的主数据源。
  *
  * @author devoracode
  * @since 1.2.0
@@ -29,26 +28,26 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
 
     private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
     /**
-     * The primary data source.
+     * 主数据源。
      */
     @Getter
     @Setter
     private volatile String primary;
 
     /**
-     * Registers a dialect for the given data source name.
+     * 为指定数据源注册方言。
      *
-     * @param dataSourceName the data source name (must not be null)
-     * @param dialect the UpsertDialect instance (must not be null)
+     * @param dataSourceName 数据源名称（不能为 null）
+     * @param dialect UpsertDialect 实例（不能为 null）
      */
     public void addDialect(String dataSourceName, UpsertDialect dialect) {
         dialectMap.put(dataSourceName, dialect);
     }
 
     /**
-     * Returns an unmodifiable view of the registered dialect map.
+     * 返回已注册方言映射的不可修改视图。
      *
-     * @return the dialect map (data source name &rarr; UpsertDialect)
+     * @return 方言映射（数据源名称 → UpsertDialect）
      */
     public Map<String, UpsertDialect> getDialectMap() {
         return Collections.unmodifiableMap(dialectMap);

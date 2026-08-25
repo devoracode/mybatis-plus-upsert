@@ -7,13 +7,13 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a field to be excluded from the UPDATE clause during upsert operations.
+ * 标记一个字段在 Upsert 操作的 UPDATE 子句中被排除。
  *
- * <p>Fields annotated with {@code @IgnoreOnUpdate} will still be included in the INSERT
- * clause but will not appear in the ON DUPLICATE KEY UPDATE / ON CONFLICT DO UPDATE / MERGE WHEN MATCHED clauses.
+ * <p>使用 {@code @IgnoreOnUpdate} 注解的字段仍会包含在 INSERT 子句中，
+ * 但不会出现在 ON DUPLICATE KEY UPDATE / ON CONFLICT DO UPDATE / MERGE WHEN MATCHED 子句中。
  *
- * <p>Typical use case: exclude auto-managed fields like {@code create_time} or {@code created_by}
- * from being overwritten on conflict.
+ * <p>典型使用场景：排除由系统自动管理的字段（如 {@code create_time}、{@code created_by}），
+ * 使其在发生冲突时不被覆盖。
  *
  * @author devoracode
  * @since 1.0.0

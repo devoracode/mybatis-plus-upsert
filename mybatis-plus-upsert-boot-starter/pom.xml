@@ -65,6 +65,13 @@
             <version>8.3.0</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- H2 内存库（MySQL 兼容模式），使测试无需外部 MySQL 即可运行 -->
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
 </project>

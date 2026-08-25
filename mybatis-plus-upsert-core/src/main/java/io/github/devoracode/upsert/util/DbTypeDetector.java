@@ -6,8 +6,8 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.regex.Pattern;
 
 /**
- * Utility class for detecting database types from configuration strings or JDBC URLs.
- * All methods are static and thread-safe.
+ * 从配置字符串或 JDBC URL 中检测数据库类型的工具类。
+ * 所有方法均为静态方法，线程安全。
  *
  * @author devoracode
  * @since 1.0.0
@@ -18,45 +18,45 @@ public class DbTypeDetector {
     private static final Pattern NORMALIZE_PATTERN = Pattern.compile("[^a-z0-9./-]+");
 
     /**
-     * Database type enumeration.
+     * 数据库类型枚举。
      */
     public enum DbType {
         /**
-         * MySQL or MariaDB.
+         * MySQL 或 MariaDB。
          */
         MYSQL,
         /**
-         * PostgreSQL.
+         * PostgreSQL。
          */
         POSTGRESQL,
         /**
-         * Oracle.
+         * Oracle。
          */
         ORACLE,
         /**
-         * Microsoft SQL Server.
+         * Microsoft SQL Server。
          */
         SQLSERVER,
         /**
-         * H2 database.
+         * H2 数据库。
          */
         H2,
         /**
-         * Custom dialect (user-provided).
+         * 自定义方言（由用户提供）。
          */
         CUSTOM,
         /**
-         * Unknown or unrecognized database type.
+         * 未知或无法识别的数据库类型。
          */
         UNKNOWN
     }
 
     /**
-     * Tries to parse a database type string into a {@link DbType} enum.
-     * Returns {@link DbType#UNKNOWN} if the string does not match any known type.
+     * 尝试将数据库类型字符串解析为 {@link DbType} 枚举。
+     * 无法匹配时返回 {@link DbType#UNKNOWN}。
      *
-     * @param dbType the database type string (case-insensitive, may contain partial matches)
-     * @return the parsed DbType, or UNKNOWN if not recognized
+     * @param dbType 数据库类型字符串（不区分大小写，允许部分匹配）
+     * @return 解析后的 DbType，无法识别时返回 UNKNOWN
      */
     public static DbType tryParseDbType(String dbType) {
         if (dbType == null) {
@@ -73,27 +73,27 @@ public class DbTypeDetector {
     }
 
     /**
-     * Parses a database type string into a {@link DbType} enum.
-     * Throws {@link UpsertException} if the string does not match any known type.
+     * 将数据库类型字符串解析为 {@link DbType} 枚举。
+     * 无法匹配时抛出 {@link UpsertException}。
      *
-     * @param dbType the database type string (case-insensitive)
-     * @return the parsed DbType
-     * @throws UpsertException if the database type is unknown
+     * @param dbType 数据库类型字符串（不区分大小写）
+     * @return 解析后的 DbType
+     * @throws UpsertException 如果数据库类型未知
      */
     public static DbType parseDbType(String dbType) {
         DbType type = tryParseDbType(dbType);
         if (type == DbType.UNKNOWN) {
-            throw new UpsertException("Unknown db-type: " + dbType);
+            throw new UpsertException("未知的数据库类型: " + dbType);
         }
         return type;
     }
 
     /**
-     * Parses a JDBC URL to determine the database type.
-     * Matches prefixes like {@code jdbc:mysql:}, {@code jdbc:postgresql:}, etc.
+     * 通过 JDBC URL 解析数据库类型。
+     * 匹配 {@code jdbc:mysql:}、{@code jdbc:postgresql:} 等前缀。
      *
-     * @param jdbcUrl the JDBC URL (e.g., {@code jdbc:mysql://localhost:3306/db})
-     * @return the detected DbType, or UNKNOWN if the URL does not match any known type
+     * @param jdbcUrl JDBC URL（如 {@code jdbc:mysql://localhost:3306/db}）
+     * @return 检测到的 DbType；URL 无法匹配任何已知类型时返回 UNKNOWN
      */
     public static DbType parseDbTypeByJdbcUrl(String jdbcUrl) {
         String url = jdbcUrl.toLowerCase();
@@ -112,11 +112,11 @@ public class DbTypeDetector {
     }
 
     /**
-     * Normalizes a raw string by replacing non-alphanumeric characters (except dot, slash, hyphen)
-     * with underscores and converting to lowercase.
+     * 将原始字符串中的非字母数字字符（点号、斜杠、连字符除外）替换为下划线，
+     * 并转换为小写，用于规范化处理。
      *
-     * @param raw the raw string to normalize (may be null)
-     * @return the normalized string, or empty string if input is null
+     * @param raw 待处理的原始字符串（可为 null）
+     * @return 标准化后的字符串；输入为 null 时返回空字符串
      */
     public static String normalize(String raw) {
         if (raw == null) {

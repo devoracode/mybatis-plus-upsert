@@ -5,10 +5,10 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * PostgreSQL dialect using {@code INSERT ... ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col}.
+ * PostgreSQL 方言，使用 {@code INSERT ... ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col} 语法。
  *
- * <p>The {@code EXCLUDED} keyword references the row that would have been inserted,
- * allowing clean conflict resolution without needing a table alias.
+ * <p>{@code EXCLUDED} 关键字引用本应插入的行，
+ * 无需表别名即可实现干净的冲突解决。
  *
  * @author devoracode
  * @since 1.0.0

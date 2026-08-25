@@ -16,9 +16,9 @@ class UpsertMetaParserTest {
 
     @BeforeAll
     static void initTableInfo() {
-        // UpsertMetaParser reads the MyBatis-Plus TableInfo registry, which is normally populated
-        // by MP's auto-configuration under Spring. For a plain unit test we populate it directly,
-        // so no Spring context (and thus no @SpringBootTest) is required.
+        // UpsertMetaParser 读取 MyBatis-Plus 的 TableInfo 注册表，该注册表通常由
+        // Spring 下的 MP 自动配置填充。对于纯单元测试我们直接手动填充，
+        // 因此无需 Spring 上下文（也就无需 @SpringBootTest）。
         MybatisConfiguration configuration = new MybatisConfiguration();
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
         TableInfoHelper.initTableInfo(assistant, UserEntity.class);

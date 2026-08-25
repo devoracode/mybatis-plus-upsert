@@ -17,6 +17,12 @@
       "type": "java.lang.Boolean",
       "description": "Whether to use the new MySQL upsert syntax (AS new) introduced in MySQL 8.0.19+. Set to false to use the legacy VALUES() syntax for backward compatibility.",
       "defaultValue": false
+    },
+    {
+      "name": "mybatis-plus.upsert.fill-strategy",
+      "type": "io.github.devoracode.upsert.core.fill.FillStrategy",
+      "description": "Auto-fill strategy applied before the upsert SQL is bound.",
+      "defaultValue": "insert_update"
     }
   ],
   "hints": [
@@ -29,6 +35,14 @@
         {"value": "sqlserver"},
         {"value": "h2"},
         {"value": "custom"}
+      ]
+    },
+    {
+      "name": "mybatis-plus.upsert.fill-strategy",
+      "values": [
+        {"value": "none"},
+        {"value": "insert"},
+        {"value": "insert_update"}
       ]
     }
   ]

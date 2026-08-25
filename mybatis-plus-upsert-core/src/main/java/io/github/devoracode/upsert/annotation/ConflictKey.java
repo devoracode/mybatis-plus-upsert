@@ -7,11 +7,10 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a field as a conflict key for upsert operations.
+ * 标记一个字段为 Upsert（插入或更新）操作中的冲突键。
  *
- * <p>The entity class must have at least one field annotated with {@code @ConflictKey}.
- * The order attribute controls the sequence in which conflict key fields are evaluated
- * during conflict resolution. Lower values are checked first.
+ * <p>实体类必须至少有一个字段使用 {@code @ConflictKey} 注解。
+ * order 属性控制冲突键字段的评估顺序，在冲突解决时，值越小的字段越先被检查。
  *
  * @author devoracode
  * @since 1.0.0
@@ -22,11 +21,11 @@ import java.lang.annotation.Target;
 public @interface ConflictKey {
 
     /**
-     * The evaluation order of this conflict key field.
-     * Lower values are checked first during conflict resolution.
-     * Fields without an explicit order default to 0.
+     * 此冲突键字段的评估顺序。
+     * 在冲突解决过程中，值越小则越先被检查。
+     * 未显式指定 order 的字段默认为 0。
      *
-     * @return the order value (default 0)
+     * @return 顺序值（默认 0）
      */
     int order() default 0;
 }

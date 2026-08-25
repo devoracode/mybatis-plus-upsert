@@ -4,9 +4,8 @@ import lombok.Builder;
 import lombok.Getter;
 
 /**
- * Metadata for a single field/column in upsert operations.
- * Contains information needed for dynamic SQL generation: column name, property name,
- * and flags for conditional inclusion based on null/empty checks.
+ * Upsert 操作中标单个字段/列的元数据。
+ * 包含动态 SQL 生成所需的信息：列名、属性名，以及基于空值/空字符串检查的条件包含标志。
  *
  * @author devoracode
  * @since 1.0.0
@@ -16,25 +15,24 @@ import lombok.Getter;
 public class FieldMeta {
 
     /**
-     * The database column name.
+     * 数据库列名。
      */
     private final String column;
 
     /**
-     * The Java field (property) name in the entity class.
+     * 实体类中的 Java 字段（属性）名称。
      */
     private final String property;
 
     /**
-     * Whether this field requires dynamic SQL handling (i.e., conditional inclusion
-     * based on null/empty checks). When true, the field will be wrapped in
-     * <code><if></code> tags in the generated MyBatis XML.
+     * 此字段是否需要动态 SQL 处理（即基于空值/空字符串的条件包含）。
+     * 当为 true 时，字段在生成的 MyBatis XML 中会被 {@code <if>} 标签包裹。
      */
     private final boolean dynamic;
 
     /**
-     * Whether to check for empty strings in addition to null checks.
-     * Only relevant when {@link #dynamic} is true and the field is of String type.
+     * 是否在空值检查之外额外检查空字符串。
+     * 仅在 {@link #dynamic} 为 true 且字段类型为 String 时有效。
      */
     private final boolean checkEmpty;
 }

@@ -1,9 +1,11 @@
+# 使用 H2 内存数据库的 MySQL 兼容模式，测试无需外部 MySQL。
+# 如需连接真实 MySQL，将 url 覆盖为 jdbc:mysql://localhost:33306/test 并换回 mysql 驱动即可。
 spring:
   datasource:
-    url: jdbc:mysql://localhost:33306/test?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowMultiQueries=true
-    username: root
-    password: root@123
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:h2:mem:upsert_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
 
 mybatis-plus:
   configuration:
