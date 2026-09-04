@@ -27,12 +27,17 @@ import java.util.Map;
  *
  * <p><b>幂等性：</b> 处理器可能对同一实体被多次调用（例如批量执行时每行 {@code addBatch} 一次）。
  * 严格填充（{@code strictInsertFill}/{@code strictUpdateFill}）会跳过已有值的字段，
- * 因此重复调用是安全的。MyBatis-Plus 的原生 {@code insertFill} 随后还会为单实体
- * （{@code et}）参数再次运行；使用严格填充时该二次调用是空操作。
+ * 因此重复调用是安全的。upsert 语句注册为 {@code SqlCommandType.INSERT}，MyBatis-Plus 的原生
+ * {@code MybatisParameterHandler} 在参数处理阶段随后还会再次触发 {@code insertFill}
+ * （单实体与集合参数均会遍历）；使用严格填充时该二次调用是空操作，而
+ * {@code updateFill} 对 INSERT 命令从不调用，仅由本处理器触发。
  *
- * <p><b>集合参数：</b> MyBatis-Plus 3.5.9 的原生参数处理器只为
- * {@code et} 键下的单个实体填充——它不遍历集合参数。因此此处理器同时处理
- * {@code upsertBatch} 的 {@code list} 集合，使其成为批量 Upsert 的唯一填充点。
+ * <p><b>集合参数：</b> MyBatis-Plus 3.5.9 的原生参数处理器同样会遍历
+ * {@code upsertBatch} 的 {@code list} 集合并触发 {@code insertFill}，但对
+ * INSERT 命令从不调用 {@code updateFill}。因此此处理器同时处理
+ * {@code upsertBatch} 的 {@code list} 集合，是批量 Upsert 场景下
+ * {@code updateFill} 的唯一填充点（insertFill 则由预绑定与原生各调用一次，
+ * 详见幂等性说明）。
  *
  * <p>线程安全：所有状态均在每次调用时独立解析；此类无状态且线程安全。
  *

@@ -14,13 +14,18 @@
     <url>https://github.com/devoracode/mybatis-plus-upsert</url>
 
     <properties>
-        <revision>1.6.0</revision>
+        <revision>1.6.1</revision>
         <java.version>8</java.version>
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <spring-boot.version>2.4.5</spring-boot.version>
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
+        <!-- jsqlparser 拆分工件固定版本：该工件 3.5.9 才发布（3.5.7/3.5.8 的 jsqlparser
+             仍打包在 mybatis-plus-extension 内，无对应工件）。若跟随 mybatis-plus.version，
+             用 -Dmybatis-plus.version 覆盖到 3.5.7/3.5.8 时会导致依赖解析失败。
+             本库代码零 jsqlparser 引用，此依赖仅为 provided 的传递性补偿，固定版本安全。 -->
+        <mybatis-plus-jsqlparser.version>3.5.9</mybatis-plus-jsqlparser.version>
         <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
         <lombok.version>1.18.38</lombok.version>
     </properties>
@@ -54,7 +59,7 @@
             <dependency>
                 <groupId>com.baomidou</groupId>
                 <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
-                <version>${mybatis-plus.version}</version>
+                <version>${mybatis-plus-jsqlparser.version}</version>
             </dependency>
 
             <dependency>

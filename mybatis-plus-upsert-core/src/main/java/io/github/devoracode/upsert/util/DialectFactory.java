@@ -58,8 +58,8 @@ public final class DialectFactory {
             case SQLSERVER:  return new SqlServerUpsertDialect();
             case H2:         return new H2UpsertDialect();
             default:
-                throw new UpsertException("不支持的数据库类型: " + dbType
-                        + "，请显式设置 db-type 或实现 UpsertDialect 接口。");
+                throw new UpsertException("Unsupported db-type: " + dbType
+                        + ". Set db-type explicitly or implement the UpsertDialect interface.");
         }
     }
 

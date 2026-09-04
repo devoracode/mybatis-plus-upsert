@@ -35,4 +35,15 @@ public class FieldMeta {
      * 仅在 {@link #dynamic} 为 true 且字段类型为 String 时有效。
      */
     private final boolean checkEmpty;
+
+    /**
+     * UPDATE SET 中是否回退为 {@code #{param.property}} 参数引用而非行引用。
+     * 仅当字段参与 UPDATE 但被排除在 INSERT 之外时为 true
+     * （例如 {@code insertStrategy = NEVER} 的可更新字段）——
+     * 此时行引用（{@code new.col} / {@code EXCLUDED.col} / {@code src.col} / {@code VALUES(col)}）
+     * 指向插入行中不存在的列，参数引用是唯一能表达"更新为实体当前值"的方式。
+     *
+     * @since 1.6.1
+     */
+    private final boolean paramRef;
 }

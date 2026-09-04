@@ -2,8 +2,6 @@ package io.github.devoracode.upsert.dialect;
 
 import io.github.devoracode.upsert.core.UpsertMeta;
 
-import java.util.List;
-
 /**
  * MySQL / MariaDB 方言，使用旧版 {@code VALUES()} 引用语法。
  *
@@ -45,16 +43,12 @@ public class MysqlLegacyUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        List<String> updCols   = meta.getUpdateColumns();
-
-        StringBuilder sb = new StringBuilder(128 + meta.getInsertColumns().size() * 20 + updCols.size() * 20);
+        StringBuilder sb = new StringBuilder(128 + meta.getInsertColumns().size() * 20
+                + meta.getUpdateFieldMetas().size() * 20);
         DynamicSqlBuilder.appendBatchInsertClause(sb, meta);
         sb.append(" ON DUPLICATE KEY UPDATE ");
         // VALUES(col) 引用当前批量行刚插入的行值
-        for (int i = 0; i < updCols.size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append(updCols.get(i)).append(" = VALUES(").append(updCols.get(i)).append(")");
-        }
+        DynamicSqlBuilder.appendBatchUpdateSet(sb, meta, "VALUES(", ")");
         return sb.toString();
     }
 }

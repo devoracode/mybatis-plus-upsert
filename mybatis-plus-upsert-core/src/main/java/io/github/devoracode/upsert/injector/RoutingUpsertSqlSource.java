@@ -37,7 +37,7 @@ final class RoutingUpsertSqlSource implements SqlSource {
     private final Class<?> modelClass;
 
     // 按方言类名缓存已解析的 SqlSource
-    // 键：方言类名 + ":" + 表名 + ":" + (批量 ? "batch" : "single")
+    // 键：方言类名 + ":" + 实体类名（或表名回退） + ":" + (批量 ? "batch" : "single")
     private final ConcurrentHashMap<String, SqlSource> sqlSourceCache = new ConcurrentHashMap<>();
 
     /**

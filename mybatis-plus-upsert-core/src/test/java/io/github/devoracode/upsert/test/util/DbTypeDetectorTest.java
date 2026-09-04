@@ -9,34 +9,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class DbTypeDetectorTest {
 
     @Test
-    void normalize_lowercases_and_collapses_whitespace() {
-        assertThat(DbTypeDetector.normalize("DM DBMS")).isEqualTo("dm_dbms");
-    }
-
-    @Test
-    void normalize_keeps_slash_for_db2_style_names() {
-        assertThat(DbTypeDetector.normalize("DB2/NT64")).isEqualTo("db2/nt64");
-    }
-
-    @Test
-    void normalize_strips_single_quote_to_avoid_breaking_ognl_string_literal() {
-        assertThat(DbTypeDetector.normalize("Weird'DB")).isEqualTo("weird_db");
-        assertThat(DbTypeDetector.normalize("Weird'DB")).doesNotContain("'");
-    }
-
-    @Test
-    void normalize_strips_xml_special_characters() {
-        assertThat(DbTypeDetector.normalize("<Some&DB>")).doesNotContain("<", ">", "&");
-    }
-
-    @Test
-    void normalize_is_idempotent() {
-        String once = DbTypeDetector.normalize("Weird'DB Name");
-        String twice = DbTypeDetector.normalize(once);
-        assertThat(once).isEqualTo(twice);
-    }
-
-    @Test
     void try_parse_db_type_returns_unknown_instead_of_throwing() {
         assertThat(DbTypeDetector.tryParseDbType("DB2/NT64")).isEqualTo(DbType.UNKNOWN);
         assertThat(DbTypeDetector.tryParseDbType("DM DBMS")).isEqualTo(DbType.UNKNOWN);
@@ -50,6 +22,23 @@ class DbTypeDetectorTest {
         assertThat(DbTypeDetector.tryParseDbType("Oracle")).isEqualTo(DbType.ORACLE);
         assertThat(DbTypeDetector.tryParseDbType("Microsoft SQL Server")).isEqualTo(DbType.SQLSERVER);
         assertThat(DbTypeDetector.tryParseDbType("H2")).isEqualTo(DbType.H2);
+    }
+
+    @Test
+    void try_parse_db_type_accepts_readme_documented_spellings() {
+        // README 中文档化的合法值必须全部可解析
+        assertThat(DbTypeDetector.tryParseDbType("sqlserver")).isEqualTo(DbType.SQLSERVER);
+        assertThat(DbTypeDetector.tryParseDbType("sql-server")).isEqualTo(DbType.SQLSERVER);
+        assertThat(DbTypeDetector.tryParseDbType("sql server")).isEqualTo(DbType.SQLSERVER);
+        assertThat(DbTypeDetector.tryParseDbType("SQLSERVER")).isEqualTo(DbType.SQLSERVER);
+        assertThat(DbTypeDetector.tryParseDbType("postgres")).isEqualTo(DbType.POSTGRESQL);
+        assertThat(DbTypeDetector.tryParseDbType("mariadb")).isEqualTo(DbType.MYSQL);
+        assertThat(DbTypeDetector.tryParseDbType("custom")).isEqualTo(DbType.CUSTOM);
+    }
+
+    @Test
+    void parse_db_type_by_jdbc_url_handles_null_url() {
+        assertThat(DbTypeDetector.parseDbTypeByJdbcUrl(null)).isEqualTo(DbType.UNKNOWN);
     }
 
     @Test

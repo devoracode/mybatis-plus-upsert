@@ -183,11 +183,16 @@ public class DynamicUpsertAutoConfiguration {
      * SqlSources 在动态 SQL 绑定之前、方言路由之前应用自动填充——
      * 不需要注册全局 MyBatis 拦截器。
      *
+     * <p>按类型（{@code ISqlInjector}）做缺失检查，与单数据源 starter 的
+     * {@code UpsertAutoConfiguration#upsertSqlInjector} 保持对称：
+     * 用户已注册任何自定义 {@code ISqlInjector} bean 时（无论 bean 名是什么）
+     * 都不再自动注册，避免两个注入器并存。
+     *
      * @param dynamicDialect 动态 upsert 方言
      * @return 配置好的 UpsertSqlInjector
      */
     @Bean
-    @ConditionalOnMissingBean(name = "sqlInjector")
+    @ConditionalOnMissingBean(com.baomidou.mybatisplus.core.injector.ISqlInjector.class)
     public UpsertSqlInjector upsertSqlInjector(DynamicUpsertDialect dynamicDialect) {
         log.info("Registering UpsertSqlInjector with DynamicUpsertDialect");
         return new UpsertSqlInjector(dynamicDialect, upsertDynamicProperties.resolveFillStrategy());

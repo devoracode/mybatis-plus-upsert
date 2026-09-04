@@ -17,6 +17,8 @@ class DialectFactoryTest {
         assertThat(DialectFactory.create("postgresql", false)).isInstanceOf(PostgresUpsertDialect.class);
         assertThat(DialectFactory.create("oracle", false)).isInstanceOf(OracleUpsertDialect.class);
         assertThat(DialectFactory.create("h2", false)).isInstanceOf(H2UpsertDialect.class);
+        assertThat(DialectFactory.create("sqlserver", false)).isInstanceOf(SqlServerUpsertDialect.class);
+        assertThat(DialectFactory.create("postgres", false)).isInstanceOf(PostgresUpsertDialect.class);
         assertThat(DialectFactory.create(DbType.MYSQL, false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
         assertThat(DialectFactory.create(DbType.H2, false)).isInstanceOf(H2UpsertDialect.class);
     }

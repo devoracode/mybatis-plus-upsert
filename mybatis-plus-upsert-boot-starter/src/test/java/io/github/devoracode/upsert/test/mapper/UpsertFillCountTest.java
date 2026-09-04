@@ -136,8 +136,7 @@ class UpsertFillCountTest {
         assertThat(countingHandler.getInsertFillSources())
                 .hasSize(6)
                 .containsOnly("pre-bind", "native")
-                .filteredOn("pre-bind"::equals).hasSize(3)
-                .hasSize(3);
+                .filteredOn("pre-bind"::equals).hasSize(3);
         assertThat(countingHandler.getInsertFillSources())
                 .filteredOn("native"::equals).hasSize(3);
     }

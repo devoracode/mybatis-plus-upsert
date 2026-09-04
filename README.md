@@ -34,11 +34,14 @@
 | MyBatis Plus | 3.5.7+ |
 | 数据库 | MySQL / MariaDB、PostgreSQL、Oracle、SQL Server、H2（内置）；其他数据库需自行实现 `UpsertDialect`，见[自定义方言](#自定义方言) |
 
+> **数据库验证等级**：目前仅在 **MySQL、PostgreSQL、H2** 中实际运行验证过（H2 用于单元测试）。**Oracle 和 SQL Server 方言未在真实数据库上验证过**——SQL 已按官方语法编写并有结构级测试覆盖，但首次接入生产前请务必在自己的环境中充分测试，详见[数据库注意事项](#数据库注意事项)。
+
 > **MyBatis Plus 版本说明**：最低要求 **3.5.7**。
 >
 > - **下限来源**：批量写入路径依赖 3.5.7 才引入的 API——`MybatisBatchUtils.execute(SqlSessionFactory, Collection, BatchMethod, int batchSize)` 以及 `MybatisUtils.getMybatisMapperProxy(Object)` / `getSqlSessionFactory(MybatisMapperProxy)`（均 `@since 3.5.7`）；3.5.6 及以下因找不到对应方法重载而无法编译。单条 `upsert(entity)` 与 SQL 注入逻辑本身兼容更早的 3.4.0+ API，但受批量路径约束，整体下限仍为 3.5.7。
-> - **项目实测通过的版本（已编译 + 测试）**：`3.5.7`、`3.5.8`、`3.5.9`。
-> - **经源码 API 兼容性分析确认支持（未在项目中实际运行验证）**：`3.5.10` 至最新 `3.5.17` 及更高版本。这些版本中本库所调用的上述 API 签名均保持不变，因此可认为向后兼容，但如使用未列出的更高版本建议自行验证。
+> - **项目实测通过的版本（全量编译 + 测试套件）**：`3.5.7`、`3.5.9`（默认）、`3.5.11`、`3.5.13`、`3.5.17`，覆盖下限、`FieldStrategy.IGNORED` 移除前后的两侧及最新版本；测试方式为 `-Dmybatis-plus.version` 覆盖后运行全部 76 个测试（含 H2 运行时集成与自动填充行为断言）。
+> - **已知的上游差异**：MyBatis-Plus 自 `3.5.11` 起移除了 `FieldStrategy.IGNORED`（由 `ALWAYS` 取代）。本库不引用该枚举值，`IGNORED` 字段的语义（不判空、始终出现在 SQL 中）由同一 default 分支覆盖，`3.5.7` 至 `3.5.17` 全系编译、运行无差异。
+> - 本库自身代码对 jsqlparser 零依赖；`3.5.9+` 的 jsqlparser 拆分工件版本差异不影响本库。如使用未列出的更高版本建议自行验证。
 
 ---
 
@@ -497,7 +500,7 @@ MyBatis Plus 的原生 `insert` / `updateById` 方法会按字段的 `FieldStrat
 public class UserEntity {
 
     @TableId
-    private Long id;            // 主键始终原样拼接，不受 FieldStrategy 影响
+    private Long id;            // 主键不受 FieldStrategy 影响；IdType.AUTO 时不出现在 INSERT 中（见下文"主键 IdType 行为"）
 
     @ConflictKey
     private String username;    // 冲突键始终原样拼接（用于 ON 条件匹配，不应为 null）
@@ -513,6 +516,17 @@ public class UserEntity {
 ```
 
 > `NEVER` 与"动态判断为 false 时不出现"是两个不同的概念：动态判断结果取决于运行时的字段值，而 `NEVER` 是在启动阶段解析元数据时就直接把该字段从 INSERT/UPDATE 候选列表中剔除，运行时无论值是什么都不会出现，性质上更接近"永久排除"而非"按值判断"。
+
+### 主键 IdType 行为
+
+| `@TableId` 类型 | INSERT 列表 | 作为 `@ConflictKey` |
+|---|---|---|
+| `INPUT` / `ASSIGN_ID` / `ASSIGN_UUID`（默认） | 主键列正常参与 INSERT | 允许 |
+| `AUTO`（数据库自增） | 主键列**不参与** INSERT（与 MP 原生 insert 行为一致，避免向 PostgreSQL serial 列显式插 NULL） | **禁止**，启动时解析即抛出异常——自增键的值在插入前不存在，无法作为冲突判断依据 |
+
+`@ConflictKey` 应放在业务唯一键列（如 `username`、`order_no`）上，而不是主键上。
+
+> 另一特殊组合：`insertStrategy = NEVER` 但参与更新（未排除出 UPDATE）的字段，其 UPDATE SET 赋值会回退为 `#{参数.字段}` 参数引用而非行引用（`new.col` / `EXCLUDED.col` / `src.col` / `VALUES(col)`），因为行引用指向插入行中不存在的列。
 
 ### 效果示例
 
@@ -541,6 +555,8 @@ userMapper.upsert(partial);
 | `upsert(T)` | 单条 | 支持 | 单条写入 |
 | `upsertBatch(List<T>)` | 一条多值 SQL | 不支持，固定列集合 | 批量写入，吞吐量优先 |
 | `upsert(Collection<T>)` | 逐条执行（BATCH executor） | 支持 | 批量写入，且各记录 null 字段可能不同、需要保留 NOT_NULL 语义 |
+
+> **注意 `upsertBatch` 的 null 覆盖行为**：批量 SQL 的列集合是固定的，`NOT_NULL` 字段为 null 时**不会**像单条 `upsert` 那样被 `<if>` 判空跳过，而是会以 NULL 写入、覆盖数据库中的原值。如果批量数据中部分记录的某些字段可能为 null 且不希望清空原值，请改用 `upsert(Collection)`。
 
 > `FieldStrategy.NEVER` 不属于这个限制：它在元数据解析阶段就把字段从候选列表中永久剔除，三种方法使用的是同一份列集合，因此 `NEVER` 字段在 `upsertBatch`/`upsert(Collection)` 中同样会被排除，行为是一致的。
 
@@ -817,14 +833,17 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
 
 > 之所以用 `USING (SELECT ...)` 而非 `USING (SELECT ... FROM dual)` 之外的写法，是因为 Oracle MERGE 没有 `USING (VALUES (...))` 语法；`SELECT` 列表天然支持配合 `<trim>` 动态增减列。
 
-**批量（固定列集合，逐条执行，以 `;` 分隔）：**
+**批量（固定列集合，全部行经 UNION ALL 拼入同一源子查询，单条 MERGE 一次往返执行）：**
 ```sql
-MERGE INTO t_user t USING (SELECT ... FROM dual) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...;
-MERGE INTO t_user t USING (SELECT ... FROM dual) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...;
-...
+MERGE INTO t_user t USING (
+  SELECT ... FROM dual
+  UNION ALL
+  SELECT ... FROM dual
+  ...
+) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...
 ```
 
-> Oracle 批量为逐条执行，与其他数据库不同，详见[数据库注意事项](#数据库注意事项)。
+> Oracle JDBC 不支持在单条 PreparedStatement 中以 `;` 分隔执行多条语句（ORA-00911: invalid character），因此批量不使用逐条 MERGE，而是把全部行拼进一个 `UNION ALL` 源子查询、以单条 MERGE 执行，详见[数据库注意事项](#数据库注意事项)。
 
 ---
 
@@ -898,7 +917,8 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 - **MySQL/MariaDB**：一条多值 SQL，`ON DUPLICATE KEY UPDATE` 每行的 affected-rows 编码是插入=1、更新=2、值未变化=0，返回值是**逐行求和**。例如返回 4，可能是 4 行插入，也可能是 2 行更新，两种情况算出来都是 4，光看这个数字没法反推到底是哪种。
 - **PostgreSQL**：一条多值 SQL，`ON CONFLICT DO UPDATE` 没有上面那种编码，返回值就是单纯的"本次插入+更新的总行数"，含义更简单，但同样不能拆出插入/更新各多少行。
 - **SQL Server**：一条多值 `MERGE`（`USING (VALUES ...) AS src`），语义同 PostgreSQL，单纯总行数。
-- **Oracle / H2**：批量是用 `;` 拼接的多条独立 `MERGE` 语句（不是一条 SQL，见[数据库注意事项](#数据库注意事项)）。这种情况下 JDBC `executeUpdate()` 的返回值取决于驱动对"一次调用执行多条语句"的支持程度——Oracle JDBC 默认不支持这种用法，驱动层面如果做了兼容处理，目前也没有实测确认返回的是第一条语句、最后一条、还是合计。**这两个数据库下 `upsertBatch` 的返回值不建议作为业务判断依据**，只把它当"调用是否抛异常"的信号即可。
+- **Oracle**：单条 `MERGE`，全部行经 `UNION ALL` 拼入同一个源子查询（见[数据库注意事项](#数据库注意事项)），返回值同样是插入+更新的总行数，语义同 PostgreSQL。
+- **H2**：批量是用 `;` 拼接的多条独立 `MERGE` 语句（不是一条 SQL）。JDBC `executeUpdate()` 的返回值取决于驱动对"一次调用执行多条语句"的支持程度，没有实测确认返回的是第一条、最后一条、还是合计。**H2 仅用于测试环境，`upsertBatch` 的返回值不建议作为业务判断依据**，测试断言请用查询结果而非返回值。
 
 如果业务确实需要"这批里哪些是插入、哪些是更新"的明细，请用 `upsert(Collection<T>)`（对齐 MP `insert(Collection)` 语义，逐行执行）：返回的 `List<BatchResult>` 里每个 `BatchResult.getUpdateCounts()` 是逐行的真实 int 数组，MySQL 下每个元素天然就是 0/1/2 编码，可以按行解读；PostgreSQL/SQL Server/Oracle/H2 下每个元素是该行单独执行的受影响行数，同样比 `upsertBatch` 的单个合计数更可信。
 
@@ -907,7 +927,8 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 **Q：批量 upsert 是一条 SQL 还是多条？**
 
 - MySQL / PostgreSQL / SQL Server：一条 SQL，多行 VALUES，效率最高。
-- Oracle / H2：逐条执行，多条 SQL 以 `;` 分隔。
+- Oracle：一条 SQL，全部行经 `UNION ALL` 拼入同一个 `USING (...)` 源子查询（一次往返执行）。
+- H2：逐条执行，多条 SQL 以 `;` 分隔。
 
 无论哪种数据库，批量 upsert 均使用固定列集合，不做按字段值的动态判断（即[字段动态判断](#字段动态判断)只对单条 upsert 生效）。若业务需要"批量但仍要动态判断"，请改用单条 `upsert` 循环调用。
 
@@ -992,6 +1013,16 @@ mybatis-plus:
 
 ## 数据库注意事项
 
+> **⚠️ 验证等级（必读）**：本项目目前**只在 MySQL、PostgreSQL、H2 中实际运行验证过**（其中 H2 仅用于单元测试）。**Oracle 与 SQL Server 的方言未在真实数据库上验证过**——生成的 SQL 严格按各数据库官方语法规范编写，并通过了结构级断言测试（见 `DialectSqlTest`），但缺少真实环境的运行时确认。
+>
+> 在 Oracle / SQL Server 上首次使用本库前，建议：
+>
+> 1. 用你的实际实体（含动态字段、自动填充、各注解组合）跑一遍单条与批量 upsert，确认 SQL 可执行；
+> 2. 确认受影响行数（`upsertBatch` 返回值）符合你的预期；
+> 3. 关注下方两个数据库各自的注意事项（如 Oracle 批量重复冲突键的 ORA-30926、SQL Server MERGE 的并发特性）。
+>
+> 如遇问题欢迎提 issue 附上生成 SQL 与报错信息。
+
 ### MySQL / MariaDB
 
 - 默认使用 `VALUES()` 函数引用当次插入的列值，该语法向下兼容所有 MySQL/MariaDB 版本。
@@ -1004,7 +1035,9 @@ mybatis-plus:
 
 ### Oracle
 
-- 批量 upsert 采用逐条 MERGE，多条语句以 `;` 分隔。Oracle JDBC 驱动默认不支持多语句执行，需在 JDBC URL 中确认驱动版本兼容性，或在业务层拆分为单条循环调用。
+- 批量 upsert 为**单条 MERGE**：每个实体渲染为 `SELECT ... FROM dual`，行间以 `UNION ALL` 拼成一个源子查询后整体执行——不依赖多语句（Oracle JDBC 会报 ORA-00911），也不需要 PL/SQL 匿名块。
+- 同一批次内**不能包含重复的冲突键**：源子查询中多行命中同一目标行时，Oracle 报 ORA-30926（unable to get a stable set of rows）。这与 SQL Server 方言行为一致（MERGE 不允许更新同一行两次）。
+- `upsertBatch` 返回的受影响行数为该条 MERGE 的 insert+update 合计。需要精确逐行行数时可用 `upsert(Collection)`（返回 `List<BatchResult>`）。
 - 若数据量大，建议业务层自行分批调用，避免单次事务过大。
 
 ### SQL Server
@@ -1018,4 +1051,4 @@ mybatis-plus:
 - H2 的 `MERGE INTO ... KEY(...)` 语法为 H2 私有，**不适用于生产环境**，仅用于单元测试。
 - 在 `application.yml` 中配置 `mybatis-plus.upsert.db-type: h2` 或使用 H2 DataSource 时自动探测。
 - H2 Mode 建议设置为 `MODE=MySQL` 以最大程度模拟 MySQL 行为（建表 DDL 可以复用）。
-- 批量 upsert 同 Oracle，是 `;` 拼接的多条独立 `MERGE` 语句，`upsertBatch` 返回的 int 含义不可靠（见[常见问题](#常见问题)），测试断言请用查询结果而非返回值判断。
+- 批量 upsert 是 `;` 拼接的多条独立 `MERGE` 语句（H2 支持单次执行多语句），`upsertBatch` 返回的 int 含义不可靠（见[常见问题](#常见问题)），测试断言请用查询结果而非返回值判断。

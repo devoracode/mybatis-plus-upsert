@@ -2,8 +2,6 @@ package io.github.devoracode.upsert.dialect;
 
 import io.github.devoracode.upsert.core.UpsertMeta;
 
-import java.util.List;
-
 /**
  * PostgreSQL 方言，使用 {@code INSERT ... ON CONFLICT (cols) DO UPDATE SET col = EXCLUDED.col} 语法。
  *
@@ -32,18 +30,13 @@ public class PostgresUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        List<String> updCols   = meta.getUpdateColumns();
-
-        StringBuilder sb = new StringBuilder(128 + meta.getInsertColumns().size() * 20 + updCols.size() * 20);
+        StringBuilder sb = new StringBuilder(128 + meta.getInsertColumns().size() * 20
+                + meta.getUpdateFieldMetas().size() * 20);
         DynamicSqlBuilder.appendBatchInsertClause(sb, meta);
         sb.append(" ON CONFLICT (");
         DynamicSqlBuilder.appendJoin(sb, meta.getConflictColumns());
         sb.append(") DO UPDATE SET ");
-        for (int i = 0; i < updCols.size(); i++) {
-            if (i > 0) sb.append(", ");
-            String col = updCols.get(i);
-            sb.append(col).append(" = EXCLUDED.").append(col);
-        }
+        DynamicSqlBuilder.appendBatchUpdateSet(sb, meta, "EXCLUDED.", "");
         return sb.toString();
     }
 }

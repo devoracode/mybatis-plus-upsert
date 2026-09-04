@@ -203,11 +203,28 @@ class DialectSqlTest {
     }
 
     @Test
-    void oracle_batch_sql_uses_foreach_separator() {
+    void oracle_batch_sql_uses_union_all_source() {
         String sql = new OracleUpsertDialect().buildUpsertBatchSql(staticMeta);
         assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("separator=\";\"");
+        assertThat(sql).contains("separator=\" UNION ALL \"");
         assertThat(sql).contains("#{item.email}");
+        // 单条 MERGE：不再使用分号分隔多语句或 PL/SQL 匿名块
+        assertThat(sql).doesNotContain("separator=\";\"");
+        assertThat(sql).doesNotContain("BEGIN");
+        assertThat(sql).doesNotContain("END;");
+    }
+
+    @Test
+    void oracle_batch_sql_structure_is_valid_single_merge() {
+        // 回归测试：批量必须是单条 MERGE，源子查询由 UNION ALL 拼接，
+        // 不能回退为 foreach + 分号多语句（ORA-00911）或 PL/SQL 匿名块
+        String sql = new OracleUpsertDialect().buildUpsertBatchSql(staticMeta);
+        assertThat(sql).startsWith("MERGE INTO t_user t USING (<foreach");
+        assertThat(sql).contains(" FROM dual</foreach>) src ON (");
+        assertThat(sql.split("MERGE INTO", -1).length - 1).isEqualTo(1);
+        assertThat(sql.split("FROM dual", -1).length - 1).isEqualTo(1);
+        assertThat(sql.split(" ON \\(", -1).length - 1).isEqualTo(1);
+        assertThat(sql.split("WHEN MATCHED", -1).length - 1).isEqualTo(1);
     }
 
     @Test
@@ -363,5 +380,62 @@ class DialectSqlTest {
             assertThat(sql).as(dialect.getClass().getSimpleName() + " batch SQL")
                     .doesNotContain("(, ").doesNotContain(", ,");
         }
+    }
+
+    // --- 更新但不插入的字段（insertStrategy=NEVER）：SET 赋值必须回退为参数引用 ---
+
+    /**
+     * memo 为只更新不插入的字段（paramRef=true）：INSERT 列不含 memo，
+     * UPDATE SET 不能用行引用（new./EXCLUDED./src./VALUES()），必须用 #{param.memo}。
+     */
+    private UpsertMeta paramRefMeta() {
+        Map<String, String> map = new HashMap<>();
+        map.put("id", "id");
+        map.put("username", "username");
+        map.put("memo", "memo");
+        return UpsertMeta.builder()
+                .tableName("t_param_ref")
+                .insertColumns(Arrays.asList("id", "username"))
+                .insertFields(Arrays.asList("id", "username"))
+                .conflictColumns(Collections.singletonList("username"))
+                .updateColumns(Collections.singletonList("memo"))
+                .updateFields(Collections.singletonList("memo"))
+                .insertFieldMetas(Arrays.asList(
+                        FieldMeta.builder().column("id").property("id").dynamic(false).build(),
+                        FieldMeta.builder().column("username").property("username").dynamic(false).build()))
+                .updateFieldMetas(Collections.singletonList(
+                        FieldMeta.builder().column("memo").property("memo").dynamic(false).paramRef(true).build()))
+                .fieldToColumnMap(map)
+                .build();
+    }
+
+    @Test
+    void update_only_field_falls_back_to_param_reference_in_single_sql() {
+        UpsertMeta meta = paramRefMeta();
+        assertThat(new MysqlLegacyUpsertDialect().buildUpsertSql(meta))
+                .contains("memo = #{et.memo}").doesNotContain("memo = VALUES(");
+        assertThat(new MysqlUpsertDialect().buildUpsertSql(meta))
+                .contains("memo = #{et.memo}").doesNotContain("memo = new.memo");
+        assertThat(new PostgresUpsertDialect().buildUpsertSql(meta))
+                .contains("memo = #{et.memo}").doesNotContain("memo = EXCLUDED.memo");
+        assertThat(new OracleUpsertDialect().buildUpsertSql(meta))
+                .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
+        assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
+                .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
+    }
+
+    @Test
+    void update_only_field_falls_back_to_param_reference_in_batch_sql() {
+        UpsertMeta meta = paramRefMeta();
+        assertThat(new MysqlLegacyUpsertDialect().buildUpsertBatchSql(meta))
+                .contains("memo = #{item.memo}").doesNotContain("memo = VALUES(");
+        assertThat(new MysqlUpsertDialect().buildUpsertBatchSql(meta))
+                .contains("memo = #{item.memo}").doesNotContain("memo = new.memo");
+        assertThat(new PostgresUpsertDialect().buildUpsertBatchSql(meta))
+                .contains("memo = #{item.memo}").doesNotContain("memo = EXCLUDED.memo");
+        assertThat(new OracleUpsertDialect().buildUpsertBatchSql(meta))
+                .contains("t.memo = #{item.memo}").doesNotContain("t.memo = src.memo");
+        assertThat(new SqlServerUpsertDialect().buildUpsertBatchSql(meta))
+                .contains("t.memo = #{item.memo}").doesNotContain("t.memo = src.memo");
     }
 }

@@ -6,10 +6,43 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * Oracle 方言，使用 {@code MERGE INTO ... USING (SELECT ...) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...} 语法。
+ * Oracle Upsert 方言。
  *
- * <p>Oracle 不支持原生 upsert 语法，因此该方言生成带有 MyBatis XML 标签
- * （{@code <if>}、{@code <trim>}）的 MERGE 语句以处理动态字段。
+ * <p>使用 Oracle MERGE INTO 实现 Upsert：
+ *
+ * <pre>
+ * MERGE INTO target t
+ * USING (
+ *     SELECT ... FROM dual
+ * ) src
+ * ON (...)
+ * WHEN MATCHED THEN
+ *     UPDATE SET ...
+ * WHEN NOT MATCHED THEN
+ *     INSERT (...)
+ *     VALUES (...);
+ * </pre>
+ *
+ * <p>批量 Upsert 使用一个 MERGE + UNION ALL：
+ *
+ * <pre>
+ * MERGE INTO target t
+ * USING (
+ *     SELECT ... FROM dual
+ *     UNION ALL
+ *     SELECT ... FROM dual
+ *     ...
+ * ) src
+ * ON (...)
+ * WHEN MATCHED THEN UPDATE ...
+ * WHEN NOT MATCHED THEN INSERT ...
+ * </pre>
+ *
+ * <p>单条场景生成带 {@code <if>}/{@code <trim>} 标签的动态 SQL；批量场景为固定列集合，
+ * 全部行拼进同一个源子查询后以单条 MERGE 一次往返执行——无 PL/SQL 匿名块，
+ * {@code executeUpdate} 返回的受影响行数为 insert+update 合计，语义明确。
+ * 注意同一批次内不能包含重复的冲突键：源子查询中多行命中同一目标行时
+ * Oracle 报 ORA-30926（unable to get a stable set of rows）。
  *
  * @author devoracode
  * @since 1.0.0
@@ -76,17 +109,25 @@ public class OracleUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertBatchSql(UpsertMeta meta) {
-        StringBuilder sb = new StringBuilder(256 + meta.getInsertColumns().size() * 30
+        List<String> insCols = meta.getInsertColumns();
+        List<String> insFields = meta.getInsertFields();
+
+        StringBuilder sb = new StringBuilder(256 + insCols.size() * 30
                 + meta.getUpdateColumns().size() * 20);
-        sb.append("MERGE INTO ").append(meta.getTableName()).append(" t USING (SELECT ");
-        for (int i = 0; i < meta.getInsertColumns().size(); i++) {
+        sb.append("MERGE INTO ").append(meta.getTableName()).append(" t USING (");
+        // 每个实体渲染为 SELECT ... FROM dual，行间以 UNION ALL 拼成单个源子查询。
+        // 单条 MERGE 一次往返执行：不依赖 PL/SQL 匿名块（Oracle JDBC 不支持分号
+        // 分隔的多语句，会报 ORA-00911），executeUpdate 行数语义也明确。
+        sb.append("<foreach collection=\"list\" item=\"item\" separator=\" UNION ALL \">SELECT ");
+        for (int i = 0; i < insCols.size(); i++) {
             if (i > 0) sb.append(", ");
-            sb.append("#{item.").append(meta.getInsertFields().get(i))
-                    .append("} AS ").append(meta.getInsertColumns().get(i));
+            sb.append("#{item.").append(insFields.get(i))
+                    .append("} AS ").append(insCols.get(i));
         }
-        sb.append(" FROM dual) src");
-        DynamicSqlBuilder.appendMergeOnClause(sb, meta.getConflictColumns());
+        sb.append(" FROM dual</foreach>");
+        sb.append(") src ON (");
+        DynamicSqlBuilder.appendOnConditions(sb, meta.getConflictColumns());
         DynamicSqlBuilder.appendMergeUpdateAndInsert(sb, meta);
-        return "<foreach collection=\"list\" item=\"item\" separator=\";\">>" + sb + "</foreach>";
+        return sb.toString();
     }
 }

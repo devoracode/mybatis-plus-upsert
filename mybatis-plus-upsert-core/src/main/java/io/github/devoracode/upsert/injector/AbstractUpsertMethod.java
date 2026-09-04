@@ -26,7 +26,6 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
 
     final UpsertDialect dialect;
     private final boolean batch;
-    private final String methodName;
     private final FillStrategy fillStrategy;
 
     /**
@@ -51,7 +50,6 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
      */
     AbstractUpsertMethod(String methodName, UpsertDialect dialect, boolean batch, FillStrategy fillStrategy) {
         super(methodName);
-        this.methodName = methodName;
         this.dialect = dialect;
         this.batch = batch;
         this.fillStrategy = fillStrategy;

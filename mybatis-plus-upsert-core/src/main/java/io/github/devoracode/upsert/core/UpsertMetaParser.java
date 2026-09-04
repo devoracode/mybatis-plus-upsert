@@ -1,6 +1,7 @@
 package io.github.devoracode.upsert.core;
 
 import com.baomidou.mybatisplus.annotation.FieldStrategy;
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -73,12 +74,19 @@ public class UpsertMetaParser {
     private static UpsertMeta parse(Class<?> entityClass, AnnotationScan scan) {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entityClass);
         if (tableInfo == null) {
-            throw new UpsertMetaException("无法找到实体 " + entityClass.getName()
-                    + " 对应的 MyBatis Plus TableInfo。请确保该实体已被 MyBatis Plus 扫描。");
+            throw new UpsertMetaException("No MyBatis Plus TableInfo found for entity " + entityClass.getName()
+                    + ". Make sure the entity is scanned by MyBatis Plus.");
         }
 
         if (!scan.hasConflictKey) {
-            throw new UpsertMetaException(entityClass.getName() + "：未找到任何 @ConflictKey 字段");
+            throw new UpsertMetaException(entityClass.getName() + ": no @ConflictKey field found");
+        }
+        if (tableInfo.getKeyProperty() != null
+                && tableInfo.getIdType() == IdType.AUTO
+                && scan.conflictFieldOrder.containsKey(tableInfo.getKeyProperty())) {
+            throw new UpsertMetaException(entityClass.getName()
+                    + ": @ConflictKey cannot be placed on an auto-increment (IdType.AUTO) primary key;"
+                    + " the conflict key must be a user-provided column");
         }
         List<String> sortedConflictFields = sortConflictFields(scan.conflictFieldOrder);
 
@@ -101,7 +109,7 @@ public class UpsertMetaParser {
             if (fi.getInsertStrategy() != FieldStrategy.NEVER) {
                 insertColumns.add(colName);
                 insertFields.add(fieldName);
-                insertFieldMetas.add(toFieldMeta(fi, fi.getInsertStrategy()));
+                insertFieldMetas.add(toFieldMeta(fi, fi.getInsertStrategy(), false));
             }
 
             if (scan.conflictFieldOrder.containsKey(fieldName)) {
@@ -111,13 +119,16 @@ public class UpsertMetaParser {
                     && fi.getUpdateStrategy() != FieldStrategy.NEVER) {
                 updateColumns.add(colName);
                 updateFields.add(fieldName);
-                updateFieldMetas.add(toFieldMeta(fi, fi.getUpdateStrategy()));
+                // 只更新不插入的字段（insertStrategy=NEVER）不能用行引用赋值
+                boolean paramRef = fi.getInsertStrategy() == FieldStrategy.NEVER;
+                updateFieldMetas.add(toFieldMeta(fi, fi.getUpdateStrategy(), paramRef));
             }
         }
 
         if (updateColumns.isEmpty()) {
             throw new UpsertMetaException(entityClass.getName()
-                    + "：未找到可更新列。至少需要一个非 @ConflictKey、非 @IgnoreOnUpdate 且具有非 NEVER 更新策略的字段。");
+                    + ": no updatable column found. At least one field that is not a @ConflictKey,"
+                    + " not @IgnoreOnUpdate and has a non-NEVER update strategy is required.");
         }
 
         List<String> conflictColumns = resolveConflictColumns(entityClass, sortedConflictFields, fieldToColumnMap);
@@ -145,6 +156,12 @@ public class UpsertMetaParser {
         String kp = tableInfo.getKeyProperty();
         String kc = tableInfo.getKeyColumn();
         fieldToColumnMap.put(kp, kc);
+        if (tableInfo.getIdType() == IdType.AUTO) {
+            // 自增主键由数据库生成，不进入 INSERT 列表——显式插入 NULL 在
+            // PostgreSQL（serial 列 NOT NULL 约束）等数据库下会失败，
+            // 且与 MyBatis-Plus 自身 insert 的行为保持一致
+            return;
+        }
         insertColumns.add(kc);
         insertFields.add(kp);
         insertFieldMetas.add(FieldMeta.builder().column(kc).property(kp).dynamic(false).build());
@@ -156,9 +173,13 @@ public class UpsertMetaParser {
                 : !scan.ignoreFieldNames.contains(fieldName);
     }
 
+    /**
+     * 按 order 升序排序冲突键字段；order 相同（含全部为默认值 0）时按字段名
+     * 字典序稳定排序，保证生成的 SQL 在不同 JVM 运行间一致。
+     */
     private static List<String> sortConflictFields(Map<String, Integer> conflictFieldOrder) {
         List<String> sorted = new ArrayList<>(conflictFieldOrder.keySet());
-        sorted.sort(Comparator.comparingInt(conflictFieldOrder::get));
+        sorted.sort(Comparator.comparingInt((String a) -> conflictFieldOrder.get(a)).thenComparing(a -> a));
         return sorted;
     }
 
@@ -170,7 +191,7 @@ public class UpsertMetaParser {
             String col = fieldToColumnMap.get(fieldName);
             if (col == null) {
                 throw new UpsertMetaException(entityClass.getName()
-                        + "：@ConflictKey 字段 '" + fieldName + "' 在 TableInfo 中未找到，请检查属性名映射");
+                        + ": @ConflictKey field '" + fieldName + "' not found in TableInfo, check the property name mapping");
             }
             conflictColumns.add(col);
         }
@@ -202,10 +223,13 @@ public class UpsertMetaParser {
                 explicitUpdateFieldNames, hasExplicitUpdate);
     }
 
-    private static FieldMeta toFieldMeta(TableFieldInfo fi, FieldStrategy strategy) {
+    private static FieldMeta toFieldMeta(TableFieldInfo fi, FieldStrategy strategy, boolean paramRef) {
         boolean isStringType = String.class.equals(fi.getPropertyType());
         boolean dynamic;
         boolean checkEmpty;
+        // FieldStrategy.IGNORED（3.5.11 起已从 MyBatis-Plus 移除，由 ALWAYS 取代）不单独
+        // 列 case——其语义与 default 分支一致（不做判空、始终出现在 SQL 中），
+        // 3.5.10 及以下由 default 覆盖，保证 3.5.7 至 3.5.17+ 全版本编译通过
         switch (strategy) {
             case NOT_NULL:
                 dynamic = true;
@@ -215,7 +239,6 @@ public class UpsertMetaParser {
                 dynamic = true;
                 checkEmpty = isStringType;
                 break;
-            case IGNORED:
             case DEFAULT:
             default:
                 dynamic = false;
@@ -227,6 +250,7 @@ public class UpsertMetaParser {
                 .property(fi.getProperty())
                 .dynamic(dynamic)
                 .checkEmpty(checkEmpty)
+                .paramRef(paramRef)
                 .build();
     }
 

@@ -5,12 +5,16 @@ import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.core.UpsertMetaParser;
+import io.github.devoracode.upsert.exception.UpsertMetaException;
+import io.github.devoracode.upsert.test.support.AutoIdConflictKeyEntity;
+import io.github.devoracode.upsert.test.support.AutoIdEntity;
 import io.github.devoracode.upsert.test.support.UserEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UpsertMetaParserTest {
 
@@ -22,6 +26,8 @@ class UpsertMetaParserTest {
         MybatisConfiguration configuration = new MybatisConfiguration();
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
         TableInfoHelper.initTableInfo(assistant, UserEntity.class);
+        TableInfoHelper.initTableInfo(assistant, AutoIdEntity.class);
+        TableInfoHelper.initTableInfo(assistant, AutoIdConflictKeyEntity.class);
     }
 
     @Test
@@ -63,5 +69,22 @@ class UpsertMetaParserTest {
                 .filter(fm -> "id".equals(fm.getProperty()))
                 .findFirst().orElseThrow(() -> new AssertionError("FieldMeta not found")).isDynamic();
         assertThat(idDynamic).isFalse();
+    }
+
+    @Test
+    void auto_increment_primary_key_is_excluded_from_insert_columns() {
+        UpsertMeta meta = UpsertMetaParser.getMeta(AutoIdEntity.class);
+        // AUTO 主键由数据库生成，不得进入 INSERT 列表——
+        // 显式插入 NULL 在 PostgreSQL serial 列等场景下会违反 NOT NULL 约束
+        assertThat(meta.getInsertColumns()).doesNotContain("id");
+        assertThat(meta.getInsertFields()).doesNotContain("id");
+        assertThat(meta.getConflictColumns()).containsExactly("username");
+    }
+
+    @Test
+    void conflict_key_on_auto_increment_primary_key_fails_fast() {
+        assertThatThrownBy(() -> UpsertMetaParser.getMeta(AutoIdConflictKeyEntity.class))
+                .isInstanceOf(UpsertMetaException.class)
+                .hasMessageContaining("auto-increment");
     }
 }
