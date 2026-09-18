@@ -8,6 +8,7 @@ import io.github.devoracode.upsert.core.UpsertMetaParser;
 import io.github.devoracode.upsert.exception.UpsertMetaException;
 import io.github.devoracode.upsert.test.support.AutoIdConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
+import io.github.devoracode.upsert.test.support.ConflictOnlyEntity;
 import io.github.devoracode.upsert.test.support.UserEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -28,6 +29,7 @@ class UpsertMetaParserTest {
         TableInfoHelper.initTableInfo(assistant, UserEntity.class);
         TableInfoHelper.initTableInfo(assistant, AutoIdEntity.class);
         TableInfoHelper.initTableInfo(assistant, AutoIdConflictKeyEntity.class);
+        TableInfoHelper.initTableInfo(assistant, ConflictOnlyEntity.class);
     }
 
     @Test
@@ -86,5 +88,14 @@ class UpsertMetaParserTest {
         assertThatThrownBy(() -> UpsertMetaParser.getMeta(AutoIdConflictKeyEntity.class))
                 .isInstanceOf(UpsertMetaException.class)
                 .hasMessageContaining("auto-increment");
+    }
+
+    @Test
+    void entity_without_any_updatable_column_fails_fast() {
+        // 只有冲突键、无任何可更新字段的实体必然产生空 UPDATE SET——
+        // 属于配置错误，应在启动解析阶段抛出，而不是留到运行期报 SQL 语法错误
+        assertThatThrownBy(() -> UpsertMetaParser.getMeta(ConflictOnlyEntity.class))
+                .isInstanceOf(UpsertMetaException.class)
+                .hasMessageContaining("no updatable column");
     }
 }

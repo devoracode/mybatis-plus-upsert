@@ -78,7 +78,8 @@ public class OracleUpsertDialect implements UpsertDialect {
         }
         sb.append(") WHEN MATCHED THEN UPDATE SET ");
         // UPDATE 引用 src.*——相同的 <if> 条件使其与 USING 中的查询保持一致
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", ""));
+        // 兜底自赋值引用目标别名 t（首个更新列必非 ON 条件列，不触发 ORA-38104）
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", "", "t."));
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
         // INSERT 的列名和值都引用 src；相同的 <if> 条件使二者保持同步
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");

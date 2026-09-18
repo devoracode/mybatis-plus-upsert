@@ -24,8 +24,18 @@ public class PostgresUpsertDialect implements UpsertDialect {
         sb.append(" ON CONFLICT (");
         DynamicSqlBuilder.appendJoin(sb, meta.getConflictColumns());
         sb.append(") DO UPDATE SET ");
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "EXCLUDED.", ""));
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "EXCLUDED.", "",
+                targetQualifier(meta.getTableName())));
         return sb.toString();
+    }
+
+    /**
+     * 兜底自赋值需以目标表名限定列引用（{@code col = t_user.col}）才能读到目标行当前值。
+     * PostgreSQL 的 SET 子句中限定符只接受表名（别名），不含 schema 前缀，故取最后一段。
+     */
+    private static String targetQualifier(String tableName) {
+        int dot = tableName.lastIndexOf('.');
+        return (dot >= 0 ? tableName.substring(dot + 1) : tableName) + ".";
     }
 
     @Override

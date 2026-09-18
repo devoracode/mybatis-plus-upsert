@@ -70,12 +70,30 @@ final class DynamicSqlBuilder {
      * {@code fm.isParamRef()} 为 true）使用 {@code #{paramPrefix.property}} 参数引用——
      * 行引用会指向插入行中不存在的列。
      *
-     * @param valuePrefix 赋值表达式中列名前的固定前缀
-     * @param valueSuffix 赋值表达式中列名后的固定后缀
+     * <p>空 SET 兜底：当全部可更新字段均为动态字段时（典型场景：实体字段均为默认
+     * {@code NOT_NULL} 策略且本次调用全部传 null），运行时所有 {@code <if>} 都不成立，
+     * {@code <trim>} 渲染为空，将产生空 UPDATE SET 的非法 SQL（MySQL 的
+     * {@code ON DUPLICATE KEY UPDATE} 后缀、PostgreSQL 的 {@code DO UPDATE SET}、
+     * Oracle / SQL Server 的 {@code WHEN MATCHED THEN UPDATE SET} 均不允许为空）。
+     * 此时在 {@code <trim>} 内追加一个由反向 {@code <if>} 条件（所有动态字段的不成立
+     * 条件之并）包裹的自赋值兜底（{@code col = targetRefPrefix + col}，只引用目标行、
+     * 与实体值无关）：仅当运行时全部动态字段被过滤时才渲染，保证 SET 子句始终语法完整。
+     * 兜底不能无条件渲染——H2（MySQL 模式）会拒绝同一列既出现在正常赋值列表又出现在
+     * 兜底中（Duplicate column name）。只要存在任意非动态更新字段（赋值恒定渲染），
+     * SET 即不会为空，不追加兜底，生成的 SQL 与旧版完全一致。
+     *
+     * @param valuePrefix     赋值表达式中列名前的固定前缀
+     * @param valueSuffix     赋值表达式中列名后的固定后缀
+     * @param targetRefPrefix 自赋值兜底中引用目标行的列前缀：MySQL 两种语法传
+     *                        {@code ""}（非限定列名即目标表当前值）；PostgreSQL 传
+     *                        目标表名限定（如 {@code "t_user."}）；Oracle / SQL Server
+     *                        传目标别名 {@code "t."}。兜底列为首个更新列，
+     *                        必然不是冲突键列，不会触发 Oracle 的 ORA-38104
+     *                        （MERGE 的 ON 条件列不允许出现在 UPDATE SET 中）
      */
     static String updateSetTrim(List<FieldMeta> updateFieldMetas, String paramPrefix,
-                                String valuePrefix, String valueSuffix) {
-        StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 32);
+                                String valuePrefix, String valueSuffix, String targetRefPrefix) {
+        StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 64);
         sb.append("<trim suffixOverrides=\",\">");
         for (FieldMeta fm : updateFieldMetas) {
             String value = fm.isParamRef()
@@ -89,8 +107,39 @@ final class DynamicSqlBuilder {
                 sb.append(assignment);
             }
         }
+        appendEmptySetFallback(sb, updateFieldMetas, paramPrefix, targetRefPrefix);
         sb.append("</trim>");
         return sb.toString();
+    }
+
+    /**
+     * 全部更新字段均为动态字段时，追加运行时条件兜底：
+     * 当且仅当所有字段的动态判空条件均不成立（即 SET 将渲染为空）时，
+     * 输出一个针对首个更新列的自赋值。
+     */
+    private static void appendEmptySetFallback(StringBuilder sb, List<FieldMeta> updateFieldMetas,
+                                               String paramPrefix, String targetRefPrefix) {
+        if (updateFieldMetas.isEmpty()) {
+            return;
+        }
+        StringBuilder allOmitted = new StringBuilder();
+        for (FieldMeta fm : updateFieldMetas) {
+            if (!fm.isDynamic()) {
+                return;
+            }
+            if (allOmitted.length() > 0) {
+                allOmitted.append(" and ");
+            }
+            String ref = paramPrefix + "." + fm.getProperty();
+            if (fm.isCheckEmpty()) {
+                allOmitted.append('(').append(ref).append(" == null or ").append(ref).append(" == '')");
+            } else {
+                allOmitted.append(ref).append(" == null");
+            }
+        }
+        String column = updateFieldMetas.get(0).getColumn();
+        sb.append("<if test=\"").append(allOmitted).append("\">")
+                .append(column).append(" = ").append(targetRefPrefix).append(column).append(", </if>");
     }
 
     /**

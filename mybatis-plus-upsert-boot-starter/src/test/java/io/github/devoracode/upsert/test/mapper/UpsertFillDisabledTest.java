@@ -2,6 +2,8 @@ package io.github.devoracode.upsert.test.mapper;
 
 import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.TestApplication.CountingMetaObjectHandler;
+import io.github.devoracode.upsert.test.support.SecretHolderEntity;
+import io.github.devoracode.upsert.test.support.SecretHolderMapper;
 import io.github.devoracode.upsert.test.support.UserEntity;
 import io.github.devoracode.upsert.test.support.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +30,9 @@ class UpsertFillDisabledTest {
 
     @Autowired
     private UserMapper userMapper;
+
+    @Autowired
+    private SecretHolderMapper secretHolderMapper;
 
     @Autowired
     private CountingMetaObjectHandler countingHandler;
@@ -57,5 +62,27 @@ class UpsertFillDisabledTest {
         // 永远无法进入生成的语句中——这正是预绑定处理器要修复的行为。
         assertThat(countingHandler.getInsertFillCount()).isGreaterThanOrEqualTo(1);
         assertThat(countingHandler.getUpdateFillCount()).isZero();
+    }
+
+    /**
+     * 回归测试：全部可更新字段均为动态字段（默认 NOT_NULL）且运行时全为 null 时，
+     * UPDATE SET 不得渲染为空——修复前 H2（MySQL 模式）会直接报
+     * {@code ON DUPLICATE KEY UPDATE} 空子句语法错误，由自赋值兜底保证 SQL 完整。
+     * 使用更新列全部可空的 t_secret_holder，避开 H2 模拟实现对缺失 NOT NULL 列的先行校验。
+     */
+    @Test
+    void upsert_with_only_conflict_key_and_all_null_updates_does_not_produce_empty_set() {
+        secretHolderMapper.delete(null);
+        secretHolderMapper.upsert(SecretHolderEntity.builder()
+                .id(1L).code("c1").secret("top").visible("yes").build());
+
+        // 仅携带主键与冲突键，secret / visible 全为 null：
+        // 冲突分支所有动态 <if> 均不成立，渲染后仅剩兜底自赋值
+        secretHolderMapper.upsert(SecretHolderEntity.builder().id(1L).code("c1").build());
+
+        SecretHolderEntity saved = secretHolderMapper.selectById(1L);
+        assertThat(saved).isNotNull();
+        assertThat(saved.getSecret()).isEqualTo("top");
+        assertThat(saved.getVisible()).isEqualTo("yes");
     }
 }
