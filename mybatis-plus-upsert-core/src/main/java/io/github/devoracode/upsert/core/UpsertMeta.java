@@ -10,7 +10,8 @@ import java.util.Map;
  * Upsert SQL 生成所需的元数据容器。
  * 包含构建 Upsert 语句所需的全部信息：表名、列名、冲突键、更新列以及字段到列的映射。
  *
- * <p>实例由 {@link UpsertMetaParser} 创建并按实体类缓存。
+ * <p>实例由 {@link UpsertMetaParser} 基于注入期传入的 {@code TableInfo} 创建；
+ * 解析器无缓存，每个 {@code Configuration} 各自解析、各自持有实例。
  *
  * @author devoracode
  * @since 1.0.0

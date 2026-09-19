@@ -99,7 +99,10 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
         if (!UpsertMetaParser.hasConflictKey(modelClass)) {
             return null;
         }
-        UpsertMeta meta = UpsertMetaParser.getMeta(modelClass);
+        // 解析只使用 MP 注入期直接递入的这份 TableInfo（它属于当前 Configuration），
+        // 解析器本身无状态，多个 Configuration/ApplicationContext 共存时
+        // 结构上不存在串用其他上下文元数据的通道
+        UpsertMeta meta = UpsertMetaParser.getMeta(tableInfo);
         SqlSource sqlSource = UpsertSqlSourceFactory.create(
                 configuration, languageDriver, meta, dialect, batch, modelClass, fillStrategy);
 

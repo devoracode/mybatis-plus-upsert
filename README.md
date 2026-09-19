@@ -965,9 +965,9 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 注入阶段解析实体时抛出，属于配置错误，应用启动即失败而不是等到第一次调用才暴露：
 
-- 实体找不到对应的 MP `TableInfo`（实体未被 MyBatis-Plus 扫描）；
 - `@ConflictKey` 标在 `IdType.AUTO` 主键上——自增键在插入前没有值，无法作为冲突判断依据；
-- `@ConflictKey` 字段声明了 `insertStrategy = NEVER`——冲突键必须参与 INSERT，否则 UPDATE 场景会退化成 INSERT。
+- `@ConflictKey` 字段声明了 `insertStrategy = NEVER`——冲突键必须参与 INSERT，否则 UPDATE 场景会退化成 INSERT；
+- 实体没有任何可更新列（只有冲突键，或其余字段全被 `@IgnoreOnUpdate` / `updateStrategy = NEVER` 排除）——必然产生空 `UPDATE SET`，启动期快速失败，而不是留到运行期报 SQL 语法错误。
 
 实体**没有** `@ConflictKey` 时不属于异常：本库直接跳过该 Mapper 的 Upsert 方法注入，不会拖垮启动，普通 CRUD 照常可用。
 
@@ -1049,6 +1049,12 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 **Q：项目使用了 MyBatis Plus 的逻辑删除，upsert 会不会有问题？**
 
 `UpsertMetaParser` 基于 MP 的 `TableInfo` 解析字段，逻辑删除字段（`@TableLogic`）通常会被 MP 标记为填充字段，在 `TableInfo.getFieldList()` 中可见，因此会正常参与 INSERT 和 UPDATE。业务层需自行保证逻辑删除字段的值符合预期。
+
+---
+
+**Q：同一 JVM 里存在多个 Spring 上下文 / 多个 MyBatis Configuration（集成测试、父子上下文、动态刷新），实体元数据会串吗？**
+
+不会。`UpsertMetaParser` 是无状态解析器：不维护全局元数据缓存，也不通过 `TableInfoHelper` 的全局注册表按实体类反查 `TableInfo`，只解析每个 `Configuration` 在 SQL 注入期交给它的那份 `TableInfo`——表名、字段映射、主键策略、字段动态策略都取自各自上下文，结构上不存在跨上下文串用的通道。解析只发生在启动注入期（每个实体每个 Mapper 共几次），运行期执行 Upsert 不再解析元数据，因此无需缓存也不会有额外开销。
 
 ---
 

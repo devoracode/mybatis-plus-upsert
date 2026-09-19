@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.core.metadata.TableFieldInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
-import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.github.devoracode.upsert.annotation.ConflictKey;
 import io.github.devoracode.upsert.annotation.IgnoreOnUpdate;
 import io.github.devoracode.upsert.annotation.UpdateColumn;
@@ -12,73 +11,57 @@ import io.github.devoracode.upsert.exception.UpsertMetaException;
 
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 将实体类解析为 {@link UpsertMeta} 并缓存结果。
- * 注解扫描在首次访问时立即执行；完整的 UpsertMeta 则在首次调用 {@code getMeta} 时惰性构建。
- * 两者均在 JVM 生命周期内（或 Spring 上下文刷新前）保持缓存。
+ * 将 MyBatis-Plus {@link TableInfo} 解析为 {@link UpsertMeta} 的无状态解析器。
  *
- * <p>线程安全：所有公共方法均为线程安全的。内部缓存使用
- * {@link ConcurrentHashMap}，惰性 UpsertMeta 初始化采用双重检查锁。
+ * <p><strong>本类不持有任何静态可变状态</strong>：没有全局元数据缓存，也不通过
+ * {@code TableInfoHelper} 的全局注册表按实体类反查 TableInfo。解析的唯一数据来源
+ * 是调用方在 SQL 注入期传入的 {@link TableInfo}——它由 MyBatis-Plus 在当前
+ * {@code Configuration} 上初始化并直接交给注入方法，天然属于该上下文。
+ * 因此多个 Spring ApplicationContext / 多个 MyBatis Configuration 共存时，
+ * 各自注入的语句只会使用各自上下文的元数据，结构上不存在跨上下文串用的通道。
  *
- * <p>已知限制：缓存为 JVM 全局级别，仅以实体类为键。在典型的每个 JVM 单一
- * {@code ApplicationContext} 场景下这是安全的。如果多个独立的上下文将同一个实体类
- * 注册到不同的 MyBatis-Plus {@code TableInfo} 配置上，第二个上下文会错误地复用第一个上下文的缓存元数据。
- * 正确的修复方式是将缓存按上下文作用域进行限定。
+ * <p>之所以不需要缓存：{@code getMeta} 只在 SQL 注入期（应用启动阶段）被调用，
+ * 每个实体在每个 Mapper 上至多调用几次（upsert / upsertBatch / upsertExecutor），
+ * 运行期执行 Upsert 不经过本类。解析一次的开销是微秒级的注解扫描加列表构建，
+ * 远小于其换取的正确性收益。
+ *
+ * <p>线程安全：本类无可变状态，所有公共方法天然线程安全。
  *
  * @author devoracode
  * @since 1.0.0
  */
 public class UpsertMetaParser {
 
-    private static final Map<Class<?>, CacheEntry> CACHE = new ConcurrentHashMap<>();
-
     /**
      * 检查实体类是否至少包含一个 {@link ConflictKey} 字段。
-     * 这是一个轻量级检查，仅扫描注解。
+     * 这是一个轻量级检查，仅扫描注解，与具体 {@code Configuration} 无关。
      *
      * @param entityClass 待检查的实体类（不能为 null）
      * @return 如果实体包含至少一个 @ConflictKey 字段则返回 true，否则返回 false
      */
     public static boolean hasConflictKey(Class<?> entityClass) {
-        return getOrCreateEntry(entityClass).scan.hasConflictKey;
+        return scanAnnotations(entityClass).hasConflictKey;
     }
 
     /**
-     * 获取实体类的完整 {@link UpsertMeta}，在首次访问时进行解析和缓存。
+     * 解析给定 {@link TableInfo} 所属实体的完整 {@link UpsertMeta}。
      *
-     * @param entityClass 实体类（不能为 null）
+     * <p>每次调用都基于传入的 TableInfo 重新解析，不读写任何共享缓存；
+     * 调用方应传入自己上下文中 MyBatis-Plus 初始化并递交的那份 TableInfo
+     * （例如注入方法 {@code injectMappedStatement} 的参数）。
+     *
+     * @param tableInfo 当前 Configuration 下的实体表元数据（不能为 null）
      * @return 包含全部 SQL 生成元数据的 UpsertMeta
-     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列、
-     *         MyBatis-Plus TableInfo 不可用，或 @ConflictKey 字段声明了
-     *         {@code insertStrategy = NEVER}（冲突键必须参与 INSERT）
+     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列，
+     *         或 @ConflictKey 字段声明了 {@code insertStrategy = NEVER}
+     *         （冲突键必须参与 INSERT）
      */
-    public static UpsertMeta getMeta(Class<?> entityClass) {
-        CacheEntry entry = getOrCreateEntry(entityClass);
-        UpsertMeta meta = entry.meta;
-        if (meta == null) {
-            synchronized (entry) {
-                meta = entry.meta;
-                if (meta == null) {
-                    meta = parse(entityClass, entry.scan);
-                    entry.meta = meta;
-                }
-            }
-        }
-        return meta;
-    }
-
-    private static CacheEntry getOrCreateEntry(Class<?> entityClass) {
-        return CACHE.computeIfAbsent(entityClass, c -> new CacheEntry(scanAnnotations(c)));
-    }
-
-    private static UpsertMeta parse(Class<?> entityClass, AnnotationScan scan) {
-        TableInfo tableInfo = TableInfoHelper.getTableInfo(entityClass);
-        if (tableInfo == null) {
-            throw new UpsertMetaException("No MyBatis Plus TableInfo found for entity " + entityClass.getName()
-                    + ". Make sure the entity is scanned by MyBatis Plus.");
-        }
+    public static UpsertMeta getMeta(TableInfo tableInfo) {
+        Objects.requireNonNull(tableInfo, "tableInfo must not be null");
+        Class<?> entityClass = tableInfo.getEntityType();
+        AnnotationScan scan = scanAnnotations(entityClass);
 
         if (!scan.hasConflictKey) {
             throw new UpsertMetaException(entityClass.getName() + ": no @ConflictKey field found");
@@ -279,18 +262,8 @@ public class UpsertMetaParser {
     }
 
     /**
-     * 组合缓存条目：持有立即计算的 AnnotationScan 和惰性计算的 UpsertMeta
-     * （在首次调用 getMeta 之前为 null）。
+     * 一次性的注解扫描结果，仅在单次解析内复用（本类不缓存它）。
      */
-    private static final class CacheEntry {
-        final AnnotationScan scan;
-        volatile UpsertMeta meta;
-
-        CacheEntry(AnnotationScan scan) {
-            this.scan = scan;
-        }
-    }
-
     private static final class AnnotationScan {
         final boolean hasConflictKey;
         final Map<String, Integer> conflictFieldOrder;

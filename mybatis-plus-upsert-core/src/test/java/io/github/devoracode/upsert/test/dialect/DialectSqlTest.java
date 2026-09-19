@@ -1,6 +1,7 @@
 package io.github.devoracode.upsert.test.dialect;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
@@ -25,13 +26,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class DialectSqlTest {
 
+    // 基于真实解析器的渲染测试需要 UserEntity 的 TableInfo；
+    // 解析器无全局缓存、只解析递入的 TableInfo，因此这里手动构造并持有引用，
+    // 与 UpsertMetaParserTest 相同，保证本测试可独立运行
+    private static TableInfo userInfo;
+
     @BeforeAll
     static void initTableInfo() {
-        // 基于真实解析器的渲染测试需要全局 TableInfo 注册表；
-        // 与 UpsertMetaParserTest 相同地手动注册，保证本测试可独立运行
         MybatisConfiguration configuration = new MybatisConfiguration();
         MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
-        TableInfoHelper.initTableInfo(assistant, UserEntity.class);
+        userInfo = TableInfoHelper.initTableInfo(assistant, UserEntity.class);
     }
 
     // 全静态字段元数据（所有 FieldMeta.dynamic=false），用于验证基础 SQL 结构不受动态逻辑影响
@@ -669,7 +673,7 @@ class DialectSqlTest {
      */
     @Test
     void rendered_sql_keeps_conflict_key_when_null_across_dialects() {
-        UpsertMeta meta = UpsertMetaParser.getMeta(UserEntity.class);
+        UpsertMeta meta = UpsertMetaParser.getMeta(userInfo);
         UserEntity entity = new UserEntity();
 
         String mysql = renderSingleSql(new MysqlLegacyUpsertDialect().buildUpsertSql(meta), entity);
@@ -705,7 +709,7 @@ class DialectSqlTest {
      */
     @Test
     void rendered_sql_keeps_conflict_key_when_present() {
-        UpsertMeta meta = UpsertMetaParser.getMeta(UserEntity.class);
+        UpsertMeta meta = UpsertMetaParser.getMeta(userInfo);
         UserEntity entity = new UserEntity();
         entity.setUsername("alice");
 
