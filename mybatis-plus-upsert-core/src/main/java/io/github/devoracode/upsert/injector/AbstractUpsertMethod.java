@@ -28,7 +28,10 @@ import org.apache.ibatis.mapping.SqlSource;
  * <p><strong>主键回填</strong>：按 MyBatis-Plus 原生 {@code Insert} 的标准机制配置
  * {@link KeyGenerator}（AUTO 使用 {@link Jdbc3KeyGenerator}，序列主键复用
  * {@link TableInfoHelper#genKeyGenerator}），但仅对单行 SQL 路径承诺回填，
- * 详见 {@link #injectMappedStatement}。
+ * 且回填值取自数据库返回的生成键而非内存预测值，详见 {@link #injectMappedStatement}。
+ *
+ * <p>注入的 {@link SqlSource} 由 {@link ParameterGuardSqlSource} 包装，
+ * {@code null} 实体与含 {@code null} 元素的集合在 SQL 绑定之前即被拒绝。
  *
  * @author devoracode
  * @since 1.0.0
@@ -75,7 +78,8 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
      * <ul>
      *   <li>{@code upsert}（单条）：与 MyBatis-Plus 原生 {@code Insert} 完全一致——
      *       {@code IdType.AUTO} 配置 {@link Jdbc3KeyGenerator} 及 keyProperty/keyColumn，
-     *       序列主键复用 {@link TableInfoHelper#genKeyGenerator}，其余策略不回填；</li>
+     *       序列主键复用 {@link TableInfoHelper#genKeyGenerator}（外面套一层
+     *       {@link SequenceKeyGeneratorDecorator} 负责把号写回实体），其余策略不回填；</li>
      *   <li>{@code upsert(Collection)}（内部经 {@code upsertExecutor} 语句在
      *       {@code ExecutorType.BATCH} 下逐条提交单行 SQL）：同样配置上述生成器，
      *       生成键在 {@code flushStatements} 时回填；</li>
@@ -112,7 +116,10 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
                 // 去除转义符
                 keyColumn = SqlInjectionUtils.removeEscapeCharacter(tableInfo.getKeyColumn());
             } else if (null != tableInfo.getKeySequence()) {
-                keyGenerator = TableInfoHelper.genKeyGenerator(methodName, tableInfo, builderAssistant);
+                /* 序列主键：取号仍由 MP 完成，只补一步把号写回 @Param("et") 包裹的实体 */
+                keyGenerator = new SequenceKeyGeneratorDecorator(
+                        TableInfoHelper.genKeyGenerator(methodName, tableInfo, builderAssistant),
+                        configuration, tableInfo.getKeyProperty());
                 keyProperty = tableInfo.getKeyProperty();
                 keyColumn = tableInfo.getKeyColumn();
             }

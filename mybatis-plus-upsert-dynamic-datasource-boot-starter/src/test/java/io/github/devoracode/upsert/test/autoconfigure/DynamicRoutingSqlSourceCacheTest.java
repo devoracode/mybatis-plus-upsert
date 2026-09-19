@@ -18,6 +18,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -107,9 +108,9 @@ class DynamicRoutingSqlSourceCacheTest {
     void single_and_batch_statements_keep_separate_cached_sql_per_data_source() {
         for (int i = 0; i < 3; i++) {
             assertThat(render(upsert, SCHEMA_A_DS)).contains("/* single-schema_a */").doesNotContain("batch-schema_a");
-            assertThat(render(upsertBatch, SCHEMA_A_DS)).contains("/* batch-schema_a */").doesNotContain("single-schema_a");
+            assertThat(renderBatch(upsertBatch, SCHEMA_A_DS)).contains("/* batch-schema_a */").doesNotContain("single-schema_a");
             assertThat(render(upsert, SCHEMA_B_DS)).contains("/* single-schema_b */");
-            assertThat(render(upsertBatch, SCHEMA_B_DS)).contains("/* batch-schema_b */");
+            assertThat(renderBatch(upsertBatch, SCHEMA_B_DS)).contains("/* batch-schema_b */");
         }
 
         assertThat(schemaA.singleCalls.get()).isEqualTo(1);
@@ -172,15 +173,30 @@ class DynamicRoutingSqlSourceCacheTest {
         return statement.getBoundSql(parameter()).getSql();
     }
 
+    private String renderBatch(MappedStatement statement, String dataSourceName) {
+        DynamicDataSourceContextHolder.clear();
+        DynamicDataSourceContextHolder.push(dataSourceName);
+        return statement.getBoundSql(batchParameter()).getSql();
+    }
+
     private String renderWithoutContext(MappedStatement statement) {
         return statement.getBoundSql(parameter()).getSql();
     }
 
     private static Map<String, Object> parameter() {
-        RoutingUserEntity entity = RoutingUserEntity.builder().id(1L).username("alice").email("a@example.com").build();
         Map<String, Object> parameter = new HashMap<>();
-        parameter.put(Constants.ENTITY, entity);
+        parameter.put(Constants.ENTITY, entity());
         return parameter;
+    }
+
+    private static Map<String, Object> batchParameter() {
+        Map<String, Object> parameter = new HashMap<>();
+        parameter.put(Constants.LIST, Collections.singletonList(entity()));
+        return parameter;
+    }
+
+    private static RoutingUserEntity entity() {
+        return RoutingUserEntity.builder().id(1L).username("alice").email("a@example.com").build();
     }
 
     /**
@@ -209,7 +225,7 @@ class DynamicRoutingSqlSourceCacheTest {
         public String buildUpsertBatchSql(UpsertMeta meta) {
             batchCalls.incrementAndGet();
             return "INSERT INTO " + schema + "." + meta.getTableName()
-                    + " ( id, username, email ) VALUES ( #{et.id}, #{et.username}, #{et.email} )"
+                    + " ( id, username, email ) VALUES ( #{item.id}, #{item.username}, #{item.email} )"
                     + " ON DUPLICATE KEY UPDATE email = VALUES(email) /* batch-" + schema + " */";
         }
     }

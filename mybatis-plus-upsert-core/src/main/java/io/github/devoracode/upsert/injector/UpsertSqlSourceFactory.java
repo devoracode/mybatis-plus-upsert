@@ -22,13 +22,15 @@ import org.apache.ibatis.session.Configuration;
  * 填充与方言无关，在每次 {@code getBoundSql} 调用时运行一次，
  * 在方言路由之前执行，且不触碰路由源按方言缓存的 SqlSource。
  *
+ * <p>最后统一包一层 {@link ParameterGuardSqlSource}，使 {@code null} 实体 /
+ * {@code null} 集合元素在进入填充与 SQL 绑定之前就被拒绝。
+ *
  * <p>此类为包私有且无状态，所有方法均为线程安全。
  *
  * @author devoracode
  * @since 1.2.0
  */
 final class UpsertSqlSourceFactory {
-
     private UpsertSqlSourceFactory() {
     }
 
@@ -42,18 +44,22 @@ final class UpsertSqlSourceFactory {
         SqlSource delegate;
         // 若使用动态数据源，创建路由 SqlSource 以便在运行时解析方言
         if (dialect instanceof DynamicUpsertDialect) {
-            delegate = new RoutingUpsertSqlSource(configuration, languageDriver,
-                    (DynamicUpsertDialect) dialect, meta, batch, modelClass);
+            delegate = new RoutingUpsertSqlSource(configuration,
+                    languageDriver,
+                    (DynamicUpsertDialect) dialect,
+                    meta,
+                    batch,
+                    modelClass);
         } else {
             // 单数据源模式：构建一次 SQL 并烘焙到 SqlSource
-            String sql = batch
-                    ? dialect.buildUpsertBatchSql(meta)
-                    : dialect.buildUpsertSql(meta);
-            delegate = languageDriver.createSqlSource(configuration, "<script>" + sql + "</script>", modelClass);
+            String sql = batch ? dialect.buildUpsertBatchSql(meta) : dialect.buildUpsertSql(meta);
+            delegate = languageDriver.createSqlSource(configuration,
+                    "<script>" + sql + "</script>",
+                    modelClass);
         }
-        if (fillStrategy == null || fillStrategy == FillStrategy.NONE) {
-            return delegate;
+        if (fillStrategy != null && fillStrategy != FillStrategy.NONE) {
+            delegate = new PreFillSqlSource(delegate, fillStrategy, configuration);
         }
-        return new PreFillSqlSource(delegate, fillStrategy, configuration);
+        return new ParameterGuardSqlSource(delegate, batch);
     }
 }

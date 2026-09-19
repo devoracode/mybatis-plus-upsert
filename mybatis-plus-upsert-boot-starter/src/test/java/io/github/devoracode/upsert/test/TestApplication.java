@@ -1,6 +1,8 @@
 package io.github.devoracode.upsert.test;
 
+import com.baomidou.mybatisplus.annotation.DbType;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
+import com.baomidou.mybatisplus.core.incrementer.IKeyGenerator;
 import io.github.devoracode.upsert.core.fill.UpsertFillProcessor;
 import org.apache.ibatis.reflection.MetaObject;
 import org.mybatis.spring.annotation.MapperScan;
@@ -28,6 +30,27 @@ public class TestApplication {
     @Primary
     public CountingMetaObjectHandler countingMetaObjectHandler() {
         return new CountingMetaObjectHandler();
+    }
+
+    /*
+     * 序列主键测试所需的 IKeyGenerator。MyBatis-Plus 只有在容器里存在
+     * IKeyGenerator Bean 时才会读取实体上的 @KeySequence，并据此为
+     * {@code @TableId(type = IdType.INPUT)} 的实体注册 selectKey 取号语句；
+     * 本库不自行拼序列 SQL，因此这里按 MP 的既有方式注册一个 H2 取号实现。
+     */
+    @Bean
+    public IKeyGenerator sequenceKeyGenerator() {
+        return new IKeyGenerator() {
+            @Override
+            public String executeSql(String incrementerName) {
+                return "SELECT NEXT VALUE FOR " + incrementerName;
+            }
+
+            @Override
+            public DbType dbType() {
+                return DbType.H2;
+            }
+        };
     }
 
     public static class CountingMetaObjectHandler implements MetaObjectHandler {
