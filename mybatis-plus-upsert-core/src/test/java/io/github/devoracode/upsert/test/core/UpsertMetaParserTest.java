@@ -9,6 +9,8 @@ import io.github.devoracode.upsert.exception.UpsertMetaException;
 import io.github.devoracode.upsert.test.support.AutoIdConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
 import io.github.devoracode.upsert.test.support.ConflictOnlyEntity;
+import io.github.devoracode.upsert.test.support.MultiConflictKeyEntity;
+import io.github.devoracode.upsert.test.support.NeverInsertConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.UserEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
@@ -30,6 +32,8 @@ class UpsertMetaParserTest {
         TableInfoHelper.initTableInfo(assistant, AutoIdEntity.class);
         TableInfoHelper.initTableInfo(assistant, AutoIdConflictKeyEntity.class);
         TableInfoHelper.initTableInfo(assistant, ConflictOnlyEntity.class);
+        TableInfoHelper.initTableInfo(assistant, NeverInsertConflictKeyEntity.class);
+        TableInfoHelper.initTableInfo(assistant, MultiConflictKeyEntity.class);
     }
 
     @Test
@@ -71,6 +75,42 @@ class UpsertMetaParserTest {
                 .filter(fm -> "id".equals(fm.getProperty()))
                 .findFirst().orElseThrow(() -> new AssertionError("FieldMeta not found")).isDynamic();
         assertThat(idDynamic).isFalse();
+    }
+
+    @Test
+    void parse_conflict_key_is_never_dynamic_insert() {
+        // 冲突键是 Upsert 语义必需字段：不能被动态 INSERT 策略（含默认 NOT_NULL）
+        // 包上 <if> 判空——否则冲突键为 null 时会从 INSERT 列与参数中被静默剔除，
+        // 与 ON 冲突判断不一致
+        UpsertMeta meta = UpsertMetaParser.getMeta(UserEntity.class);
+        boolean usernameDynamic = meta.getInsertFieldMetas().stream()
+                .filter(fm -> "username".equals(fm.getProperty()))
+                .findFirst().orElseThrow(() -> new AssertionError("FieldMeta not found")).isDynamic();
+        assertThat(usernameDynamic).isFalse();
+        assertThat(meta.getInsertColumns()).contains("username");
+        assertThat(meta.getInsertFields()).contains("username");
+    }
+
+    @Test
+    void parse_multiple_conflict_keys_respect_order() {
+        UpsertMeta meta = UpsertMetaParser.getMeta(MultiConflictKeyEntity.class);
+        assertThat(meta.getConflictColumns()).containsExactly("tenant_id", "biz_code");
+        // 多个冲突键同样必须始终出现在 INSERT 中
+        assertThat(meta.getInsertFields()).contains("tenantId", "bizCode");
+        assertThat(meta.getInsertFieldMetas().stream()
+                .filter(fm -> "tenantId".equals(fm.getProperty()) || "bizCode".equals(fm.getProperty())))
+                .allSatisfy(fm -> assertThat(fm.isDynamic()).isFalse());
+    }
+
+    @Test
+    void insert_strategy_never_with_conflict_key_fails_fast() {
+        // @ConflictKey 与 insertStrategy=NEVER 是非法组合：
+        // 字段永不参与 INSERT 但又是冲突判断依据，必须在启动解析阶段报错
+        assertThatThrownBy(() -> UpsertMetaParser.getMeta(NeverInsertConflictKeyEntity.class))
+                .isInstanceOf(UpsertMetaException.class)
+                .hasMessageContaining("NeverInsertConflictKeyEntity")
+                .hasMessageContaining("username")
+                .hasMessageContaining("NEVER");
     }
 
     @Test

@@ -1,12 +1,17 @@
 package io.github.devoracode.upsert.test.dialect;
 
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
+import io.github.devoracode.upsert.core.UpsertMetaParser;
 import io.github.devoracode.upsert.dialect.*;
 import io.github.devoracode.upsert.test.support.UserEntity;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.xmltags.XMLLanguageDriver;
 import org.apache.ibatis.session.Configuration;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -19,6 +24,15 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DialectSqlTest {
+
+    @BeforeAll
+    static void initTableInfo() {
+        // 基于真实解析器的渲染测试需要全局 TableInfo 注册表；
+        // 与 UpsertMetaParserTest 相同地手动注册，保证本测试可独立运行
+        MybatisConfiguration configuration = new MybatisConfiguration();
+        MapperBuilderAssistant assistant = new MapperBuilderAssistant(configuration, "");
+        TableInfoHelper.initTableInfo(assistant, UserEntity.class);
+    }
 
     // 全静态字段元数据（所有 FieldMeta.dynamic=false），用于验证基础 SQL 结构不受动态逻辑影响
     private UpsertMeta staticMeta;
@@ -644,5 +658,59 @@ class DialectSqlTest {
         assertThat(rendered).doesNotContain("email = VALUES(email)");
         // 插入侧的动态列裁剪行为不变：email 不出现在 INSERT 列表中
         assertThat(rendered).contains("INSERT INTO public.t_user_all_dyn ( id, username, age )");
+    }
+
+    // --- 冲突键不可被动态 INSERT 策略剔除（基于真实解析器的端到端渲染验证） ---
+
+    /**
+     * 实体全字段为 null（含冲突键 username）：普通字段照常被动态排除，
+     * 但冲突键是 Upsert 语义必需字段，必须始终出现在 INSERT 列、参数与 ON 条件中。
+     * 修复前 username 被默认 NOT_NULL 策略包上 <if>，为 null 时从 SQL 中静默消失。
+     */
+    @Test
+    void rendered_sql_keeps_conflict_key_when_null_across_dialects() {
+        UpsertMeta meta = UpsertMetaParser.getMeta(UserEntity.class);
+        UserEntity entity = new UserEntity();
+
+        String mysql = renderSingleSql(new MysqlLegacyUpsertDialect().buildUpsertSql(meta), entity);
+        assertThat(mysql).contains("INSERT INTO t_user ( id, username )")
+                .contains("VALUES ( ?, ? )")
+                .doesNotContain("( id, username, email")
+                .endsWith("ON DUPLICATE KEY UPDATE email = email");
+
+        assertThat(renderSingleSql(new MysqlUpsertDialect().buildUpsertSql(meta), entity))
+                .contains("INSERT INTO t_user ( id, username )")
+                .endsWith("AS new ON DUPLICATE KEY UPDATE email = email");
+
+        assertThat(renderSingleSql(new PostgresUpsertDialect().buildUpsertSql(meta), entity))
+                .contains("INSERT INTO t_user ( id, username )")
+                .contains("ON CONFLICT (username) DO UPDATE SET");
+
+        String oracle = renderSingleSql(new OracleUpsertDialect().buildUpsertSql(meta), entity);
+        assertThat(oracle).contains("AS id, ? AS username FROM dual")
+                .contains("ON (t.username = src.username)");
+
+        String sqlServer = renderSingleSql(new SqlServerUpsertDialect().buildUpsertSql(meta), entity);
+        assertThat(sqlServer).contains("USING (SELECT ? AS id, ? AS username ) AS src")
+                .contains("ON (t.username = src.username)");
+
+        assertThat(renderSingleSql(new H2UpsertDialect().buildUpsertSql(meta), entity))
+                .contains("MERGE INTO t_user ( id, username )")
+                .contains("KEY(username)")
+                .contains("VALUES ( ?, ? )");
+    }
+
+    /**
+     * 冲突键有值时行为不变：与普通字段一样原样出现在 SQL 中。
+     */
+    @Test
+    void rendered_sql_keeps_conflict_key_when_present() {
+        UpsertMeta meta = UpsertMetaParser.getMeta(UserEntity.class);
+        UserEntity entity = new UserEntity();
+        entity.setUsername("alice");
+
+        String mysql = renderSingleSql(new MysqlLegacyUpsertDialect().buildUpsertSql(meta), entity);
+        assertThat(mysql).contains("INSERT INTO t_user ( id, username )")
+                .contains("VALUES ( ?, ? )");
     }
 }

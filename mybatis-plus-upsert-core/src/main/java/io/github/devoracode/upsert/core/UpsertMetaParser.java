@@ -50,7 +50,9 @@ public class UpsertMetaParser {
      *
      * @param entityClass 实体类（不能为 null）
      * @return 包含全部 SQL 生成元数据的 UpsertMeta
-     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列或 MyBatis-Plus TableInfo 不可用
+     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列、
+     *         MyBatis-Plus TableInfo 不可用，或 @ConflictKey 字段声明了
+     *         {@code insertStrategy = NEVER}（冲突键必须参与 INSERT）
      */
     public static UpsertMeta getMeta(Class<?> entityClass) {
         CacheEntry entry = getOrCreateEntry(entityClass);
@@ -106,13 +108,24 @@ public class UpsertMetaParser {
             String colName   = fi.getColumn();
             fieldToColumnMap.put(fieldName, colName);
 
+            boolean conflictKey = scan.conflictFieldOrder.containsKey(fieldName);
+            if (conflictKey && fi.getInsertStrategy() == FieldStrategy.NEVER) {
+                throw new UpsertMetaException(entityClass.getName() + ": @ConflictKey field '" + fieldName
+                        + "' declares insertStrategy=NEVER; a conflict key must participate in INSERT"
+                        + " to keep conflict detection and the INSERT column list consistent");
+            }
             if (fi.getInsertStrategy() != FieldStrategy.NEVER) {
                 insertColumns.add(colName);
                 insertFields.add(fieldName);
-                insertFieldMetas.add(toFieldMeta(fi, fi.getInsertStrategy(), false));
+                // 冲突键是 Upsert 语义必需字段：强制非动态（不做判空），
+                // 确保其始终出现在 INSERT 列与参数中，与 ON 冲突判断保持一致——
+                // 否则冲突键为 null 时会被动态策略静默剔除，UPDATE 场景退化为 INSERT
+                insertFieldMetas.add(conflictKey
+                        ? FieldMeta.builder().column(colName).property(fieldName).dynamic(false).build()
+                        : toFieldMeta(fi, fi.getInsertStrategy(), false));
             }
 
-            if (scan.conflictFieldOrder.containsKey(fieldName)) {
+            if (conflictKey) {
                 continue;
             }
             if (shouldUpdateField(scan, fieldName)
