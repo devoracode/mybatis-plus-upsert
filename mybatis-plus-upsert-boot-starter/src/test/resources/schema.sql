@@ -25,3 +25,13 @@ CREATE TABLE t_secret_holder (
     PRIMARY KEY (id),
     UNIQUE KEY uk_code (code)
 );
+
+DROP TABLE IF EXISTS t_auto_user;
+
+CREATE TABLE t_auto_user (
+    id       BIGINT       NOT NULL AUTO_INCREMENT,
+    username VARCHAR(64)  NOT NULL,
+    email    VARCHAR(128),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_auto_username (username)
+);

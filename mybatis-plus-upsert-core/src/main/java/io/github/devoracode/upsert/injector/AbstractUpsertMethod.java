@@ -1,11 +1,17 @@
 package io.github.devoracode.upsert.injector;
 
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.core.injector.AbstractMethod;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.toolkit.StringUtils;
+import com.baomidou.mybatisplus.core.toolkit.sql.SqlInjectionUtils;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.core.UpsertMetaParser;
 import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
+import org.apache.ibatis.executor.keygen.Jdbc3KeyGenerator;
+import org.apache.ibatis.executor.keygen.KeyGenerator;
 import org.apache.ibatis.executor.keygen.NoKeyGenerator;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.apache.ibatis.mapping.SqlSource;
@@ -18,6 +24,11 @@ import org.apache.ibatis.mapping.SqlSource;
  *
  * <p>如果实体类没有 {@link io.github.devoracode.upsert.annotation.ConflictKey} 字段，
  * 则不会注入任何语句（返回 {@code null}），该 Mapper 方法对此实体不生效。
+ *
+ * <p><strong>主键回填</strong>：按 MyBatis-Plus 原生 {@code Insert} 的标准机制配置
+ * {@link KeyGenerator}（AUTO 使用 {@link Jdbc3KeyGenerator}，序列主键复用
+ * {@link TableInfoHelper#genKeyGenerator}），但仅对单行 SQL 路径承诺回填，
+ * 详见 {@link #injectMappedStatement}。
  *
  * @author devoracode
  * @since 1.0.0
@@ -33,7 +44,7 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
      *
      * @param methodName 要注册的 Mapper 方法名（如 "upsert"、"upsertBatch"）
      * @param dialect    用于构建 Upsert SQL 的方言
-     * @param batch      此方法是否使用批量 Upsert SQL
+     * @param batch      此方法是否使用批量（多行 VALUES）Upsert SQL
      */
     AbstractUpsertMethod(String methodName, UpsertDialect dialect, boolean batch) {
         this(methodName, dialect, batch, FillStrategy.INSERT_UPDATE);
@@ -44,7 +55,7 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
      *
      * @param methodName   要注册的 Mapper 方法名（如 "upsert"、"upsertBatch"）
      * @param dialect      用于构建 Upsert SQL 的方言
-     * @param batch        此方法是否使用批量 Upsert SQL
+     * @param batch        此方法是否使用批量（多行 VALUES）Upsert SQL
      * @param fillStrategy SQL 绑定前应用的自动填充策略
      * @since 1.6.0
      */
@@ -60,6 +71,20 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
      *
      * <p>当实体没有 {@code @ConflictKey} 字段时返回 {@code null}，导致该 Mapper 跳过 Upsert 方法。
      *
+     * <p>主键回填按方法类型区分三条路径：
+     * <ul>
+     *   <li>{@code upsert}（单条）：与 MyBatis-Plus 原生 {@code Insert} 完全一致——
+     *       {@code IdType.AUTO} 配置 {@link Jdbc3KeyGenerator} 及 keyProperty/keyColumn，
+     *       序列主键复用 {@link TableInfoHelper#genKeyGenerator}，其余策略不回填；</li>
+     *   <li>{@code upsert(Collection)}（内部经 {@code upsertExecutor} 语句在
+     *       {@code ExecutorType.BATCH} 下逐条提交单行 SQL）：同样配置上述生成器，
+     *       生成键在 {@code flushStatements} 时回填；</li>
+     *   <li>{@code upsertBatch}（单条多行 VALUES SQL）：保持 {@link NoKeyGenerator}，
+     *       <strong>不承诺</strong>生成主键回填——多行语句的 generated keys 数量与行的
+     *       对应关系受数据库与 JDBC 驱动差异影响（MySQL 下冲突更新行的返回值不固定，
+     *       PostgreSQL 冲突更新路径不返回 RETURNING 行），强行配置会导致键数校验异常。</li>
+     * </ul>
+     *
      * @param mapperClass Mapper 接口类
      * @param modelClass  实体类
      * @param tableInfo   MyBatis-Plus 表元数据
@@ -73,8 +98,26 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
         UpsertMeta meta = UpsertMetaParser.getMeta(modelClass);
         SqlSource sqlSource = UpsertSqlSourceFactory.create(
                 configuration, languageDriver, meta, dialect, batch, modelClass, fillStrategy);
+
+        KeyGenerator keyGenerator = NoKeyGenerator.INSTANCE;
+        String keyProperty = null;
+        String keyColumn = null;
+        // 与 MP 原生 Insert 一致：仅单行 SQL 路径且实体含主键时配置回填；
+        // 多行 upsertBatch（batch=true）的生成键与行的对应关系不可靠，明确不承诺回填
+        if (!batch && StringUtils.isNotBlank(tableInfo.getKeyProperty())) {
+            if (tableInfo.getIdType() == IdType.AUTO) {
+                /* 自增主键 */
+                keyGenerator = Jdbc3KeyGenerator.INSTANCE;
+                keyProperty = tableInfo.getKeyProperty();
+                // 去除转义符
+                keyColumn = SqlInjectionUtils.removeEscapeCharacter(tableInfo.getKeyColumn());
+            } else if (null != tableInfo.getKeySequence()) {
+                keyGenerator = TableInfoHelper.genKeyGenerator(methodName, tableInfo, builderAssistant);
+                keyProperty = tableInfo.getKeyProperty();
+                keyColumn = tableInfo.getKeyColumn();
+            }
+        }
         return this.addInsertMappedStatement(
-                mapperClass, modelClass, methodName, sqlSource,
-                new NoKeyGenerator(), null, null);
+                mapperClass, modelClass, methodName, sqlSource, keyGenerator, keyProperty, keyColumn);
     }
 }

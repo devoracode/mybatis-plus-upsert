@@ -528,6 +528,24 @@ public class UserEntity {
 
 > 另一特殊组合：`insertStrategy = NEVER` 但参与更新（未排除出 UPDATE）的字段，其 UPDATE SET 赋值会回退为 `#{参数.字段}` 参数引用而非行引用（`new.col` / `EXCLUDED.col` / `src.col` / `VALUES(col)`），因为行引用指向插入行中不存在的列。
 
+### 自增主键回填
+
+`IdType.AUTO` 的主键由数据库生成，本库按 MyBatis-Plus 原生 `insert` 的同一机制配置 `KeyGenerator`（不自定义 JDBC 取键逻辑）：`AUTO` 走 `Jdbc3KeyGenerator`（`keyProperty`/`keyColumn` 取 `@TableId` 的属性与列名），配置了 `@KeySequence` 的序列主键复用 `TableInfoHelper.genKeyGenerator`，其余策略不回填。
+
+选择规则与各数据库方言无关，完全跟随 MP 的主键策略语义，因此 Oracle / SQL Server 上以 `@KeySequence` + `IdType.INPUT` 使用序列主键的既有写法照常工作；`IdType.AUTO` 只在数据库本身提供自增/标识列（MySQL `AUTO_INCREMENT`、PostgreSQL `serial`/`IDENTITY`、Oracle 12c+ identity column、SQL Server `IDENTITY`）时才应使用，本库不会为任何方言额外猜测取键方式。
+
+三条执行路径的回填承诺不同：
+
+| 路径 | SQL 形态 | `IdType.AUTO` 主键回填 |
+|---|---|---|
+| `upsert(entity)` | 单行 | **回填**，语句执行后即可读到 |
+| `upsert(collection)` / `upsert(collection, batchSize)` | BATCH 执行器逐条提交单行 SQL | **回填**，但时机在批次 `flushStatements`，即方法返回后统一可见 |
+| `upsertBatch(list)` | 单条 SQL、多行 `VALUES` | **不回填**，调用后主键仍为 `null` |
+
+`upsertBatch` 之所以明确不承诺回填：多行语句的 generated keys 与数据行的对应关系受数据库和 JDBC 驱动实现影响——MySQL 下冲突更新行返回的键数量不固定，PostgreSQL 的冲突更新路径根本不产生 `RETURNING` 行。强行配置取键只会让键数校验抛异常，因此该方法保持 `NoKeyGenerator`。需要拿到自增主键时请改用 `upsert(entity)` 或 `upsert(collection)`。
+
+> 冲突命中走 UPDATE 分支时数据库不产生新键，`upsert(entity)` 回填到的值取决于驱动对 `getGeneratedKeys()` 的返回（MySQL 驱动通常返回既有主键）。不要在依赖主键做后续逻辑前先假设该值一定来自本次插入。
+
 ### 效果示例
 
 ```java
@@ -931,6 +949,12 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 - H2：逐条执行，多条 SQL 以 `;` 分隔。
 
 无论哪种数据库，批量 upsert 均使用固定列集合，不做按字段值的动态判断（即[字段动态判断](#字段动态判断)只对单条 upsert 生效）。若业务需要"批量但仍要动态判断"，请改用单条 `upsert` 循环调用。
+
+---
+
+**Q：`IdType.AUTO` 实体的自增主键会回填到实体上吗？**
+
+单条 `upsert` 与 `upsert(Collection)` 会（沿用 MyBatis-Plus 原生 `Jdbc3KeyGenerator` 机制，后者在批次刷新后可见）；`upsertBatch` 不会。详见[自增主键回填](#自增主键回填)。
 
 ---
 
