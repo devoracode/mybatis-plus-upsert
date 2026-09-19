@@ -25,7 +25,7 @@ public final class DialectFactory {
      * 根据数据库类型字符串创建对应的 {@link UpsertDialect} 实例。
      *
      * @param dbTypeStr         数据库类型字符串（如 "mysql"、"postgresql"）
-     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
      * @return 对应的 UpsertDialect 实例
      * @throws UpsertException 如果数据库类型未知或不支持
      */
@@ -37,7 +37,7 @@ public final class DialectFactory {
      * 根据数据库类型枚举创建对应的 {@link UpsertDialect} 实例。
      *
      * @param dbType            数据库类型枚举值
-     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
      * @return 对应的 UpsertDialect 实例；若 dbType 为 CUSTOM 则返回 null
      * @throws UpsertException 如果数据库类型不支持
      */
@@ -66,7 +66,7 @@ public final class DialectFactory {
     /**
      * 根据是否使用新语法创建新的 MySQL 方言实例。
      *
-     * @param useNewMysqlSyntax 是否使用新的 MySQL 8.0.20+ 语法（AS 别名形式）
+     * @param useNewMysqlSyntax 是否使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
      * @return 对应的 MySQL UpsertDialect 实例
      */
     public static UpsertDialect newMysqlInstance(boolean useNewMysqlSyntax) {

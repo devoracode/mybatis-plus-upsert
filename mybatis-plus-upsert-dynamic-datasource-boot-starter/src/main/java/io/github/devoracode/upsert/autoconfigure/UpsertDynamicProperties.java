@@ -71,10 +71,11 @@ public class UpsertDynamicProperties {
          */
         private String dbType;
         /**
-         * 此数据源是否使用 MySQL 8.0.20+ 的新语法（AS 别名）。
-         * 覆盖全局 {@code use-new-mysql-syntax} 设置。
+         * 此数据源是否使用 MySQL 8.0.19+ 引入的新语法（AS 别名）。
+         * 未显式配置（{@code null}）时继承全局 {@code use-new-mysql-syntax}；
+         * 显式声明为 true / false 时覆盖全局设置。
          */
-        private boolean useNewMysqlSyntax = false;
+        private Boolean useNewMysqlSyntax;
         /**
          * 当 {@code db-type} 设置为 {@code custom} 时使用的用户自定义
          * {@code UpsertDialect} Bean 名称。对于内置数据库类型无效。

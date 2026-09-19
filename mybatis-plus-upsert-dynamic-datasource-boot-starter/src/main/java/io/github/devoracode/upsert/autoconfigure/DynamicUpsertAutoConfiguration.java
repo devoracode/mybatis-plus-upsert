@@ -105,8 +105,9 @@ public class DynamicUpsertAutoConfiguration {
             }
 
             boolean useNewMysqlSyntax = upsertDynamicProperties.isUseNewMysqlSyntax();
-            if (upsertConfig != null) {
-                useNewMysqlSyntax = upsertConfig.isUseNewMysqlSyntax();
+            if (upsertConfig != null && upsertConfig.getUseNewMysqlSyntax() != null) {
+                // 只有显式声明了该开关的数据源配置才覆盖全局；未声明时继承全局值
+                useNewMysqlSyntax = upsertConfig.getUseNewMysqlSyntax();
             }
 
             UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType, useNewMysqlSyntax);
@@ -138,7 +139,7 @@ public class DynamicUpsertAutoConfiguration {
      * @param dsName 数据源名称
      * @param config 按数据源配置的参数（可能为 null）
      * @param dbType 检测到的或配置的数据库类型
-     * @param useNewMysqlSyntax 是否使用 MySQL 8.0.20+ 的新语法
+     * @param useNewMysqlSyntax 是否使用 MySQL 8.0.19+ 引入的新语法
      * @return 解析出的 UpsertDialect 实例
      * @throws UpsertException 如果无法解析方言
      */

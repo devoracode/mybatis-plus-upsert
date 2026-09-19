@@ -119,6 +119,61 @@ class DynamicUpsertAutoConfigurationTest {
         assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
     }
 
+    // --- per-数据源 use-new-mysql-syntax 的继承语义 ---
+
+    private DynamicUpsertAutoConfiguration wiredWith(UpsertDynamicProperties props) {
+        DynamicDataSourceProperties dsProps = new DynamicDataSourceProperties();
+        dsProps.setPrimary("mysql");
+        DataSourceProperty mysql = new DataSourceProperty();
+        mysql.setUrl("jdbc:mysql://localhost:3306/db");
+        dsProps.getDatasource().put("mysql", mysql);
+        return new DynamicUpsertAutoConfiguration(props, dsProps, beanFactory);
+    }
+
+    private UpsertDialect dialectForMySqlDs(UpsertDynamicProperties props) {
+        io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl dd =
+                (io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl)
+                        wiredWith(props).dynamicUpsertDialect();
+        return dd.getDialectMap().get("mysql");
+    }
+
+    @Test
+    void ds_config_without_syntax_flag_inherits_global_true() {
+        // 只声明了 db-type、未声明语法开关的数据源配置不得把全局 true 静默重置为 false
+        UpsertDynamicProperties props = new UpsertDynamicProperties();
+        props.setUseNewMysqlSyntax(true);
+        UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
+        cfg.setDbType("mysql");
+        props.getDatasource().put("mysql", cfg);
+
+        assertThat(dialectForMySqlDs(props).getClass().getSimpleName())
+                .isEqualTo("MysqlUpsertDialect");
+    }
+
+    @Test
+    void ds_config_explicit_false_overrides_global_true() {
+        UpsertDynamicProperties props = new UpsertDynamicProperties();
+        props.setUseNewMysqlSyntax(true);
+        UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
+        cfg.setDbType("mysql");
+        cfg.setUseNewMysqlSyntax(false);
+        props.getDatasource().put("mysql", cfg);
+
+        assertThat(dialectForMySqlDs(props).getClass().getSimpleName())
+                .isEqualTo("MysqlLegacyUpsertDialect");
+    }
+
+    @Test
+    void ds_config_explicit_true_overrides_global_false() {
+        UpsertDynamicProperties props = new UpsertDynamicProperties();
+        UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
+        cfg.setUseNewMysqlSyntax(true);
+        props.getDatasource().put("mysql", cfg);
+
+        assertThat(dialectForMySqlDs(props).getClass().getSimpleName())
+                .isEqualTo("MysqlUpsertDialect");
+    }
+
     static class ClickHouseTestDialect implements UpsertDialect {
         @Override
         public String buildUpsertSql(io.github.devoracode.upsert.core.UpsertMeta meta) {

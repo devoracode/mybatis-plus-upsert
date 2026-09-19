@@ -5,13 +5,13 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 /**
  * MySQL / MariaDB 方言，使用旧版 {@code VALUES()} 引用语法。
  *
- * <p>适用于 MySQL 8.0.20 之前版本和 MariaDB。{@code VALUES(col)} 函数引用
- * 当前行本应插入的列值。
+ * <p>向下兼容所有支持 {@code ON DUPLICATE KEY UPDATE} 的 MySQL / MariaDB 版本。
+ * {@code VALUES(col)} 函数引用当前行本应插入的列值。
  *
  * <p>单行示例：
  * <pre>{@code
  * INSERT INTO t (id, name) VALUES (#{et.id}, #{et.name})
- * ON DUPLICATE KEY UPDATE name = #{et.name}
+ * ON DUPLICATE KEY UPDATE name = VALUES(name)
  * }</pre>
  *
  * <p>批量示例：
@@ -20,8 +20,8 @@ import io.github.devoracode.upsert.core.UpsertMeta;
  * ON DUPLICATE KEY UPDATE name = VALUES(name)
  * }</pre>
  *
- * <p>注意：MySQL 8.0.20+ 中 {@code VALUES()} 已废弃。
- * MySQL 8.0.20+ 请使用 {@link MysqlUpsertDialect}。
+ * <p>注意：{@code VALUES()} 在 MySQL 8.0.20 起被官方废弃（当前仍可用）。
+ * MySQL 8.0.19+ 建议改用 {@link MysqlUpsertDialect} 的新语法（AS 别名）。
  *
  * @author devoracode
  * @since 1.0.0

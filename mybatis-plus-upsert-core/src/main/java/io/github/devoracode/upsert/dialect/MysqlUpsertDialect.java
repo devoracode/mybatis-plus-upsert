@@ -3,13 +3,13 @@ package io.github.devoracode.upsert.dialect;
 import io.github.devoracode.upsert.core.UpsertMeta;
 
 /**
- * MySQL / MariaDB 方言，使用 MySQL 8.0.20+ 引入的新语法（AS 别名）。
+ * MySQL 方言，使用 MySQL 8.0.19+ 引入的新语法（AS 别名）。
  *
  * <p>该方言使用 {@code INSERT ... AS new ON DUPLICATE KEY UPDATE} 语法，
  * 更新值引用插入行的别名（如 {@code name = new.name}）。
  *
- * <p>MySQL 5.x 或 MariaDB 请使用 {@link MysqlLegacyUpsertDialect}，
- * 后者使用已废弃的 {@code VALUES()} 函数。
+ * <p>MySQL 8.0.19 以下版本与 MariaDB 请使用 {@link MysqlLegacyUpsertDialect}：
+ * MariaDB 不支持行别名语法，只能继续使用 {@code VALUES()} 引用。
  *
  * @author devoracode
  * @since 1.0.0

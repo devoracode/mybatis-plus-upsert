@@ -25,8 +25,8 @@
     {
       "name": "mybatis-plus.upsert.dynamic.datasource.*.use-new-mysql-syntax",
       "type": "java.lang.Boolean",
-      "description": "Whether to use the new MySQL upsert syntax (AS new) for this data source. Overrides the global setting. Only applicable for MySQL.",
-      "defaultValue": false
+      "description": "Whether to use the new MySQL upsert syntax (AS new, MySQL 8.0.19+) for this data source. When not specified, inherits the global mybatis-plus.upsert.dynamic.use-new-mysql-syntax setting; only an explicit true/false overrides it. Only applicable for MySQL.",
+      "defaultValue": null
     },
     {
       "name": "mybatis-plus.upsert.dynamic.datasource.*.dialect-ref",

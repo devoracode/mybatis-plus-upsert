@@ -27,6 +27,11 @@ import java.util.List;
  * 单条多行的 {@code upsertBatch} 明确不回填。逐条语义、冲突更新分支的不确定性以及
  * {@code null} 参数的处理见对应方法注释。
  *
+ * <p><strong>事务边界</strong>：本接口不自行开启或提交事务，单条与 {@code upsertBatch}
+ * 都在调用方当前事务内执行，{@code @Transactional} 传播行为与 MyBatis-Plus 普通 Mapper
+ * 方法一致；{@code upsert(Collection)} 走独立 SqlSession 按批次 flush，
+ * 部分成功语义见其方法注释。
+ *
  * @param <T> 实体类型
  * @author devoracode
  * @since 1.0.0
@@ -35,6 +40,13 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
 
     /**
      * 插入单条实体，若发生冲突键冲突则执行更新。
+     *
+     * <p><strong>动态列</strong>：列集合按字段在 MyBatis-Plus 中的 {@code FieldStrategy}
+     * 于运行时裁剪（全局默认 {@code NOT_NULL}）——字段值为 null 时该列既不进 INSERT
+     * 也不进 UPDATE SET，与 MP 原生 {@code insert}/{@code updateById} 行为一致。
+     * 两个例外：冲突键列不受动态判断影响，始终出现在 INSERT 与冲突条件中（为 null 时
+     * 由数据库约束报错，而不是静默从 SQL 中消失）；主键列跟随 MP 策略，
+     * {@code IdType.AUTO} 主键本就不参与 INSERT（见下文回填说明）。
      *
      * <p><strong>主键回填</strong>：{@code IdType.AUTO} 主键走 MyBatis-Plus 原生的
      * {@code Jdbc3KeyGenerator} 机制，值来自 JDBC generated keys，因此实体上拿到的是
@@ -65,7 +77,15 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
     int upsert(@Param("et") T entity);
 
     /**
-     * 批量插入多条实体，若发生冲突键冲突则执行更新（单条 SQL，多行 VALUES）。
+     * 批量插入多条实体，若发生冲突键冲突则执行更新。SQL 形态按方言而定：
+     * MySQL / PostgreSQL / SQL Server 为一条多行 {@code VALUES} 语句，
+     * Oracle 为一条 {@code MERGE}（行经 {@code UNION ALL} 拼入源子查询），
+     * H2 为 {@code ;} 分隔的逐条 {@code MERGE}。
+     *
+     * <p><strong>固定列集合</strong>：所有行共享同一列清单，不按字段值逐行判空——
+     * {@code NOT_NULL} 字段为 null 时会以 NULL 绑定并<em>覆盖</em>数据库原值，
+     * 不会像单条 {@link #upsert} 那样跳过该列。需要"批量且逐行动态判断"时
+     * 请改用 {@link #upsert(Collection)}。
      *
      * <p><strong>不承诺主键回填</strong>：多行语句只对应一个 JDBC 结果，其 generated keys
      * 与行的对应关系受数据库和驱动差异影响（MySQL 下冲突更新行返回的键数不固定，

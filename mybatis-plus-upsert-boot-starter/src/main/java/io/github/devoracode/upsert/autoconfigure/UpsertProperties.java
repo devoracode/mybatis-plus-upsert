@@ -28,7 +28,7 @@ public class UpsertProperties {
     private String dbType;
 
     /**
-     * 是否在 MySQL upsert 中使用新的 MySQL 8.0.20+ 语法（AS 别名）。
+     * 是否在 MySQL upsert 中使用 MySQL 8.0.19+ 引入的新语法（AS 别名）。
      * 仅在数据库类型为 MySQL 时生效。默认为 false（使用旧版 VALUES() 语法）。
      */
     private boolean useNewMysqlSyntax = false;

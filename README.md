@@ -34,12 +34,12 @@
 | MyBatis Plus | 3.5.7+ |
 | 数据库 | MySQL / MariaDB、PostgreSQL、Oracle、SQL Server、H2（内置）；其他数据库需自行实现 `UpsertDialect`，见[自定义方言](#自定义方言) |
 
-> **数据库验证等级**：目前仅在 **MySQL、PostgreSQL、H2** 中实际运行验证过（H2 用于单元测试）。**Oracle 和 SQL Server 方言未在真实数据库上验证过**——SQL 已按官方语法编写并有结构级测试覆盖，但首次接入生产前请务必在自己的环境中充分测试，详见[数据库注意事项](#数据库注意事项)。
+> **数据库验证等级**：自动回归测试套件只在 **H2（MySQL 模式）** 上运行；**MySQL、PostgreSQL** 通过 `examples/` 下的示例工程做过实际运行验证（非 CI 自动化）；**Oracle 和 SQL Server 方言未在真实数据库上验证过**——SQL 已按官方语法编写并有结构级断言测试覆盖，首次接入生产前请务必在自己的环境中充分测试；**MariaDB、TiDB** 等 MySQL 协议兼容数据库复用 MySQL 方言，属协议级理论兼容，未单独验证。详见[数据库注意事项](#数据库注意事项)。
 
 > **MyBatis Plus 版本说明**：最低要求 **3.5.7**。
 >
 > - **下限来源**：批量写入路径依赖 3.5.7 才引入的 API——`MybatisBatchUtils.execute(SqlSessionFactory, Collection, BatchMethod, int batchSize)` 以及 `MybatisUtils.getMybatisMapperProxy(Object)` / `getSqlSessionFactory(MybatisMapperProxy)`（均 `@since 3.5.7`）；3.5.6 及以下因找不到对应方法重载而无法编译。单条 `upsert(entity)` 与 SQL 注入逻辑本身兼容更早的 3.4.0+ API，但受批量路径约束，整体下限仍为 3.5.7。
-> - **项目实测通过的版本（全量编译 + 测试套件）**：`3.5.7`、`3.5.9`（默认）、`3.5.11`、`3.5.13`、`3.5.17`，覆盖下限、`FieldStrategy.IGNORED` 移除前后的两侧及最新版本；测试方式为 `-Dmybatis-plus.version` 覆盖后运行全部 76 个测试（含 H2 运行时集成与自动填充行为断言）。
+> - **项目实测通过的版本（全量编译 + 测试套件）**：`3.5.7`、`3.5.9`（默认）、`3.5.11`、`3.5.13`、`3.5.17`，覆盖下限、`FieldStrategy.IGNORED` 移除前后的两侧及最新版本；测试方式为 `-Dmybatis-plus.version` 覆盖后运行项目全部测试套件（含 H2 运行时集成与自动填充行为断言）。
 > - **已知的上游差异**：MyBatis-Plus 自 `3.5.11` 起移除了 `FieldStrategy.IGNORED`（由 `ALWAYS` 取代）。本库不引用该枚举值，`IGNORED` 字段的语义（不判空、始终出现在 SQL 中）由同一 default 分支覆盖，`3.5.7` 至 `3.5.17` 全系编译、运行无差异。
 > - 本库自身代码对 jsqlparser 零依赖；`3.5.9+` 的 jsqlparser 拆分工件版本差异不影响本库。如使用未列出的更高版本建议自行验证。
 
@@ -155,7 +155,7 @@ public class UserEntity {
 
 ```java
 @Mapper
-public interface UserMapper extends UpsertMapper {
+public interface UserMapper extends UpsertMapper<UserEntity> {
     // UpsertMapper 已继承 BaseMapper，所有 MP 原生方法均可用
     // 额外增加：upsert(entity)、upsertBatch(list)、upsert(Collection)/upsert(Collection, batchSize)
 }
@@ -177,16 +177,17 @@ public class UserService {
         userMapper.upsert(user);
     }
 
-    // 批量 upsert：固定列集合，拼一条多值 SQL，一次网络往返，吞吐量优先
-    public void saveOrUpdateBatch(List users) {
+    // 批量 upsert：固定列集合，拼一条批量 SQL（MySQL/PostgreSQL/SQL Server 为多值 VALUES），
+    // 一次网络往返，吞吐量优先（Oracle/H2 的形态见常见问题）
+    public void saveOrUpdateBatch(List<UserEntity> users) {
         userMapper.upsertBatch(users);
     }
 
     // 批量 upsert（与 MP BaseMapper#insert(Collection) 语义对齐）：逐实体按 NOT_NULL/NOT_EMPTY
-    // 动态判空拼列，通过 JDBC BATCH 模式逐条执行，返回 List。
+    // 动态判空拼列，通过 JDBC BATCH 模式逐条执行，返回 List<BatchResult>。
     // 列集合可能逐行不同，因此无法像 upsertBatch 那样拼进同一条多值 SQL；
     // 换吞吐量优先的"一条 SQL"为"逐行动态列"，按需选择。
-    public List saveOrUpdateBatchDynamic(List users) {
+    public List<BatchResult> saveOrUpdateBatchDynamic(List<UserEntity> users) {
         return userMapper.upsert(users);
     }
 }
@@ -350,7 +351,7 @@ public class UserService {
 ### 工作原理
 
 1. 启动时读取 `spring.datasource.dynamic.datasource` 配置，遍历所有数据源
-2. 对每个数据源：优先使用 `mybatis-plus.upsert.dynamic.datasource.{name}.db-type` 显式配置；若未配置，则从 JDBC URL 自动推断（支持 `jdbc:mysql:`、`jdbc:postgresql:`、`jdbc:oracle:`、`jdbc:sqlserver:`、`jdbc:h2:`）
+2. 对每个数据源：优先使用 `mybatis-plus.upsert.dynamic.datasource.{name}.db-type` 显式配置；若未配置，则从 JDBC URL 自动推断（支持 `jdbc:mysql:`、`jdbc:mariadb:`、`jdbc:postgresql:`、`jdbc:oracle:`、`jdbc:sqlserver:`、`jdbc:h2:`）
 3. 根据推断结果创建对应的 `UpsertDialect` 实例并注册到 `DynamicUpsertDialect`
 4. 运行时通过 `DynamicDataSourceContextHolder.peek()` 获取当前数据源名称，路由到对应的方言生成 SQL
 
@@ -378,7 +379,7 @@ public class UserService {
 | `mybatis-plus.upsert.dynamic.enabled` | `true` | 是否启用动态数据源支持 |
 | `mybatis-plus.upsert.dynamic.use-new-mysql-syntax` | `false` | **全局**默认：MySQL 数据源是否使用新语法（AS new），可被单个数据源配置覆盖 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.db-type` | 自动推断 | 该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2/custom）。**可选**，未配置时从 JDBC URL 自动推断 |
-| `mybatis-plus.upsert.dynamic.datasource.{dsName}.use-new-mysql-syntax` | 继承全局配置 | 单个数据源的 MySQL 语法开关，覆盖全局配置 |
+| `mybatis-plus.upsert.dynamic.datasource.{dsName}.use-new-mysql-syntax` | 未声明则继承全局配置 | 单个数据源的 MySQL 语法开关；仅当显式写出 `true`/`false` 时覆盖全局配置，只配置了 `db-type` 等其他项不会影响该开关 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.dialect-ref` | - | 自定义方言 Bean 名称，仅在 `db-type=custom` 时生效 |
 
 > **注意**：
@@ -608,7 +609,7 @@ userMapper.upsert(partial);
 | 方法 | SQL 形态 | 逐行动态判断 | 适用场景 |
 |---|---|---|---|
 | `upsert(T)` | 单条 | 支持 | 单条写入 |
-| `upsertBatch(List<T>)` | 一条多值 SQL | 不支持，固定列集合 | 批量写入，吞吐量优先 |
+| `upsertBatch(List<T>)` | 一条批量 SQL（MySQL/PostgreSQL/SQL Server 为多值 VALUES，Oracle 为单条 MERGE；H2 例外，`;` 逐条） | 不支持，固定列集合 | 批量写入，吞吐量优先 |
 | `upsert(Collection<T>)` | 逐条执行（BATCH executor） | 支持 | 批量写入，且各记录 null 字段可能不同、需要保留 NOT_NULL 语义 |
 
 > **注意 `upsertBatch` 的 null 覆盖行为**：批量 SQL 的列集合是固定的，`NOT_NULL` 字段为 null 时**不会**像单条 `upsert` 那样被 `<if>` 判空跳过，而是会以 NULL 写入、覆盖数据库中的原值。如果批量数据中部分记录的某些字段可能为 null 且不希望清空原值，请改用 `upsert(Collection)`。
@@ -639,7 +640,7 @@ mybatis-plus:
 
 **`db-type` 自动推断**
 
-starter 会从 JDBC URL 自动推断数据库类型，无需手动配置。支持的 URL 前缀：`jdbc:mysql:`、`jdbc:postgresql:`、`jdbc:oracle:`、`jdbc:sqlserver:`、`jdbc:h2:`。
+starter 会从 JDBC URL 自动推断数据库类型，无需手动配置。可识别的 URL 段：`jdbc:mysql:`、`jdbc:mariadb:`、`jdbc:postgresql:`、`jdbc:oracle:`、`jdbc:sqlserver:`、`jdbc:h2:`。
 
 ```yaml
 # 零配置示例：自动推断为 MySQL
@@ -675,13 +676,14 @@ mybatis-plus:
 **解决方式：让已有的 SqlInjector 继承 `UpsertSqlInjector`。**
 
 ```java
-// 修改前
+// 修改前（示意：项目里已有的自定义注入器）
 @Bean
 public ISqlInjector sqlInjector() {
     return new DefaultSqlInjector() {
         @Override
-        public List<AbstractMethod> getMethodList(Class<?> mapperClass, TableInfo tableInfo) {
-            List<AbstractMethod> methods = super.getMethodList(mapperClass, tableInfo);
+        public List<AbstractMethod> getMethodList(Configuration configuration,
+                                                  Class<?> mapperClass, TableInfo tableInfo) {
+            List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
             methods.add(new MyCustomMethod());
             return methods;
         }
@@ -693,14 +695,17 @@ public ISqlInjector sqlInjector() {
 public ISqlInjector sqlInjector(UpsertDialect upsertDialect) {
     return new UpsertSqlInjector(upsertDialect) {
         @Override
-        public List<AbstractMethod> getMethodList(Class<?> mapperClass, TableInfo tableInfo) {
-            List<AbstractMethod> methods = super.getMethodList(mapperClass, tableInfo);
+        public List<AbstractMethod> getMethodList(Configuration configuration,
+                                                  Class<?> mapperClass, TableInfo tableInfo) {
+            List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
             methods.add(new MyCustomMethod());  // 保留原有自定义方法
             return methods;
         }
     };
 }
 ```
+
+> 重写 `getMethodList` 时请使用带 `Configuration` 的三参数版本（MP 3.5.6+ 签名）。两参数版本 `getMethodList(Class, TableInfo)` 虽仍被 MP 兼容调用但已标记 `@Deprecated`，且只在返回非空列表时生效，容易踩坑。
 
 `UpsertSqlInjector` 继承自 `DefaultSqlInjector`，`super.getMethodList()` 会包含 MP 全部原生方法 + `upsert` + `upsertBatch` + 内部 `upsertExecutor`（供 `upsert(Collection)` 使用，不对外暴露为 Mapper 方法），行为完全向下兼容。
 
@@ -754,8 +759,10 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 | `updateFields` | `List<String>` | 与 `updateColumns` 一一对应的 Java 字段名 |
 | `insertFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 INSERT 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
 | `updateFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 UPDATE 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
+| `fieldToColumnMap` | `Map<String, String>` | Java 字段名到列名的映射 |
+| `entityClass` | `Class<?>` | 元数据解析自的实体类，参与 SQL 缓存键 |
 
-`FieldMeta` 包含三个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）。自定义方言若要支持单条动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
+`FieldMeta` 包含五个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）、`paramRef`（UPDATE SET 赋值是否回退为 `#{et.字段}` 参数引用而非行引用——仅出现在"参与更新但被排除出 INSERT"的字段上，如 `insertStrategy = NEVER` 的可更新字段）。自定义方言若要支持单条动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
 
 ---
 
@@ -1036,7 +1043,7 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 **Q：`@ConflictKey` 可以标注在主键上吗？**
 
-可以。主键本身就是唯一约束，标注 `@ConflictKey` 后会以主键为冲突依据。但通常主键由数据库自动生成，建议以业务唯一键作为冲突键。
+取决于主键策略：`INPUT` / `ASSIGN_ID` / `ASSIGN_UUID` 主键可以——主键本身就是唯一约束，标注后以主键为冲突依据；**`IdType.AUTO` 自增主键不行**——自增键的值在插入前不存在，无法作为冲突判断依据，启动解析期即抛 `UpsertMetaException`（见[异常说明](#异常说明)）。通常建议以业务唯一键（如 `username`、`order_no`）作为冲突键，而不是主键。
 
 ---
 
@@ -1048,7 +1055,7 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 **Q：项目使用了 MyBatis Plus 的逻辑删除，upsert 会不会有问题？**
 
-`UpsertMetaParser` 基于 MP 的 `TableInfo` 解析字段，逻辑删除字段（`@TableLogic`）通常会被 MP 标记为填充字段，在 `TableInfo.getFieldList()` 中可见，因此会正常参与 INSERT 和 UPDATE。业务层需自行保证逻辑删除字段的值符合预期。
+`UpsertMetaParser` 基于 MP 的 `TableInfo` 解析字段，逻辑删除字段（`@TableLogic`）在 `TableInfo.getFieldList()` 中就是一个普通字段，因此会正常参与 INSERT 和 UPDATE（不会被当作"逻辑删除即隐藏"处理——Upsert 的 SQL 里没有 `deleted = 0` 这类条件）。业务层需自行保证逻辑删除字段的值符合预期，例如命中已软删行时 Upsert 会直接更新该行而不会恢复判断。
 
 ---
 
@@ -1119,7 +1126,7 @@ mybatis-plus:
 
 ## 数据库注意事项
 
-> **⚠️ 验证等级（必读）**：本项目目前**只在 MySQL、PostgreSQL、H2 中实际运行验证过**（其中 H2 仅用于单元测试）。**Oracle 与 SQL Server 的方言未在真实数据库上验证过**——生成的 SQL 严格按各数据库官方语法规范编写，并通过了结构级断言测试（见 `DialectSqlTest`），但缺少真实环境的运行时确认。
+> **⚠️ 验证等级（必读）**：自动回归测试套件只在 **H2（MySQL 模式）** 上运行；**MySQL、PostgreSQL** 通过 `examples/` 示例工程做过实际运行验证（手工执行，不在 CI 中）；**Oracle 与 SQL Server 的方言未在真实数据库上验证过**——生成的 SQL 严格按各数据库官方语法规范编写，并通过了结构级断言测试（见 `DialectSqlTest`），但缺少真实环境的运行时确认。"语法上支持"与"已在你没跑过的数据库上验证过"是两回事，请勿混同。
 >
 > 在 Oracle / SQL Server 上首次使用本库前，建议：
 >
@@ -1131,9 +1138,10 @@ mybatis-plus:
 
 ### MySQL / MariaDB
 
-- 默认使用 `VALUES()` 函数引用当次插入的列值，该语法向下兼容所有 MySQL/MariaDB 版本。
-- 如使用 MySQL 8.0.19+，可在配置中设置 `mybatis-plus.upsert.use-new-mysql-syntax: true` 来启用新的 `AS new` 别名语法（MySQL 8.0.20+ 官方推荐写法）。
-- MariaDB 10.x 同样支持 `ON DUPLICATE KEY UPDATE`，完全兼容。
+- 默认使用 `VALUES()` 函数引用当次插入的列值，该语法向下兼容所有支持 `ON DUPLICATE KEY UPDATE` 的 MySQL/MariaDB 版本。
+- 如使用 MySQL 8.0.19+，可在配置中设置 `mybatis-plus.upsert.use-new-mysql-syntax: true` 来启用新的 `AS new` 别名语法（`VALUES()` 自 MySQL 8.0.20 起被官方废弃，当前仍可用）。
+- **MariaDB**：`ON DUPLICATE KEY UPDATE` / `VALUES()` 语法与 MySQL 一致，复用同一方言，URL `jdbc:mariadb:` 也会被自动推断为 MySQL 方言；但 MariaDB **不支持** `AS new` 行别名语法，请勿对 MariaDB 开启 `use-new-mysql-syntax`。本库未在真实 MariaDB 实例上单独验证，属协议级兼容。
+- **TiDB 等 MySQL 协议兼容数据库**：使用 `jdbc:mysql:` URL 时会被自动识别为 MySQL 方言，属协议级理论兼容——冲突检测与 affected-rows 语义取决于各库自身实现，本库未逐一验证，接入生产前请充分测试；确有差异时自行实现 `UpsertDialect`。PostgreSQL 兼容库（如 CockroachDB、KingbaseES 的 PG 模式）同理。
 
 ### PostgreSQL
 
