@@ -352,6 +352,23 @@ public class UserService {
 3. 根据推断结果创建对应的 `UpsertDialect` 实例并注册到 `DynamicUpsertDialect`
 4. 运行时通过 `DynamicDataSourceContextHolder.peek()` 获取当前数据源名称，路由到对应的方言生成 SQL
 
+### SQL 缓存
+
+路由方言内部按 **"<数据源解析出的方言实例> + 实体 + 单行/多行"** 缓存已构建的 `SqlSource`，
+所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。
+
+缓存键落在**方言实例**而不是方言类名上，原因是类名不足以区分两个数据源：
+
+- 两个数据源可以引用同一个自定义方言类的**两个不同实例**（各自带不同的 schema、表前缀等配置）；
+- 两个不同的方言类可能有**相同的简单类名**（`getSimpleName()` 不含包名）。
+
+这两种情况下若按类名缓存，数据源 B 会直接命中数据源 A 生成的 `ON DUPLICATE KEY` / `ON CONFLICT` / `MERGE`
+语句，产生跨库污染。方言实例若重写了 `equals/hashCode` 声明两个实例等价，则共享同一份缓存 SQL。
+
+> 自定义 `DynamicUpsertDialect` 实现应为每个数据源返回**稳定的方言实例**（如单例 Bean）。
+> 如果每次调用 `getCurrentDialect()` 都新建实例，缓存既不会命中也会无界增长，
+> 因此缓存条目达到 64 个后会自动停止缓存、改为每次直接构建 SQL（并输出一次 WARN 日志）。
+
 ### 配置项说明
 
 | 配置项 | 默认值 | 说明 |
