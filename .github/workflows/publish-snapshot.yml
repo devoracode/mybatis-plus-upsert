@@ -1,0 +1,59 @@
+name: Publish SNAPSHOT
+
+on:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+# 与 release.yml 共用同一组，避免快照与正式发布并发上传 Central 互相踩
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
+
+jobs:
+  # 先读 ${revision}：不是 SNAPSHOT 就整个跳过，绝不把非快照版本推上 Central
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      snapshot: ${{ steps.revision.outputs.snapshot }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: temurin
+          cache: maven
+      - name: Resolve the revision
+        id: revision
+        run: |
+          REV=$(mvn --batch-mode --quiet -DforceStdout help:evaluate -Dexpression=revision)
+          echo "revision is ${REV}"
+          case "${REV}" in
+            *-SNAPSHOT) echo "snapshot=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "snapshot=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+  publish:
+    needs: check
+    if: needs.check.outputs.snapshot == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: temurin
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_TOKEN_USERNAME
+          server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Publish SNAPSHOT to Maven Central
+        # central-publishing-maven-plugin 0.7.0+ 对 -SNAPSHOT 版本自动路由到快照仓库；
+        # Portal 对快照不做校验、可覆盖发布，签名无意义
+        run: >
+          mvn --batch-mode deploy -DskipTests -Dgpg.skip=true
+          -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
+        env:
+          CENTRAL_TOKEN_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_TOKEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
