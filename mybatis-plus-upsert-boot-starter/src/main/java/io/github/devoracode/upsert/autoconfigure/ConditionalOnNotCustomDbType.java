@@ -6,10 +6,9 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
 /**
- * Spring {@link Condition} 条件匹配器，当配置的 db-type 不是 {@code custom} 时匹配成功。
- *
- * <p>用于保护自动配置的 {@link io.github.devoracode.upsert.dialect.UpsertDialect}
- * Bean，使其仅在用户未选择自定义方言时使用（即 {@code mybatis-plus.upsert.db-type=custom}）。
+ * 当 {@code mybatis-plus.upsert.db-type} 不是 {@code custom} 时匹配的 {@link Condition}。
+ * {@code custom} 表示用户自带方言 Bean，此时不注册内置的
+ * {@link io.github.devoracode.upsert.dialect.UpsertDialect}。
  *
  * @author devoracode
  * @since 1.0.0

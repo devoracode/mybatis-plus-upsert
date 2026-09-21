@@ -13,21 +13,12 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 /**
- * 将 MyBatis-Plus {@link TableInfo} 解析为 {@link UpsertMeta} 的无状态解析器。
+ * 把 MyBatis-Plus {@link TableInfo} 解析为 {@link UpsertMeta} 的无状态解析器。
  *
- * <p><strong>本类不持有任何静态可变状态</strong>：没有全局元数据缓存，也不通过
- * {@code TableInfoHelper} 的全局注册表按实体类反查 TableInfo。解析的唯一数据来源
- * 是调用方在 SQL 注入期传入的 {@link TableInfo}——它由 MyBatis-Plus 在当前
- * {@code Configuration} 上初始化并直接交给注入方法，天然属于该上下文。
- * 因此多个 Spring ApplicationContext / 多个 MyBatis Configuration 共存时，
- * 各自注入的语句只会使用各自上下文的元数据，结构上不存在跨上下文串用的通道。
- *
- * <p>之所以不需要缓存：{@code getMeta} 只在 SQL 注入期（应用启动阶段）被调用，
- * 每个实体在每个 Mapper 上至多调用几次（upsert / upsertBatch / upsertExecutor），
- * 运行期执行 Upsert 不经过本类。解析一次的开销是微秒级的注解扫描加列表构建，
- * 远小于其换取的正确性收益。
- *
- * <p>线程安全：本类无可变状态，所有公共方法天然线程安全。
+ * <p>唯一数据来源是调用方在注入期传入的那份 {@link TableInfo}：本类既没有元数据缓存，
+ * 也不通过 {@code TableInfoHelper} 全局注册表按实体类反查。因此多个 Spring 上下文 /
+ * 多个 {@code Configuration} 共存时，各自注入的语句只用各自上下文的元数据。
+ * 运行期执行 Upsert 不经过本类，所以无需缓存。
  *
  * @author devoracode
  * @since 1.0.0
@@ -35,28 +26,18 @@ import java.util.*;
 public class UpsertMetaParser {
 
     /**
-     * 检查实体类是否至少包含一个 {@link ConflictKey} 字段。
-     * 这是一个轻量级检查，仅扫描注解，与具体 {@code Configuration} 无关。
-     *
-     * @param entityClass 待检查的实体类（不能为 null）
-     * @return 如果实体包含至少一个 @ConflictKey 字段则返回 true，否则返回 false
+     * 实体是否含至少一个 {@link ConflictKey} 字段。只扫注解，与 {@code Configuration} 无关。
      */
     public static boolean hasConflictKey(Class<?> entityClass) {
         return scanAnnotations(entityClass).hasConflictKey;
     }
 
     /**
-     * 解析给定 {@link TableInfo} 所属实体的完整 {@link UpsertMeta}。
-     *
-     * <p>每次调用都基于传入的 TableInfo 重新解析，不读写任何共享缓存；
-     * 调用方应传入自己上下文中 MyBatis-Plus 初始化并递交的那份 TableInfo
-     * （例如注入方法 {@code injectMappedStatement} 的参数）。
+     * 解析 {@link TableInfo} 所属实体的完整 {@link UpsertMeta}：每次调用都基于入参重新解析。
      *
      * @param tableInfo 当前 Configuration 下的实体表元数据（不能为 null）
-     * @return 包含全部 SQL 生成元数据的 UpsertMeta
-     * @throws UpsertMetaException 如果实体缺少 @ConflictKey、无可更新列，
-     *         或 @ConflictKey 字段声明了 {@code insertStrategy = NEVER}
-     *         （冲突键必须参与 INSERT）
+     * @throws UpsertMetaException 没有 {@code @ConflictKey}、无可更新列，
+     *         或冲突键落在 {@code IdType.AUTO} 主键上、声明了 {@code insertStrategy = NEVER}
      */
     public static UpsertMeta getMeta(TableInfo tableInfo) {
         Objects.requireNonNull(tableInfo, "tableInfo must not be null");
@@ -100,9 +81,8 @@ public class UpsertMetaParser {
             if (fi.getInsertStrategy() != FieldStrategy.NEVER) {
                 insertColumns.add(colName);
                 insertFields.add(fieldName);
-                // 冲突键是 Upsert 语义必需字段：强制非动态（不做判空），
-                // 确保其始终出现在 INSERT 列与参数中，与 ON 冲突判断保持一致——
-                // 否则冲突键为 null 时会被动态策略静默剔除，UPDATE 场景退化为 INSERT
+                // 冲突键强制非动态：否则冲突键为 null 时会被动态策略静默剔除，
+                // UPDATE 场景退化成 INSERT，与 ON 冲突判断也不再一致
                 insertFieldMetas.add(conflictKey
                         ? FieldMeta.builder().column(colName).property(fieldName).dynamic(false).build()
                         : toFieldMeta(fi, fi.getInsertStrategy(), false));
@@ -153,9 +133,8 @@ public class UpsertMetaParser {
         String kc = tableInfo.getKeyColumn();
         fieldToColumnMap.put(kp, kc);
         if (tableInfo.getIdType() == IdType.AUTO) {
-            // 自增主键由数据库生成，不进入 INSERT 列表——显式插入 NULL 在
-            // PostgreSQL（serial 列 NOT NULL 约束）等数据库下会失败，
-            // 且与 MyBatis-Plus 自身 insert 的行为保持一致
+            // 自增主键由数据库生成，不进入 INSERT 列表：显式插入 NULL 在 PostgreSQL
+            // （serial 列 NOT NULL）等数据库下会失败，也与 MP 自身 insert 不一致
             return;
         }
         insertColumns.add(kc);

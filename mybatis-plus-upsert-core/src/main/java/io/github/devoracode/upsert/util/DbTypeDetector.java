@@ -4,8 +4,7 @@ import io.github.devoracode.upsert.exception.UpsertException;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * 从配置字符串或 JDBC URL 中检测数据库类型的工具类。
- * 所有方法均为静态方法，线程安全。
+ * 从配置字符串或 JDBC URL 检测数据库类型的无状态工具类。
  *
  * @author devoracode
  * @since 1.0.0
@@ -14,45 +13,30 @@ import lombok.extern.slf4j.Slf4j;
 public class DbTypeDetector {
 
     /**
-     * 数据库类型枚举。
+     * 本库可识别的数据库类型。
      */
     public enum DbType {
-        /**
-         * MySQL 或 MariaDB。
-         */
+        /** MySQL 或 MariaDB。 */
         MYSQL,
-        /**
-         * PostgreSQL。
-         */
+        /** PostgreSQL。 */
         POSTGRESQL,
-        /**
-         * Oracle。
-         */
+        /** Oracle。 */
         ORACLE,
-        /**
-         * Microsoft SQL Server。
-         */
+        /** SQL Server。 */
         SQLSERVER,
-        /**
-         * H2 数据库。
-         */
+        /** H2。 */
         H2,
-        /**
-         * 自定义方言（由用户提供）。
-         */
+        /** 由用户自行提供的方言。 */
         CUSTOM,
-        /**
-         * 未知或无法识别的数据库类型。
-         */
+        /** 无法识别。 */
         UNKNOWN
     }
 
     /**
-     * 尝试将数据库类型字符串解析为 {@link DbType} 枚举。
-     * 无法匹配时返回 {@link DbType#UNKNOWN}。
+     * 把数据库类型字符串解析为 {@link DbType}，不区分大小写、允许部分匹配，无法识别时返回
+     * {@link DbType#UNKNOWN} 而不抛异常。
      *
-     * @param dbType 数据库类型字符串（不区分大小写，允许部分匹配）
-     * @return 解析后的 DbType，无法识别时返回 UNKNOWN
+     * @param dbType 数据库类型字符串，可为 null
      */
     public static DbType tryParseDbType(String dbType) {
         if (dbType == null) {
@@ -70,12 +54,9 @@ public class DbTypeDetector {
     }
 
     /**
-     * 将数据库类型字符串解析为 {@link DbType} 枚举。
-     * 无法匹配时抛出 {@link UpsertException}。
+     * 与 {@link #tryParseDbType} 相同，但无法识别时抛 {@link UpsertException}。
      *
-     * @param dbType 数据库类型字符串（不区分大小写）
-     * @return 解析后的 DbType
-     * @throws UpsertException 如果数据库类型未知
+     * @throws UpsertException 数据库类型未知
      */
     public static DbType parseDbType(String dbType) {
         DbType type = tryParseDbType(dbType);
@@ -86,11 +67,10 @@ public class DbTypeDetector {
     }
 
     /**
-     * 通过 JDBC URL 解析数据库类型。
-     * 匹配 {@code jdbc:mysql:}、{@code jdbc:postgresql:} 等前缀。
+     * 按 JDBC URL 中的子串（{@code :mysql:}、{@code :postgresql:} 等）识别数据库类型。
      *
-     * @param jdbcUrl JDBC URL（如 {@code jdbc:mysql://localhost:3306/db}）；可为 null
-     * @return 检测到的 DbType；URL 为 null 或无法匹配任何已知类型时返回 UNKNOWN
+     * @param jdbcUrl JDBC URL，可为 null
+     * @return 识别结果；URL 为 null 或不含已知前缀时返回 {@link DbType#UNKNOWN}
      */
     public static DbType parseDbTypeByJdbcUrl(String jdbcUrl) {
         if (jdbcUrl == null) {

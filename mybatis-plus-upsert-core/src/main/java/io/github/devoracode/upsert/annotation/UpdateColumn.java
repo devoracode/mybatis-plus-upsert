@@ -7,12 +7,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 限制 UPDATE 子句仅包含使用 {@code @UpdateColumn} 注解的字段。
- *
- * <p>默认情况下，所有非冲突键、非 {@link IgnoreOnUpdate} 的字段都会被包含在 UPDATE 子句中。
- * 当任意字段使用 {@code @UpdateColumn} 注解时，UPDATE 子句中仅包含被注解的字段。
- *
- * <p>此注解适用于需要精确控制冲突时哪些列应被更新的场景。
+ * 声明 UPDATE 子句的白名单：实体中只要有任意字段使用本注解，UPDATE 就只包含被注解的字段，
+ * 此时 {@link IgnoreOnUpdate} 不再参与判断。默认（无本注解）为非冲突键、非
+ * {@code @IgnoreOnUpdate} 的全部字段。
  *
  * @author devoracode
  * @since 1.0.0

@@ -45,13 +45,6 @@ public class DynamicUpsertAutoConfiguration {
     private final DynamicDataSourceProperties dynamicDataSourceProperties;
     private final ConfigurableListableBeanFactory beanFactory;
 
-    /**
-     * 创建新的 DynamicUpsertAutoConfiguration 实例。
-     *
-     * @param properties upsert 动态配置属性
-     * @param dynamicDataSourceProperties 动态数据源属性
-     * @param beanFactory Spring Bean 工厂（用于解析自定义方言 Bean）
-     */
     public DynamicUpsertAutoConfiguration(UpsertDynamicProperties properties,
                                           DynamicDataSourceProperties dynamicDataSourceProperties,
                                           ConfigurableListableBeanFactory beanFactory) {
@@ -61,10 +54,9 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * 创建 {@link DynamicUpsertDialect} Bean。
-     *
-     * <p>遍历 {@code spring.datasource.dynamic.datasource} 中定义的所有数据源，
-     * 推断或使用配置的数据库类型，并注册相应的方言。
+     * 为 {@code spring.datasource.dynamic.datasource} 里的每个数据源推断（或按配置取用）
+     * 数据库类型并注册对应方言，随后校验主数据源也在其中。
+     * 任何一步不成立都在启动期抛 {@link UpsertException}。
      *
      * @return DynamicUpsertDialect 实例
      */
@@ -106,7 +98,7 @@ public class DynamicUpsertAutoConfiguration {
 
             boolean useNewMysqlSyntax = upsertDynamicProperties.isUseNewMysqlSyntax();
             if (upsertConfig != null && upsertConfig.getUseNewMysqlSyntax() != null) {
-                // 只有显式声明了该开关的数据源配置才覆盖全局；未声明时继承全局值
+                // 只有显式声明该开关的数据源才覆盖全局，未声明（null）时继承全局值
                 useNewMysqlSyntax = upsertConfig.getUseNewMysqlSyntax();
             }
 
@@ -134,14 +126,12 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * 为指定数据源解析 {@link UpsertDialect}。
+     * 解析单个数据源的方言：{@code dbType} 为 CUSTOM 时按 {@code config} 的
+     * {@code dialect-ref} 从容器取用户 Bean，否则用 {@link DialectFactory} 创建内置方言。
      *
-     * @param dsName 数据源名称
-     * @param config 按数据源配置的参数（可能为 null）
-     * @param dbType 检测到的或配置的数据库类型
-     * @param useNewMysqlSyntax 是否使用 MySQL 8.0.19+ 引入的新语法
-     * @return 解析出的 UpsertDialect 实例
-     * @throws UpsertException 如果无法解析方言
+     * @param config 该数据源的 upsert 配置，可为 null
+     * @throws UpsertException custom 缺少 dialect-ref、引用的 Bean 不存在或类型不符，
+     *         或内置类型无法创建方言
      */
     public UpsertDialect resolveDialect(String dsName,
                                         UpsertDynamicProperties.DataSourceConfig config,
@@ -177,17 +167,10 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * 创建带有动态方言的 {@link UpsertSqlInjector} Bean。
+     * 注册携带动态方言与 {@code fill-strategy} 的 {@link UpsertSqlInjector}。
      *
-     * <p>解析的填充策略（来自 {@code fill-strategy}）
-     * 由注入器携带，以便注入的 upsert
-     * SqlSources 在动态 SQL 绑定之前、方言路由之前应用自动填充——
-     * 不需要注册全局 MyBatis 拦截器。
-     *
-     * <p>按类型（{@code ISqlInjector}）做缺失检查，与单数据源 starter 的
-     * {@code UpsertAutoConfiguration#upsertSqlInjector} 保持对称：
-     * 用户已注册任何自定义 {@code ISqlInjector} bean 时（无论 bean 名是什么）
-     * 都不再自动注册，避免两个注入器并存。
+     * <p>与单数据源 starter 对称地按 {@code ISqlInjector} 类型做缺失检查：用户已注册任何自定义
+     * 注入器（无论 bean 名）时不再自动注册，避免两个注入器并存。
      *
      * @param dynamicDialect 动态 upsert 方言
      * @return 配置好的 UpsertSqlInjector

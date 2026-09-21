@@ -5,10 +5,7 @@ import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
- * 单数据源 upsert 支持的配置属性。
- *
- * <p>这些属性绑定到 {@code mybatis-plus.upsert} 前缀下。
- * {@code db-type} 属性为可选 —— 如果未指定，库会尝试从 JDBC URL 自动推断。
+ * {@code mybatis-plus.upsert} 前缀下的配置属性。
  *
  * @author devoracode
  * @since 1.0.0
@@ -17,36 +14,27 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "mybatis-plus.upsert")
 public class UpsertProperties {
 
-    /**
-     * 是否启用 upsert 支持。默认为 true。
-     */
+    /** 是否启用 upsert 支持，默认 true。 */
     private boolean enabled = true;
 
-    /**
-     * 数据库类型（例如："mysql"、"postgresql"）。可选 —— 如果未指定，则从 JDBC URL 自动推断。
-     */
+    /** 数据库类型（如 {@code mysql}、{@code postgresql}）；未配置时从 JDBC URL 推断。 */
     private String dbType;
 
     /**
-     * 是否在 MySQL upsert 中使用 MySQL 8.0.19+ 引入的新语法（AS 别名）。
-     * 仅在数据库类型为 MySQL 时生效。默认为 false（使用旧版 VALUES() 语法）。
+     * MySQL 是否使用 8.0.19+ 的 AS 别名语法，默认 false（旧版 {@code VALUES()} 语法）。
+     * 仅在数据库类型为 MySQL 时生效。
      */
     private boolean useNewMysqlSyntax = false;
 
     /**
-     * 在 upsert SQL 绑定前应用的自动填充策略。
-     * 默认解析为 {@code insert_update}（参见 {@link #resolveFillStrategy()}）。
+     * SQL 绑定前应用的自动填充策略；未配置时由 {@link #resolveFillStrategy()} 给出默认值。
      *
      * @since 1.6.0
      */
     private FillStrategy fillStrategy;
 
     /**
-     * 解析有效的填充策略：显式配置的
-     * {@link #fillStrategy} 优先；未配置时默认返回
-     * {@link FillStrategy#INSERT_UPDATE}。
-     *
-     * @return 有效的填充策略
+     * @return 显式配置的 {@link #fillStrategy}，未配置时为 {@link FillStrategy#INSERT_UPDATE}
      * @since 1.6.0
      */
     public FillStrategy resolveFillStrategy() {

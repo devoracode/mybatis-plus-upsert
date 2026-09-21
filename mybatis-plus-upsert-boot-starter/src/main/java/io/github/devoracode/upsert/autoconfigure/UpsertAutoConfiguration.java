@@ -21,14 +21,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
- * 单数据源 upsert 支持的自动配置类。
+ * 单数据源 Upsert 的自动配置：解析数据库类型、创建 {@link UpsertDialect}、注册
+ * {@link UpsertSqlInjector}。
  *
- * <p>如果未显式配置，则从 JDBC URL 自动检测数据库类型，
- * 创建相应的 {@link UpsertDialect}，并注册 {@link UpsertSqlInjector}。
- *
- * <p>自动填充（当从 {@code fill-strategy} 解析为非
- * {@link FillStrategy#NONE} 的策略时）在注入的 upsert
- * SqlSources 动态 SQL 绑定之前执行 —— 不会注册全局 MyBatis 拦截器。
+ * <p>绑定前自动填充由注入器携带的 {@link FillStrategy} 实现，不注册全局 MyBatis 拦截器。
  *
  * @author devoracode
  * @since 1.0.0
@@ -44,22 +40,14 @@ public class UpsertAutoConfiguration {
     private final UpsertProperties properties;
     private final DataSourceProperties dataSourceProperties;
 
-    /**
-     * 创建一个新的 UpsertAutoConfiguration 实例。
-     *
-     * @param properties upsert 配置属性
-     * @param dataSourceProperties 数据源属性（用于从 JDBC URL 推断数据库类型）
-     */
     public UpsertAutoConfiguration(UpsertProperties properties, DataSourceProperties dataSourceProperties) {
         this.properties = properties;
         this.dataSourceProperties = dataSourceProperties;
     }
 
     /**
-     * 创建 {@link UpsertDialect} Bean。
-     *
-     * <p>如果配置了 {@code mybatis-plus.upsert.db-type}，则直接使用它。
-     * 否则，库会尝试从 JDBC URL 自动推断数据库类型。
+     * 注册内置方言：{@code db-type} 显式配置时直接用它，否则从 JDBC URL 推断。
+     * 两种方式都识别不出数据库类型时启动失败。
      *
      * @return 配置好的 UpsertDialect
      */
@@ -91,11 +79,8 @@ public class UpsertAutoConfiguration {
     }
 
     /**
-     * 创建 {@link UpsertSqlInjector} Bean。
-     *
-     * <p>解析后的填充策略（来自 {@code fill-strategy}）
-     * 由注入器携带，以便注入的 upsert
-     * SqlSources 在动态 SQL 绑定前应用自动填充。
+     * 注册 Upsert 注入器，并把 {@code fill-strategy} 解析出的策略交给它。
+     * 用户自带 {@code ISqlInjector} 时本 Bean 不生效。
      *
      * @param dialect 用于 SQL 生成的 upsert 方言
      * @return 配置好的 UpsertSqlInjector

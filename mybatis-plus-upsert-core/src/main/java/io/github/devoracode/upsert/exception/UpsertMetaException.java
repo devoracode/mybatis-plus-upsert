@@ -1,20 +1,15 @@
 package io.github.devoracode.upsert.exception;
 
 /**
- * Upsert 元数据解析失败时抛出的异常。
- * 包括实体类缺少 {@link io.github.devoracode.upsert.annotation.ConflictKey} 注解、
- * 没有可更新列或 MyBatis-Plus TableInfo 不可用等情况。
+ * 启动注入期解析实体元数据失败时抛出的异常：没有 {@link io.github.devoracode.upsert.annotation.ConflictKey}
+ * 字段、没有可更新列，或冲突键声明了 {@code insertStrategy = NEVER}。
+ * 实体完全没有 {@code @ConflictKey} 时注入器会跳过该 Mapper，不会走到解析这一步。
  *
  * @author devoracode
  * @since 1.0.0
  */
 public class UpsertMetaException extends UpsertException {
 
-    /**
-     * 使用指定的详情消息构造一个 UpsertMetaException。
-     *
-     * @param message 详情消息
-     */
     public UpsertMetaException(String message) {
         super(message);
     }

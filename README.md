@@ -2,7 +2,7 @@
 
 基于 MyBatis Plus 扩展 `BaseMapper`，为 Spring Boot 2.x / 3.x 项目提供开箱即用的跨数据库 **Upsert** 能力（存在则更新，不存在则插入）。
 
-无需写 XML、无需自定义 SQL，只需在实体字段上加注解，调用 `upsert()` / `upsertBatch()` / `upsert(Collection)` 即可。
+无需写 XML、无需自定义 SQL，只需在实体字段上加注解，调用 `upsert(entity)` / `upsert(Collection)` 即可。
 
 ---
 
@@ -14,6 +14,7 @@
 - [注解详解](#注解详解)
 - [注解组合规则](#注解组合规则)
 - [字段动态判断](#字段动态判断)
+- [批量 Upsert 的实现](#批量-upsert-的实现)
 - [配置项说明](#配置项说明)
 - [与已有自定义 SqlInjector 共存](#与已有自定义-sqlinjector-共存)
 - [自定义方言](#自定义方言)
@@ -157,7 +158,7 @@ public class UserEntity {
 @Mapper
 public interface UserMapper extends UpsertMapper<UserEntity> {
     // UpsertMapper 已继承 BaseMapper，所有 MP 原生方法均可用
-    // 额外增加：upsert(entity)、upsertBatch(list)、upsert(Collection)/upsert(Collection, batchSize)
+    // 额外增加：upsert(entity)、upsert(Collection)/upsert(Collection, batchSize)
 }
 ```
 
@@ -177,23 +178,24 @@ public class UserService {
         userMapper.upsert(user);
     }
 
-    // 批量 upsert：固定列集合，拼一条批量 SQL（MySQL/PostgreSQL/SQL Server 为多值 VALUES），
-    // 一次网络往返，吞吐量优先（Oracle/H2 的形态见常见问题）
-    public void saveOrUpdateBatch(List<UserEntity> users) {
-        userMapper.upsertBatch(users);
+    // 批量 upsert（与 MP BaseMapper#insert(Collection) 语义对齐）：
+    // 复用上面那条单行 SQL，在 JDBC BATCH 执行器下逐条提交，
+    // 每个实体各自按 NOT_NULL/NOT_EMPTY 动态判空拼列，返回 List<BatchResult>
+    public List<BatchResult> saveOrUpdateBatch(List<UserEntity> users) {
+        return userMapper.upsert(users);
     }
 
-    // 批量 upsert（与 MP BaseMapper#insert(Collection) 语义对齐）：逐实体按 NOT_NULL/NOT_EMPTY
-    // 动态判空拼列，通过 JDBC BATCH 模式逐条执行，返回 List<BatchResult>。
-    // 列集合可能逐行不同，因此无法像 upsertBatch 那样拼进同一条多值 SQL；
-    // 换吞吐量优先的"一条 SQL"为"逐行动态列"，按需选择。
-    public List<BatchResult> saveOrUpdateBatchDynamic(List<UserEntity> users) {
-        return userMapper.upsert(users);
+    // 同上，自定义每批大小（到达该数量即 flush 并提交一次）
+    public List<BatchResult> saveOrUpdateBatch(List<UserEntity> users, int batchSize) {
+        return userMapper.upsert(users, batchSize);
     }
 }
 ```
 
-> 传 `null` 实体、`null`/空集合或集合内含 `null` 时的行为在[异常说明](#异常说明)中逐条列出：会在 SQL 绑定之前给出明确的 `UpsertException`，而不是让数据库报一个看不出根因的约束错误。
+> 批量写入只有一条路径：`upsert(Collection)`。它的实现细节（为什么不是"一条多值 SQL"、生成键何时可见、
+> 部分成功语义）见[批量 Upsert 的实现](#批量-upsert-的实现)。
+
+> 传 `null` 实体、`null`/空集合或集合内含 `null` 时的行为在[异常说明](#异常说明)中逐条列出：实体为 `null`（含集合内的 `null` 元素）会在 SQL 绑定之前给出明确的 `UpsertException`，而不是让数据库报一个看不出根因的约束错误；集合本身为 `null` 或为空则视为没有行要写，直接返回空列表。
 
 ---
 
@@ -342,8 +344,8 @@ public class UserService {
 
     @DS("mysql")
     @Transactional
-    public void upsertBatchToMysql(List<User> users) {
-        userMapper.upsertBatch(users);
+    public void upsertCollectionToMysql(List<User> users) {
+        userMapper.upsert(users);
     }
 }
 ```
@@ -357,8 +359,10 @@ public class UserService {
 
 ### SQL 缓存
 
-路由方言内部按 **"<数据源解析出的方言实例> + 实体 + 单行/多行"** 缓存已构建的 `SqlSource`，
-所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。
+路由方言内部按 **"<数据源解析出的方言实例> + 实体"** 缓存已构建的 `SqlSource`，
+所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。缓存挂在每个注入出的
+statement 自己身上（`upsert` 与内部 `upsertExecutor` 各持一份），因此批量路径复用单行语句时
+不会与单条路径互相覆盖。
 
 缓存键落在**方言实例**而不是方言类名上，原因是类名不足以区分两个数据源：
 
@@ -372,12 +376,13 @@ public class UserService {
 > 如果每次调用 `getCurrentDialect()` 都新建实例，缓存既不会命中也会无界增长，
 > 因此缓存条目达到 64 个后会自动停止缓存、改为每次直接构建 SQL（并输出一次 WARN 日志）。
 
-### 配置项说明
+### 多数据源配置项说明
 
 | 配置项 | 默认值 | 说明 |
 |---|---|---|
 | `mybatis-plus.upsert.dynamic.enabled` | `true` | 是否启用动态数据源支持 |
 | `mybatis-plus.upsert.dynamic.use-new-mysql-syntax` | `false` | **全局**默认：MySQL 数据源是否使用新语法（AS new），可被单个数据源配置覆盖 |
+| `mybatis-plus.upsert.dynamic.fill-strategy` | `insert_update` | 动态 SQL 绑定前是否调用 `MetaObjectHandler` 预填充，可选 `none` / `insert` / `insert_update`，对所有数据源生效 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.db-type` | 自动推断 | 该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2/custom）。**可选**，未配置时从 JDBC URL 自动推断 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.use-new-mysql-syntax` | 未声明则继承全局配置 | 单个数据源的 MySQL 语法开关；仅当显式写出 `true`/`false` 时覆盖全局配置，只配置了 `db-type` 等其他项不会影响该开关 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.dialect-ref` | - | 自定义方言 Bean 名称，仅在 `db-type=custom` 时生效 |
@@ -495,13 +500,13 @@ public class ProductEntity {
 
 **优先级总结：`@ConflictKey` > `@UpdateColumn` 白名单 > `@IgnoreOnUpdate` 黑名单 > 默认全量更新**
 
-> 上表说明的是"哪些列出现在 SQL 结构里"。至于这些列在单条 upsert 中是否需要按值动态判断（null 时整列消失），见下一节[字段动态判断](#字段动态判断)，这是两个独立的维度。
+> 上表说明的是"哪些列出现在 SQL 结构里"。至于这些列在 upsert 中是否需要按值动态判断（null 时整列消失），见下一节[字段动态判断](#字段动态判断)，这是两个独立的维度。
 
 ---
 
 ## 字段动态判断
 
-MyBatis Plus 的原生 `insert` / `updateById` 方法会按字段的 `FieldStrategy`（`insertStrategy` / `updateStrategy`）动态决定该字段是否出现在 SQL 中。本 starter 的**单条** `upsert` 完全遵循这一行为，无需任何额外配置。
+MyBatis Plus 的原生 `insert` / `updateById` 方法会按字段的 `FieldStrategy`（`insertStrategy` / `updateStrategy`）动态决定该字段是否出现在 SQL 中。本 starter 的 `upsert` 完全遵循这一行为，无需任何额外配置：单条按当前实体的字段值裁剪列；`upsert(Collection)` 复用同一条语句逐条执行，因此集合里每一行都拥有自己的动态列集合。
 
 ### 行为对照
 
@@ -510,7 +515,7 @@ MyBatis Plus 的原生 `insert` / `updateById` 方法会按字段的 `FieldStrat
 | `NOT_NULL`（**全局默认**） | 字段为 null 时不出现在 SQL 中 |
 | `NOT_EMPTY` | 字符串字段为 null 或空字符串时不出现在 SQL 中；非字符串字段退化为 `NOT_NULL` 判断 |
 | `IGNORED` | 忽略判断，始终出现在 SQL 中（不代表"忽略该字段"，而是"忽略 null/empty 判断"） |
-| `NEVER` | 该字段永远不出现在 SQL 中，无论值是什么；单条和批量场景均不受影响，始终被排除 |
+| `NEVER` | 该字段永远不出现在 SQL 中，无论值是什么；单条与 `upsert(Collection)` 共用同一份元数据列集合，两条路径都始终排除 |
 | `DEFAULT` | 注解上代表"跟随全局配置"；全局配置上代表 `NOT_NULL`。MP 在解析阶段已将其转换为实际生效的策略，本 starter 读到的是转换后的值，不会是 `DEFAULT` 本身 |
 
 由于 MP 全局默认策略是 `NOT_NULL`，**未显式标注 `@TableField` 的字段默认就是动态字段**：
@@ -566,23 +571,20 @@ public class UserEntity {
 
 > **序列主键的前提**：MP 只在容器里存在 `IKeyGenerator` Bean 时才会读取 `@KeySequence`（多个 Bean 时按 `dbType()` 匹配，单个直接使用）。没有该 Bean 时，`@KeySequence` 会被 MP 忽略、主键按普通 `INPUT` 处理——本库不另造报错或补号协议，行为与 MP 原生 `insert` 完全一致。MP 的 `com.baomidou.mybatisplus.extension.incrementer` 包下已提供 `PostgreKeyGenerator`、`OracleKeyGenerator`、`H2KeyGenerator` 等实现，注册为 Bean 即可。
 
-三条执行路径的回填承诺不同：
+两条执行路径都会回填，且机制相同——因为批量复用的就是单行语句：
 
 | 路径 | SQL 形态 | 生成主键回填 |
 |---|---|---|
 | `upsert(entity)` | 单行 | **回填**，语句执行后即可读到 |
-| `upsert(collection)` / `upsert(collection, batchSize)` | BATCH 执行器逐条提交单行 SQL | **逐条回填**：时机在批次 `flushStatements`，方法正常返回后集合中每个实体的主键都已就位 |
-| `upsertBatch(list)` | 单条 SQL、多行 `VALUES` | **不回填**，序列主键路径也不取号，调用前主键必须已有值 |
-
-`upsertBatch` 之所以明确不承诺回填：多行语句的 generated keys 与数据行的对应关系受数据库和 JDBC 驱动实现影响——MySQL 下冲突更新行返回的键数量不固定，PostgreSQL 的冲突更新路径根本不产生 `RETURNING` 行；序列同理，一条 `SELECT NEXT VALUE FOR seq` 只能得到一个号，无法逐行分配。强行配置取键只会让键数校验抛异常，因此该方法保持 `NoKeyGenerator`。需要拿到生成主键时请改用 `upsert(entity)` 或 `upsert(collection)`；序列主键实体要走 `upsertBatch` 时由调用方自行给出主键值。
+| `upsert(collection)` / `upsert(collection, batchSize)` | BATCH 执行器逐条提交同一句单行 SQL | **逐条回填**：时机在批次 `flushStatements`，方法正常返回后集合中每个实体的主键都已就位 |
 
 **回填语义的三条边界**：
 
 1. 回填值是数据库实际生成/返回的键，不是内存里预测出来的值，本库不做任何"预判下一个 ID"的推断。
 2. `upsert` 不是纯 `insert`，所以"回填到了值" ≠ "插入了一条新记录"。冲突命中走 UPDATE 分支时不会插入新行：AUTO 路径下 `getGeneratedKeys()` 返回什么取决于驱动（MySQL 驱动通常返回既有主键）；序列路径下取号发生在语句执行之前，那个号已经被消耗掉（序列号不随事务回滚），但落库行的主键仍是原值，实体上却会出现这个新号。依赖主键做后续逻辑前，先确认它代表的是插入还是更新。
-3. 调用方预设的主键值不保证保留：`IdType.AUTO` 的主键列本来就不进 INSERT 列表，预设值不会写入数据库，执行后被生成值覆盖；序列主键的单条与逐条路径同理。需要沿用给定主键请用 `INPUT` 策略（不配 `@KeySequence`）或 `upsertBatch`。
+3. 调用方预设的主键值不保证保留：`IdType.AUTO` 的主键列本来就不进 INSERT 列表，预设值不会写入数据库，执行后被生成值覆盖；序列主键同理，MP 的 `SelectKeyGenerator` 不判断主键是否已有值，取到的号直接盖上去。需要沿用给定主键请用 `INPUT` 策略且不配 `@KeySequence`。
 
-> `upsert(Collection)` 的部分成功语义：MP 的 `MybatisBatch` 是**按 `batchSize` 分块 flush 并提交**的，某块失败时前面各块可能已经落库；本库不做"已回填主键"与"实际落库行"的对账——已写进实体但随事务回滚的主键不会自动清空。请把整批放在同一事务里，异常时按整批失败处理，不要假定前 N 条一定成功。批量执行使用独立 SqlSession（MP `MybatisBatch`），与调用方 SqlSession 的一级缓存不互通，同一事务内紧接着用 Mapper 查询可能读不到刚写入的数据。
+> `upsert(Collection)` 的分块 flush 与部分成功语义、以及批量路径为何不做"一条多值 SQL"，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
 ### 效果示例
 
@@ -598,29 +600,94 @@ userMapper.upsert(partial);
 // 等价于 MP 原生 updateById 在 NOT_NULL 策略下的行为
 ```
 
-### 为什么 upsertBatch 不支持这个行为，以及 upsert(Collection) 怎么做到
-
-这里特指 `NOT_NULL`/`NOT_EMPTY` 这种**按运行时值判断**的动态行为：`upsertBatch` 生成的是一条多行 `VALUES (...), (...), ...` 的单 SQL，要求每一行的列数严格一致才能对齐成一条合法 SQL。如果不同行因为字段值不同导致动态判断结果不同（比如第一行 email 非 null、第二行 email 为 null），就无法生成一条统一的批量语句。
-
-这与 MyBatis Plus 自身 `insertBatchSomeColumn` 的取舍一致：批量方法基于第一条记录确定列集合，不支持逐行动态列。
-
-如果业务上确实需要"批量但每条记录的动态判断结果可能不同"，用 `upsert(Collection<T>)`（对齐 MP `BaseMapper#insert(Collection<T>)` 语义）：它复用单条 `upsert` 那份带 `<if>` 判空的 SQL，逐条通过 JDBC BATCH 模式执行（而不是拼一条多值 SQL），列集合可以逐行不同，返回 `List<BatchResult>`。代价是失去了"一条 SQL、一次网络往返"的吞吐量优势——三种方法按场景选择：
-
-| 方法 | SQL 形态 | 逐行动态判断 | 适用场景 |
-|---|---|---|---|
-| `upsert(T)` | 单条 | 支持 | 单条写入 |
-| `upsertBatch(List<T>)` | 一条批量 SQL（MySQL/PostgreSQL/SQL Server 为多值 VALUES，Oracle 为单条 MERGE；H2 例外，`;` 逐条） | 不支持，固定列集合 | 批量写入，吞吐量优先 |
-| `upsert(Collection<T>)` | 逐条执行（BATCH executor） | 支持 | 批量写入，且各记录 null 字段可能不同、需要保留 NOT_NULL 语义 |
-
-> **注意 `upsertBatch` 的 null 覆盖行为**：批量 SQL 的列集合是固定的，`NOT_NULL` 字段为 null 时**不会**像单条 `upsert` 那样被 `<if>` 判空跳过，而是会以 NULL 写入、覆盖数据库中的原值。如果批量数据中部分记录的某些字段可能为 null 且不希望清空原值，请改用 `upsert(Collection)`。
-
-> `FieldStrategy.NEVER` 不属于这个限制：它在元数据解析阶段就把字段从候选列表中永久剔除，三种方法使用的是同一份列集合，因此 `NEVER` 字段在 `upsertBatch`/`upsert(Collection)` 中同样会被排除，行为是一致的。
-
 ### SQL Server / Oracle / H2 的实现差异
 
-PostgreSQL 和 MySQL 的单条动态 SQL 直接在 `VALUES (...)` 子句上用 `<trim>` 处理。Oracle 和 SQL Server 单条场景改用 `USING (SELECT ...) AS src` 子查询形式（而非 `USING (VALUES (...)) AS src(cols)`），因为后者要求列名声明和取值列表长度严格一致，无法配合 `<if>` 动态增减列；前者基于 `SELECT` 列表，可以用 `<trim>` 动态增减列，原理与 PostgreSQL/MySQL 一致。
+PostgreSQL 和 MySQL 的动态 SQL 直接在 `VALUES (...)` 子句上用 `<trim>` 处理。Oracle 和 SQL Server 改用 `USING (SELECT ...) AS src` 子查询形式（而非 `USING (VALUES (...)) AS src(cols)`），因为后者要求列名声明和取值列表长度严格一致，无法配合 `<if>` 动态增减列；前者基于 `SELECT` 列表，可以用 `<trim>` 动态增减列，原理与 PostgreSQL/MySQL 一致。
 
-H2 的 `MERGE INTO (cols) KEY(...) VALUES (...)` 语法没有子查询变体，单条动态 SQL 对列名和取值使用完全相同的 `<if>` 条件以保证两侧严格同步增减；考虑到 H2 仅用于测试环境（见[数据库注意事项](#数据库注意事项)），这一限制不影响生产使用。
+H2 的 `MERGE INTO (cols) KEY(...) VALUES (...)` 语法没有子查询变体，对列名和取值使用完全相同的 `<if>` 条件以保证两侧严格同步增减；考虑到 H2 仅用于测试环境（见[数据库注意事项](#数据库注意事项)），这一限制不影响生产使用。
+
+---
+
+## 批量 Upsert 的实现
+
+本节说明 `upsert(Collection)` 到底做了什么——它是本项目**唯一**的批量写入路径。
+
+### 伪代码
+
+`UpsertMapper` 里两个批量重载的实际实现（去掉注释后的完整逻辑）：
+
+```java
+// UpsertMapper.java —— default 方法，无需注入 SQL，也不需要实现类
+default List<BatchResult> upsert(Collection<T> entityList) {
+    return upsert(entityList, Constants.DEFAULT_BATCH_SIZE);   // MP 定义的默认批次大小
+}
+
+default List<BatchResult> upsert(Collection<T> entityList, int batchSize) {
+    if (entityList == null || entityList.isEmpty()) {
+        return Collections.emptyList();                          // 空输入 = 不执行任何 SQL
+    }
+    // 1) 从当前 Mapper 代理取出 SqlSessionFactory 与 Mapper 接口 Class
+    MybatisMapperProxy<?> proxy = MybatisUtils.getMybatisMapperProxy(this);
+    SqlSessionFactory sqlSessionFactory = MybatisUtils.getSqlSessionFactory(proxy);
+
+    // 2) 交给 MyBatis-Plus 的批量工具：它自己开 ExecutorType.BATCH 的 SqlSession
+    MybatisBatch.Method<T> method = new MybatisBatch.Method<>(proxy.getMapperInterface());
+    return MybatisBatchUtils.execute(sqlSessionFactory, entityList,
+            method.get("upsertExecutor", entity -> {
+                // 3) 每条实体翻译成单条 upsert 语句的参数映射
+                ParamMap<T> parameter = new ParamMap<>();
+                parameter.put(Constants.ENTITY, entity);                           // et
+                parameter.put(ParamNameResolver.GENERIC_NAME_PREFIX + 1, entity);  // param1
+                return parameter;
+            }), batchSize);
+}
+```
+
+要点逐条对应：
+
+1. **不拼多行 SQL**。这里没有任何"把 N 条记录合并成一条 `VALUES (...), (...)`"的代码；批量执行器复用的是 `upsert(entity)` 那一条单行语句（注册为内部 statement `upsertExecutor`）。
+2. **执行的是 MyBatis-Plus 的机制，不是自造的一套**。`MybatisBatch` / `MybatisBatchUtils` 与 MP 原生 `BaseMapper#insert(Collection)` 用的是同一组 API，因此会话、flush、返回值的语义与 MP 的批量 insert 一致，本库不引入第二种批量协议。
+3. **参数必须是 `ParamMap`**。`Jdbc3KeyGenerator` 只对 `ParamMap` 识别"带 `@Param` 的单参数"这一形态，从而把生成主键写回实体本身；换成普通 `HashMap` 就只能写进 map 的键，实体拿不到值。同时要放 `et` 和 `param1` 两个键——前者供语句里的 `#{et.xxx}` 取值，后者供上述判定。
+
+### 与 MP 原生批量 insert 的一致性
+
+| 维度 | MP `insert(Collection)` | 本库 `upsert(Collection)` |
+|---|---|---|
+| 执行器 | `ExecutorType.BATCH`，独立 SqlSession | 同上（由 `MybatisBatch` 负责） |
+| SQL 条数 | 1 条单行语句，重复 `addBatch` | 同上（语句来自注入的 `upsertExecutor`） |
+| 分块 | 每 `batchSize` 条 flush 并提交一次 | 同上 |
+| 动态列 | 逐条按 `FieldStrategy` 判空 | 逐条按 `FieldStrategy` 判空（同一条 `<if>` 模板） |
+| 生成主键回填 | `flushStatements` 时写回实体 | 同上，`@KeySequence` 走 MP 的 selectKey |
+| 返回值 | `List<BatchResult>` | `List<BatchResult>` |
+| 冲突时行为 | 主键/唯一键冲突直接报错 | 走方言的 UPDATE 分支 |
+
+差异只在最后一行：MP 的 insert 冲突即失败，本库把同一行语句换成 upsert 语义。批量这条链路上的其余机制都是 MP 自己的。
+
+### 为什么不做"一条多值 SQL"的批量
+
+把 N 条记录拼成一条多行 `VALUES (...), (...)` 语句看起来更快，但这个方案有三个无法自洽的问题：
+
+- **逐行动态列做不到**。多行 `VALUES` 要求每行列数严格一致，而 `NOT_NULL`/`NOT_EMPTY` 是按运行时值判断的：第一条记录 email 非 null、第二条为 null 时，没有一条合法 SQL 能同时表达两行。结果是批量路径只能退化成固定列集合，`NOT_NULL` 字段为 null 时不会像单条那样被跳过，而是以 NULL 覆盖库中原值——同一个实体走单条和走批量行为不同，是语义陷阱。
+- **生成主键回填不可靠**。多行语句的 generated keys 与数据行的对应关系受数据库和驱动实现影响：MySQL 下冲突更新行返回的键数量不固定，PostgreSQL 的 `ON CONFLICT DO UPDATE` 在更新分支上根本不产生 `RETURNING` 行；序列更直接——一条 `SELECT NEXT VALUE FOR seq` 只能拿到一个号，无法逐行分配。强行配置取键只会让键数校验抛异常。
+- **返回值无法解读**。批量语句只返回一个 int（各数据库含义还不一样），既拆不出逐行插入/更新明细，也和逐条路径的 `List<BatchResult>` 形成两套契约。
+
+逐条 BATCH 执行放弃的只是"一次网络往返"这一项吞吐量优势，换来的是与 MP 一致的行为模型：**批量与单条共用同一条语句、同一套动态判断、同一种主键回填**。与其维护两条语义会分叉的路径，不如只留一条。
+
+> 确实需要"一条 SQL 写完 N 行"的极致吞吐时，那是 MP `insertBatchSomeColumn` 那一类方案的适用场景，需要自己接受固定列集合；本库不提供这类批量 upsert。
+
+### 生成主键的可见时机
+
+`IdType.AUTO` 与 `@KeySequence` 主键都按 MP 原生批量 insert 的同一机制回填：
+
+- 生成键在批次 `flushStatements` 时写回实体，**不是**每条 `execute` 返回时立即可见。方法正常返回后，集合中每个实体的主键都已就位。
+- 序列路径的取号发生在语句执行之前，因此**调用方预置的主键值会被序列号覆盖**——MP 的 `SelectKeyGenerator` 不判断主键是否已有值，单条与批量都一样。需要自己决定主键值请用 `IdType.INPUT` 且不配 `@KeySequence`。
+- `upsert` 不是纯 insert：命中已有行时执行 UPDATE，不产生新行。AUTO 路径下驱动在 UPDATE 分支返回什么并不统一；序列路径下那个号照样被消耗（序列号不随事务回滚），实体上会出现新号而库里那行的主键仍是原值。**不要把"主键有值"当作"这一行是新插入的"的判断依据**，需要区分插入与更新请看 `BatchResult` 里的逐行行数或事后回查。
+
+### 部分成功与可见性
+
+- `MybatisBatch` 按 `batchSize` **分块 flush 并提交**：某块失败时前面各块可能已经落库。本方法不预先扫描集合，元素级问题（如 `null` 元素）要轮到它排队执行时才暴露，所以超出首个批次的失败发生时前面的批次可能已经提交。请把整批放在同一事务里，异常时按整批失败处理，不要假定前 N 条一定成功。
+- 本库不做"已回填主键"与"实际落库行"的对账——已写进实体但随事务回滚的主键不会自动清空。
+- 批量执行使用独立 SqlSession，与调用方 SqlSession 的一级缓存不互通：同一事务内紧接着用 Mapper 查询，可能读不到刚写入的数据。
 
 ---
 
@@ -636,6 +703,9 @@ mybatis-plus:
                                    # 可选值：mysql | postgresql | oracle | sqlserver | h2 | custom
     use-new-mysql-syntax: false  # 是否使用 MySQL 8.0.19+ 引入的新 upsert 语法（AS new）
                                    # 默认 false 使用向后兼容的 VALUES() 语法
+    fill-strategy: insert_update  # 动态 SQL 绑定前是否调用 MetaObjectHandler 预填充
+                                   # 可选值：none | insert | insert_update（默认）
+                                   # 仅在实体有 @TableField(fill = ...) 字段时有意义，详见[常见问题](#常见问题)
 ```
 
 **`db-type` 自动推断**
@@ -671,7 +741,7 @@ mybatis-plus:
 
 ## 与已有自定义 SqlInjector 共存
 
-如果项目中已有自定义 `ISqlInjector`（通常继承自 `DefaultSqlInjector`），starter 的自动注册会因 `@ConditionalOnMissingBean(ISqlInjector.class)` 而跳过，导致 `upsert` / `upsertBatch` 方法（以及 `upsert(Collection)` 依赖的内部 `upsertExecutor` statement）无法注入。
+如果项目中已有自定义 `ISqlInjector`（通常继承自 `DefaultSqlInjector`），starter 的自动注册会因 `@ConditionalOnMissingBean(ISqlInjector.class)` 而跳过，导致 `upsert` 方法（以及 `upsert(Collection)` 依赖的内部 `upsertExecutor` statement）无法注入。
 
 **解决方式：让已有的 SqlInjector 继承 `UpsertSqlInjector`。**
 
@@ -707,7 +777,7 @@ public ISqlInjector sqlInjector(UpsertDialect upsertDialect) {
 
 > 重写 `getMethodList` 时请使用带 `Configuration` 的三参数版本（MP 3.5.6+ 签名）。两参数版本 `getMethodList(Class, TableInfo)` 虽仍被 MP 兼容调用但已标记 `@Deprecated`，且只在返回非空列表时生效，容易踩坑。
 
-`UpsertSqlInjector` 继承自 `DefaultSqlInjector`，`super.getMethodList()` 会包含 MP 全部原生方法 + `upsert` + `upsertBatch` + 内部 `upsertExecutor`（供 `upsert(Collection)` 使用，不对外暴露为 Mapper 方法），行为完全向下兼容。
+`UpsertSqlInjector` 继承自 `DefaultSqlInjector`，`super.getMethodList()` 会包含 MP 全部原生方法 + `upsert` + 内部 `upsertExecutor`（供 `upsert(Collection)` 复用单行语句，不对外暴露为 Mapper 方法），行为完全向下兼容。
 
 ---
 
@@ -733,36 +803,31 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
     public String buildUpsertSql(UpsertMeta meta) {
         // 返回含 MyBatis 占位符的 SQL 字符串
         // 单条参数绑定前缀为 et，例如 #{et.username}
+        // 含动态标签时需包裹 <script>（由 Injector 层自动包裹，这里只返回内层内容）
         // ...
         return "INSERT INTO " + meta.getTableName() + " ... ";
     }
-
-    @Override
-    public String buildUpsertBatchSql(UpsertMeta meta) {
-        // 批量 SQL，集合参数名为 list，元素变量名为 item
-        // 含动态标签时需包裹 <script>（由 Injector 层自动包裹，这里只返回内层内容）
-        // ...
-        return "<foreach collection=\"list\" item=\"item\" separator=\",\">...</foreach>";
-    }
 }
 ```
+
+> `UpsertDialect` 接口只有一个必须实现的方法 `buildUpsertSql(UpsertMeta)`。`upsert(Collection)` 复用的正是本方法生成的那条单行语句，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
 `UpsertMeta` 提供以下字段供 SQL 拼接使用：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | `tableName` | `String` | 数据库表名 |
-| `insertColumns` | `List<String>` | INSERT 所有列名（供批量 SQL 使用，固定列集合） |
+| `insertColumns` | `List<String>` | INSERT 全部候选列名（不做动态判断的固定列集合，`insertStrategy = NEVER` 的字段已剔除） |
 | `insertFields` | `List<String>` | 与 `insertColumns` 一一对应的 Java 字段名 |
 | `conflictColumns` | `List<String>` | 冲突检测列名 |
-| `updateColumns` | `List<String>` | UPDATE SET 列名（供批量 SQL 使用，固定列集合） |
+| `updateColumns` | `List<String>` | UPDATE SET 全部候选列名（固定列集合） |
 | `updateFields` | `List<String>` | 与 `updateColumns` 一一对应的 Java 字段名 |
-| `insertFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 INSERT 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
-| `updateFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 UPDATE 字段元数据，供单条 upsert 生成 `<if>` 动态 SQL |
+| `insertFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 INSERT 字段元数据，upsert 的 `<if>` 动态 SQL 由它生成（单条与 `upsert(Collection)` 的每一行共用） |
+| `updateFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 UPDATE 字段元数据，UPDATE SET 的 `<if>` 动态 SQL 由它生成（单条与 `upsert(Collection)` 的每一行共用） |
 | `fieldToColumnMap` | `Map<String, String>` | Java 字段名到列名的映射 |
 | `entityClass` | `Class<?>` | 元数据解析自的实体类，参与 SQL 缓存键 |
 
-`FieldMeta` 包含五个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）、`paramRef`（UPDATE SET 赋值是否回退为 `#{et.字段}` 参数引用而非行引用——仅出现在"参与更新但被排除出 INSERT"的字段上，如 `insertStrategy = NEVER` 的可更新字段）。自定义方言若要支持单条动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
+`FieldMeta` 包含五个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）、`paramRef`（UPDATE SET 赋值是否回退为 `#{et.字段}` 参数引用而非行引用——仅出现在"参与更新但被排除出 INSERT"的字段上，如 `insertStrategy = NEVER` 的可更新字段）。自定义方言若要支持这种按值裁剪列的动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
 
 ---
 
@@ -790,12 +855,9 @@ mybatis-plus:
 ```java
 @Component("clickHouseUpsertDialect")
 public class ClickHouseUpsertDialect implements UpsertDialect {
-    // 实现与单数据源完全相同
+    // 实现与单数据源完全相同：只有 buildUpsertSql 一个方法
     @Override
     public String buildUpsertSql(UpsertMeta meta) { ... }
-
-    @Override
-    public String buildUpsertBatchSql(UpsertMeta meta) { ... }
 }
 ```
 
@@ -808,13 +870,13 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 
 ## 各数据库生成的 SQL 示例
 
-以下示例基于 `UserEntity`（冲突键 `username`，更新 `email`、`age`、`update_time`，忽略 `create_time`）。`UserEntity` 字段均未显式标注 `@TableField`，按 MP 全局默认策略 `NOT_NULL`，因此 `email`、`age`、`update_time` 等非冲突键字段在单条示例中均为动态字段；为保持示例简洁，以下只展示 `email` 的 `<if>` 片段，其余动态字段省略号代替，结构相同。主键 `id` 和冲突键 `username` 始终原样拼接，不做动态判断。
+以下示例基于 `UserEntity`（冲突键 `username`，更新 `email`、`age`、`update_time`，忽略 `create_time`）。`UserEntity` 字段均未显式标注 `@TableField`，按 MP 全局默认策略 `NOT_NULL`，因此 `email`、`age`、`update_time` 等非冲突键字段在下面每个数据库的单行语句中均为动态字段；为保持示例简洁，以下只展示 `email` 的 `<if>` 片段，其余动态字段省略号代替，结构相同。主键 `id` 和冲突键 `username` 始终原样拼接，不做动态判断。
 
-> `upsert(Collection<T>)` 内部复用的是与"单条"完全相同的 SQL（只是注册成独立的 `upsertExecutor` statement，逐条走 BATCH executor），因此下面每个数据库的"单条"示例同样适用于 `upsert(Collection)`；"批量"示例对应的是 `upsertBatch`。
+> 本节只列单行语句的形态：`upsert(Collection<T>)` 复用的正是下面每个数据库的这条 SQL（注册成独立的 `upsertExecutor` statement，逐条走 BATCH executor），因此这些示例同时就是批量写入实际执行的 SQL。为什么批量不拼一条多行 `VALUES` SQL，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
 ### MySQL / MariaDB
 
-**单条（实际是 MyBatis 动态 SQL，`<trim>` 自动去除收尾逗号）：** UPDATE 部分默认用 `VALUES(col)` 引用当次插入值（开启 `use-new-mysql-syntax: true` 时改用 `new.col`）。
+**单行语句（实际是 MyBatis 动态 SQL，`<trim>` 自动去除收尾逗号）：** UPDATE 部分默认用 `VALUES(col)` 引用当次插入值（开启 `use-new-mysql-syntax: true` 时改用 `new.col`）。
 ```xml
 INSERT INTO t_user (<trim suffixOverrides=",">
   id, username,
@@ -834,21 +896,13 @@ ON DUPLICATE KEY UPDATE <trim suffixOverrides=",">
   <if test="et.updateTime != null">update_time = VALUES(update_time), </if>
 </trim>
 ```
-若调用时 `email` 为 `null`，MyBatis 执行期会跳过对应的 `<if>` 块，实际生效的 SQL 等价于 `INSERT INTO t_user (id, username, age, update_time) VALUES (...) ON DUPLICATE KEY UPDATE age = ..., update_time = ...`，`email` 既不参与插入也不参与更新。
-
-**批量（固定列集合，不做动态判断；使用 `VALUES()` 函数引用当次插入值）：**
-```sql
-INSERT INTO t_user (id, username, email, age, create_time, update_time)
-VALUES (#{item.id}, ...), (#{item.id}, ...), ...
-ON DUPLICATE KEY UPDATE
-  email = VALUES(email), age = VALUES(age), update_time = VALUES(update_time)
-```
+若调用时 `email` 为 `null`，MyBatis 执行期会跳过对应的 `<if>` 块，实际生效的 SQL 等价于 `INSERT INTO t_user (id, username, age, update_time) VALUES (...) ON DUPLICATE KEY UPDATE age = ..., update_time = ...`，`email` 既不参与插入也不参与更新。批量写入时这条语句被逐条 `addBatch`，每行各自渲染自己的 `<if>` 结果。
 
 ---
 
 ### PostgreSQL
 
-**单条：** 结构与 MySQL 一致，`ON DUPLICATE KEY UPDATE` 替换为 `ON CONFLICT (username) DO UPDATE SET`，UPDATE 部分引用 `EXCLUDED.col`（当次插入行的值）。由于 UPDATE 与 INSERT 取值列表使用完全相同的 `<if>` 判空条件，凡被引用的 `EXCLUDED.col` 必然同时出现在当次插入行中，因此可安全引用。
+**单行语句：** 结构与 MySQL 一致，`ON DUPLICATE KEY UPDATE` 替换为 `ON CONFLICT (username) DO UPDATE SET`，UPDATE 部分引用 `EXCLUDED.col`（当次插入行的值）。由于 UPDATE 与 INSERT 取值列表使用完全相同的 `<if>` 判空条件，凡被引用的 `EXCLUDED.col` 必然同时出现在当次插入行中，因此可安全引用。
 
 ```xml
 INSERT INTO t_user (<trim suffixOverrides=",">...</trim>)
@@ -859,18 +913,13 @@ ON CONFLICT (username) DO UPDATE SET <trim suffixOverrides=",">
 </trim>
 ```
 
-**批量（`EXCLUDED` 伪表引用当次插入行的值，固定列集合）：**
-```sql
-INSERT INTO t_user (...) VALUES (...), (...), ...
-ON CONFLICT (username) DO UPDATE SET
-  email = EXCLUDED.email, age = EXCLUDED.age, update_time = EXCLUDED.update_time
-```
+> 批量写入也是这条语句逐条 `addBatch`，每行各自渲染自己的 `<if>` 结果。
 
 ---
 
 ### Oracle
 
-**单条（`src` 子查询列表、INSERT 列名、INSERT 取值三处使用完全相同的 `<if>` 条件，保证列数严格对齐）：**
+**单行语句（`src` 子查询列表、INSERT 列名、INSERT 取值三处使用完全相同的 `<if>` 条件，保证列数严格对齐）：**
 ```xml
 MERGE INTO t_user t USING (SELECT <trim suffixOverrides=",">
   #{et.id} AS id, #{et.username} AS username,
@@ -893,25 +942,15 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
 </trim>)
 ```
 
-> 之所以用 `USING (SELECT ...)` 而非 `USING (SELECT ... FROM dual)` 之外的写法，是因为 Oracle MERGE 没有 `USING (VALUES (...))` 语法；`SELECT` 列表天然支持配合 `<trim>` 动态增减列。
+> Oracle MERGE 没有 `USING (VALUES (...)) AS src(cols)` 语法，源子查询写成 `SELECT ... FROM dual`；`SELECT` 列表天然支持用 `<trim>` 动态增减列，这是它能配合 `FieldStrategy` 判空裁剪的原因。
 
-**批量（固定列集合，全部行经 UNION ALL 拼入同一源子查询，单条 MERGE 一次往返执行）：**
-```sql
-MERGE INTO t_user t USING (
-  SELECT ... FROM dual
-  UNION ALL
-  SELECT ... FROM dual
-  ...
-) src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...
-```
-
-> Oracle JDBC 不支持在单条 PreparedStatement 中以 `;` 分隔执行多条语句（ORA-00911: invalid character），因此批量不使用逐条 MERGE，而是把全部行拼进一个 `UNION ALL` 源子查询、以单条 MERGE 执行，详见[数据库注意事项](#数据库注意事项)。
+批量写入在 Oracle 下同样是这条 MERGE 逐条 `addBatch`，不需要把多行拼进一个 `UNION ALL` 源子查询，也不依赖 Oracle JDBC 的多语句支持。
 
 ---
 
 ### SQL Server
 
-**单条（改用 `USING (SELECT ...) AS src` 而非 `USING (VALUES (...)) AS src(cols)`，原理与 Oracle 一致）：**
+**单行语句（改用 `USING (SELECT ...) AS src` 而非 `USING (VALUES (...)) AS src(cols)`，原理与 Oracle 一致）：**
 ```xml
 MERGE INTO t_user AS t USING (SELECT <trim suffixOverrides=",">
   #{et.id} AS id, #{et.username} AS username,
@@ -927,22 +966,13 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">...</trim>)
   VALUES (<trim suffixOverrides=",">...</trim>);
 ```
 
-> `USING (VALUES (...)) AS src(cols)` 要求列名声明和取值列表严格等长，无法配合 `<if>` 动态增减列，因此单条场景改用 `SELECT` 形式；批量场景仍使用 `VALUES` 多行写法（见下）。
-
-**批量（固定列集合，单条 MERGE 配合多行 VALUES，效率优于逐条）：**
-```sql
-MERGE INTO t_user AS t
-USING (VALUES (...), (...), ...) AS src(id, username, email, ...)
-ON (t.username = src.username)
-WHEN MATCHED THEN UPDATE SET ...
-WHEN NOT MATCHED THEN INSERT (...) VALUES (...);
-```
+> `USING (VALUES (...)) AS src(cols)` 要求列名声明和取值列表严格等长，无法配合 `<if>` 动态增减列，因此本库统一使用 `SELECT` 形式；批量写入也是这条语句逐条执行。
 
 ---
 
 ### H2（测试环境）
 
-**单条（列名和取值使用完全相同的 `<if>` 条件，因 H2 MERGE 语法没有子查询变体）：**
+**单行语句（列名和取值使用完全相同的 `<if>` 条件，因 H2 MERGE 语法没有子查询变体）：**
 ```xml
 MERGE INTO t_user (<trim suffixOverrides=",">
   id, username,
@@ -955,12 +985,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 </trim>)
 ```
 
-**批量（固定列集合，逐条执行）：**
-```sql
-MERGE INTO t_user (id, username, email, age, create_time, update_time)
-KEY(username)
-VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createTime}, #{item.updateTime})
-```
+> H2 的 `MERGE ... KEY(...)` 没有子查询变体，动态列只能靠"列名侧与取值侧使用完全相同的 `<if>` 条件"来保证两侧同步增减。批量写入同样是这条语句逐条执行。
 
 ---
 
@@ -985,13 +1010,11 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 | 调用 | 行为 |
 |---|---|
 | `upsert(entity)` 传入 `null` 实体 | 抛异常 `Upsert entity must not be null` |
-| `upsertBatch(null)` 或参数不是集合 | 抛异常 `Upsert batch parameter must be a non-null collection` |
-| `upsertBatch(空集合)` | 抛异常 `Upsert batch collection must not be empty`——多行 `INSERT` 没有 `VALUES` 行可渲染 |
-| `upsertBatch(集合内含 null)` | 抛异常，消息带 `null element at index N` |
 | `upsert(Collection)` 集合内含 `null` | 抛异常 `Upsert entity must not be null`：与 MyBatis-Plus 的 `BaseMapper#insert(Collection)` 一致，本库不预扫描集合，该元素轮到排队执行时被单行语句的守卫拒绝 |
 | `upsert((Collection) null)` / `upsert(空集合)` | **不抛异常**：没有行要写，返回空的 `List<BatchResult>`，不产生任何语句（对齐 MP `Db#saveBatch` 的 `isEmpty` 短路） |
+| `upsert(Collection, batchSize)` 传入 `batchSize <= 0` | 抛异常，消息含 `batchSize`：这一项由 MyBatis-Plus 在进入批次之前把关，本库不重复实现同名校验，因此异常类型是 MP 自己的而不是 `UpsertException` |
 
-> **为什么 `null` 实体必须显式拒绝**：MyBatis 不会拦下它，而是把所有列绑成 `NULL` 照常执行——冲突键列有非空约束时抛出的是看不出根因的数据库约束错误，冲突键列可空时则直接写入一条全空记录。两种结果都比一条明确的异常难排查。同理，多行 `VALUES` 语句里只要有一行是 `null`，整条语句就没有意义，所以整批拒绝而不是静默丢行。
+> **为什么 `null` 实体必须显式拒绝**：MyBatis 不会拦下它，而是把所有列绑成 `NULL` 照常执行——冲突键列有非空约束时抛出的是看不出根因的数据库约束错误，冲突键列可空时则直接写入一条全空记录。两种结果都比一条明确的异常难排查。
 
 > 参数守卫只判断形态，不触碰主键；各条路径在什么情况下回填生成主键见[主键回填](#主键回填)。
 
@@ -1005,39 +1028,35 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 
 ---
 
-**Q：`upsertBatch` 执行后返回值是多少？能看出哪些是插入、哪些是更新吗？**
+**Q：批量 `upsert(Collection)` 执行后返回值是什么？能看出哪些是插入、哪些是更新吗？**
 
-不能。`upsertBatch` 始终只返回**一个 int**，而批量场景每次调用涉及多行——一个数字不可能拆解出"逐行插入还是更新"的明细，这是 JDBC `executeUpdate()` 的结构性限制，不是本库没实现。各数据库这个 int 的具体含义不同：
+返回 `List<BatchResult>`（MyBatis 3.5.x 起提供），每个元素对应一次批次 flush，元素内的 `getUpdateCounts()` 是该批次**逐行**的受影响行数，顺序与提交顺序一致，因此每一行的结果都能单独解读：
 
-- **MySQL/MariaDB**：一条多值 SQL，`ON DUPLICATE KEY UPDATE` 每行的 affected-rows 编码是插入=1、更新=2、值未变化=0，返回值是**逐行求和**。例如返回 4，可能是 4 行插入，也可能是 2 行更新，两种情况算出来都是 4，光看这个数字没法反推到底是哪种。
-- **PostgreSQL**：一条多值 SQL，`ON CONFLICT DO UPDATE` 没有上面那种编码，返回值就是单纯的"本次插入+更新的总行数"，含义更简单，但同样不能拆出插入/更新各多少行。
-- **SQL Server**：一条多值 `MERGE`（`USING (VALUES ...) AS src`），语义同 PostgreSQL，单纯总行数。
-- **Oracle**：单条 `MERGE`，全部行经 `UNION ALL` 拼入同一个源子查询（见[数据库注意事项](#数据库注意事项)），返回值同样是插入+更新的总行数，语义同 PostgreSQL。
-- **H2**：批量是用 `;` 拼接的多条独立 `MERGE` 语句（不是一条 SQL）。JDBC `executeUpdate()` 的返回值取决于驱动对"一次调用执行多条语句"的支持程度，没有实测确认返回的是第一条、最后一条、还是合计。**H2 仅用于测试环境，`upsertBatch` 的返回值不建议作为业务判断依据**，测试断言请用查询结果而非返回值。
+- **MySQL/MariaDB**：`ON DUPLICATE KEY UPDATE` 每行的 affected-rows 编码是插入=1、更新=2、值未变化=0，所以逐行数组里每个元素就能判断这一行发生了什么。
+- **PostgreSQL/SQL Server/Oracle**：没有这种编码，每个元素就是该行的受影响行数（插入或更新都算 1），无法只凭数字区分插入/更新，需要时事后回查。
+- **H2**：每行单独执行的受影响行数，语义同上；H2 仅用于测试环境，断言建议以查询结果为主。
 
-如果业务确实需要"这批里哪些是插入、哪些是更新"的明细，请用 `upsert(Collection<T>)`（对齐 MP `insert(Collection)` 语义，逐行执行）：返回的 `List<BatchResult>` 里每个 `BatchResult.getUpdateCounts()` 是逐行的真实 int 数组，MySQL 下每个元素天然就是 0/1/2 编码，可以按行解读；PostgreSQL/SQL Server/Oracle/H2 下每个元素是该行单独执行的受影响行数，同样比 `upsertBatch` 的单个合计数更可信。
+注意部分驱动在 BATCH 执行下可能返回 `Statement.SUCCESS_NO_INFO`（-2）而不是真实行数，这取决于驱动实现；对行数敏感的逻辑应先在自己的数据库上实测确认。
 
 ---
 
 **Q：批量 upsert 是一条 SQL 还是多条？**
 
-- MySQL / PostgreSQL / SQL Server：一条 SQL，多行 VALUES，效率最高。
-- Oracle：一条 SQL，全部行经 `UNION ALL` 拼入同一个 `USING (...)` 源子查询（一次往返执行）。
-- H2：逐条执行，多条 SQL 以 `;` 分隔。
+多条，但只有一条**语句模板**。`upsert(Collection)` 复用单条 `upsert` 生成的那条单行 SQL，在 `ExecutorType.BATCH` 执行器下逐条 `addBatch`、按 `batchSize` 分块 flush，不做任何多行 `VALUES` 拼接（原因见[批量 Upsert 的实现](#批量-upsert-的实现)）。
 
-无论哪种数据库，批量 upsert 均使用固定列集合，不做按字段值的动态判断（即[字段动态判断](#字段动态判断)只对单条 upsert 生效）。若业务需要"批量但仍要动态判断"，请改用单条 `upsert` 循环调用。
+因此[字段动态判断](#字段动态判断)对批量同样逐行生效：集合里两条记录的 `email` 一个为 null、一个非 null 时，两行各自渲染自己的列集合，不存在"基于第一条记录确定列集合"的限制。
 
 ---
 
 **Q：`IdType.AUTO` 实体的自增主键会回填到实体上吗？**
 
-单条 `upsert` 与 `upsert(Collection)` 会（沿用 MyBatis-Plus 原生 `Jdbc3KeyGenerator` 机制，后者在批次刷新后可见）；`upsertBatch` 不会。详见[主键回填](#主键回填)。
+单条 `upsert` 与 `upsert(Collection)` 都会回填（沿用 MyBatis-Plus 原生 `Jdbc3KeyGenerator` 机制，批量路径在批次 flush 后可见）。详见[主键回填](#主键回填)。
 
 ---
 
-**Q：`@KeySequence` 序列主键能用吗？`upsertBatch` 为什么不取号？**
+**Q：`@KeySequence` 序列主键能用吗？**
 
-能，但取号完全由 MyBatis-Plus 完成：容器里要有 `IKeyGenerator` Bean（MP `extension.incrementer` 包下自带 `PostgreKeyGenerator`、`OracleKeyGenerator` 等），本库复用 MP 为该主键注册的 `!selectKey` 语句，不另拼序列 SQL。单条 `upsert` 与逐条的 `upsert(Collection)` 会把取到的号写回实体；`upsertBatch` 是一条多值 SQL，一次 `SELECT NEXT VALUE FOR seq` 只能拿到一个号、没法逐行分配，所以该路径既不取号也不回填，主键必须在调用前就赋好值。详见[主键回填](#主键回填)。
+能，但取号完全由 MyBatis-Plus 完成：容器里要有 `IKeyGenerator` Bean（MP `extension.incrementer` 包下自带 `PostgreKeyGenerator`、`OracleKeyGenerator` 等），本库复用 MP 为该主键注册的 `!selectKey` 语句，不另拼序列 SQL。单条 `upsert` 与逐条的 `upsert(Collection)` 都会把取到的号写回实体——因为批量本来就是逐条执行同一句单行 SQL，selectKey 每条各取一个号。注意取号会**覆盖**实体上预置的主键值，需要自己决定主键请用 `IdType.INPUT` 且不配 `@KeySequence`。详见[主键回填](#主键回填)。
 
 ---
 
@@ -1072,18 +1091,18 @@ VALUES (#{item.id}, #{item.username}, #{item.email}, #{item.age}, #{item.createT
 由于 upsert 使用 `SqlCommandType.INSERT`，`insertFill` 实际上会被调用**两次**（MyBatis-Plus 机制决定，无法从外部禁用）——单条和批量 upsert 均如此，批量时对**每个实体**各调用两次：
 
 1. **第一次（预绑定）**：由本库的 `PreFillSqlSource` → `UpsertFillProcessor` 在 `getBoundSql()` 阶段触发——确保字段在动态 SQL 列裁剪**之前**已被填充
-2. **第二次（原生）**：由 MP 原生的 `MybatisParameterHandler` 在参数处理阶段触发——发生在 SQL 绑定**之后**，且同样会遍历集合参数；其中 `updateFill` 对 INSERT 命令从不调用，因此只会重复触发 `insertFill`
+2. **第二次（原生）**：由 MP 原生的 `MybatisParameterHandler` 在参数处理阶段触发——发生在 SQL 绑定**之后**；其中 `updateFill` 对 INSERT 命令从不调用，因此只会重复触发 `insertFill`
 
 这是**无害的**，因为 MP 的 `strictInsertFill`/`strictUpdateFill` 方法在字段已有值时会跳过，第二次调用等价于空操作。若你使用了非 strict 的自定义 `MetaObjectHandler`（无条件 `setFieldValByName`），建议改为 strict 写法以避免二次覆盖；若填充逻辑有性能开销（如远程调用取号），也请注意第二次调用会重复执行。
 
-> **如何验证/排查两次调用**：在自定义 `MetaObjectHandler.insertFill` 中打印 `Thread.currentThread().getStackTrace()`，两次调用的堆栈来源帧不同——预绑定那次包含 `UpsertFillProcessor` / `PreFillSqlSource`，原生那次包含 `MybatisParameterHandler` / `BaseStatementHandler`。本仓库的 `UpsertFillCountTest.upsertBatch_insertFill_invoked_twice_per_entity_with_source_breakdown` 测试即通过堆栈来源断言锁定了这一行为。
+> **如何验证/排查两次调用**：在自定义 `MetaObjectHandler.insertFill` 中打印 `Thread.currentThread().getStackTrace()`，两次调用的堆栈来源帧不同——预绑定那次包含 `UpsertFillProcessor` / `PreFillSqlSource`，原生那次包含 `MybatisParameterHandler` / `BaseStatementHandler`。本仓库的 `UpsertFillCountTest.collection_upsert_insertFill_invoked_twice_per_entity_with_source_breakdown` 测试即通过堆栈来源断言锁定了这一行为。
 
 这意味着：
 
 - `createTime`（`fill = INSERT`）：插入时填充 ✅
 - `updateTime`（`fill = UPDATE`）：冲突更新时填充 ✅
 - `updateTime`（`fill = INSERT_UPDATE`）：插入和冲突更新时都会填充 ✅
-- `upsertBatch` 的集合参数：逐实体填充 ✅（本库预绑定填充先于 SQL 绑定执行；原生填充虽也会遍历集合，但在绑定后执行，字段已有值时为空操作）
+- `upsert(Collection)` 的集合参数：逐实体填充 ✅（批量走的是单行语句，每条实体各绑定一次参数，预绑定填充先于 SQL 绑定执行；原生填充在绑定后执行，字段已有值时为空操作）
 - 任何自定义 `MetaObjectHandler`（如填充当前用户 ID）：均可复用，无需改动
 
 **配置填充策略（v1.6.0+）：**
@@ -1109,7 +1128,7 @@ mybatis-plus:
 
 **Q：如何实现"只有字段不为 null 时才更新"？**
 
-这是默认行为，无需任何额外配置。单条 `upsert` 会按字段的 MP `FieldStrategy`（`insertStrategy`/`updateStrategy`）自动生成 `<if test="field != null">` 动态判断，行为与 MP 原生 `insert`/`updateById` 完全一致：未显式标注 `@TableField` 的字段默认遵循全局策略 `NOT_NULL`，字段为 null 时不会出现在 SQL 中，因此插入时由数据库默认值接管，更新时不会覆盖原值。详见[字段动态判断](#字段动态判断)。
+这是默认行为，无需任何额外配置。`upsert` 会按字段的 MP `FieldStrategy`（`insertStrategy`/`updateStrategy`）自动生成 `<if test="field != null">` 动态判断——单条与 `upsert(Collection)` 的每一行都一样——行为与 MP 原生 `insert`/`updateById` 完全一致：未显式标注 `@TableField` 的字段默认遵循全局策略 `NOT_NULL`，字段为 null 时不会出现在 SQL 中，因此插入时由数据库默认值接管，更新时不会覆盖原值。详见[字段动态判断](#字段动态判断)。
 
 ---
 
@@ -1130,9 +1149,9 @@ mybatis-plus:
 >
 > 在 Oracle / SQL Server 上首次使用本库前，建议：
 >
-> 1. 用你的实际实体（含动态字段、自动填充、各注解组合）跑一遍单条与批量 upsert，确认 SQL 可执行；
-> 2. 确认受影响行数（`upsertBatch` 返回值）符合你的预期；
-> 3. 关注下方两个数据库各自的注意事项（如 Oracle 批量重复冲突键的 ORA-30926、SQL Server MERGE 的并发特性）。
+> 1. 用你的实际实体（含动态字段、自动填充、各注解组合）跑一遍单条 `upsert` 与批量 `upsert(Collection)`，确认 SQL 可执行——两者用的是同一条单行语句，但批量走 JDBC BATCH 执行器，驱动行为仍需单独确认；
+> 2. 确认 `List<BatchResult>` 里的逐行受影响行数符合你的预期（部分驱动在 BATCH 下会返回 `SUCCESS_NO_INFO`）；
+> 3. 关注下方两个数据库各自的注意事项（如 SQL Server MERGE 的并发特性）。
 >
 > 如遇问题欢迎提 issue 附上生成 SQL 与报错信息。
 
@@ -1149,20 +1168,20 @@ mybatis-plus:
 
 ### Oracle
 
-- 批量 upsert 为**单条 MERGE**：每个实体渲染为 `SELECT ... FROM dual`，行间以 `UNION ALL` 拼成一个源子查询后整体执行——不依赖多语句（Oracle JDBC 会报 ORA-00911），也不需要 PL/SQL 匿名块。
-- 同一批次内**不能包含重复的冲突键**：源子查询中多行命中同一目标行时，Oracle 报 ORA-30926（unable to get a stable set of rows）。这与 SQL Server 方言行为一致（MERGE 不允许更新同一行两次）。
-- `upsertBatch` 返回的受影响行数为该条 MERGE 的 insert+update 合计。需要精确逐行行数时可用 `upsert(Collection)`（返回 `List<BatchResult>`）。
-- 若数据量大，建议业务层自行分批调用，避免单次事务过大。
+- 每条记录是**一条独立的单行 MERGE**（`SELECT ... FROM dual` 形式的源子查询），批量写入只是把这些 MERGE 交给 JDBC BATCH 执行器分块提交——不使用 `UNION ALL` 拼成的多行源子查询，也不依赖 Oracle JDBC 的多语句支持（Oracle 驱动在 `;` 分隔的多语句上会报 ORA-00911，本库的写法不会碰到它）。
+- 同一批次内**允许出现重复的冲突键**：两行同键会先后各自执行一次 MERGE，第一行插入、第二行更新，不会触发 ORA-30926。
+- 逐行行数从 `upsert(Collection)` 返回的 `List<BatchResult>` 的 `getUpdateCounts()` 读取。
+- 数据量大时用 `upsert(collection, batchSize)` 控制每块条数，避免单次 flush 占用过多驱动内存与事务空间。
 
 ### SQL Server
 
 - MERGE 语句末尾的 `;` 是 SQL Server 语法规范要求，缺少会报语法错误。
-- 批量 upsert 使用 `USING (VALUES (...),(...),...) AS src(cols)` 多行写法，需确认 SQL Server 版本 ≥ 2008。
-- 部分版本的 SQL Server JDBC 驱动对多语句支持有限制，若遇到问题可在 JDBC URL 添加 `;sendStringParametersAsUnicode=false` 或升级驱动版本。
+- 批量写入为逐条独立的单行 MERGE，不使用 `USING (VALUES (...),(...)) AS src(cols)` 多行写法，因此没有"版本 ≥ 2008"这类多值语法要求，也不受同一批次内重复冲突键的影响。
+- 若遇到字符类型/排序规则相关的报错，可在 JDBC URL 添加 `;sendStringParametersAsUnicode=false` 或升级驱动版本。
 
 ### H2
 
 - H2 的 `MERGE INTO ... KEY(...)` 语法为 H2 私有，**不适用于生产环境**，仅用于单元测试。
 - 在 `application.yml` 中配置 `mybatis-plus.upsert.db-type: h2` 或使用 H2 DataSource 时自动探测。
 - H2 Mode 建议设置为 `MODE=MySQL` 以最大程度模拟 MySQL 行为（建表 DDL 可以复用）。
-- 批量 upsert 是 `;` 拼接的多条独立 `MERGE` 语句（H2 支持单次执行多语句），`upsertBatch` 返回的 int 含义不可靠（见[常见问题](#常见问题)），测试断言请用查询结果而非返回值判断。
+- 批量写入是逐条提交的单行 MERGE，不存在 `;` 拼接多语句那条路径。H2 只用于测试环境，断言请以查询结果为主而不是返回值。

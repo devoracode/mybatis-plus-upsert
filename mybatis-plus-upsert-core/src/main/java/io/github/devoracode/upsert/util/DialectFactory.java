@@ -8,8 +8,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
- * 根据数据库类型创建 {@link UpsertDialect} 实例的工厂类。
- * 实例被缓存并在所有线程间共享复用，此类无状态且线程安全。
+ * 按数据库类型创建 {@link UpsertDialect} 的工厂。实例按类型+语法开关缓存并跨线程共享，
+ * 因此同一配置下拿到的始终是同一个方言实例。
  *
  * @author devoracode
  * @since 1.0.0
@@ -22,24 +22,16 @@ public final class DialectFactory {
     }
 
     /**
-     * 根据数据库类型字符串创建对应的 {@link UpsertDialect} 实例。
-     *
-     * @param dbTypeStr         数据库类型字符串（如 "mysql"、"postgresql"）
-     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
-     * @return 对应的 UpsertDialect 实例
-     * @throws UpsertException 如果数据库类型未知或不支持
+     * @throws UpsertException 数据库类型未知或不支持
      */
     public static UpsertDialect create(String dbTypeStr, boolean useNewMysqlSyntax) {
         return create(parseDbType(dbTypeStr), useNewMysqlSyntax);
     }
 
     /**
-     * 根据数据库类型枚举创建对应的 {@link UpsertDialect} 实例。
-     *
-     * @param dbType            数据库类型枚举值
-     * @param useNewMysqlSyntax 是否对 MySQL 使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
-     * @return 对应的 UpsertDialect 实例；若 dbType 为 CUSTOM 则返回 null
-     * @throws UpsertException 如果数据库类型不支持
+     * @param useNewMysqlSyntax MySQL 是否使用 8.0.19+ 的 {@code AS} 别名语法，其他数据库忽略
+     * @return 对应的 UpsertDialect 实例；{@code dbType} 为 CUSTOM 时返回 null
+     * @throws UpsertException 数据库类型不支持
      */
     public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax) {
         if (dbType == DbType.CUSTOM) {
@@ -64,10 +56,8 @@ public final class DialectFactory {
     }
 
     /**
-     * 根据是否使用新语法创建新的 MySQL 方言实例。
-     *
-     * @param useNewMysqlSyntax 是否使用新的 MySQL 8.0.19+ 语法（AS 别名形式）
-     * @return 对应的 MySQL UpsertDialect 实例
+     * 新建 MySQL 方言实例：{@code useNewMysqlSyntax} 为真时使用 8.0.19+ 的 {@code AS} 别名语法。
+     * 与 {@link #create} 的缓存不同，本方法每次都会返回新实例。
      */
     public static UpsertDialect newMysqlInstance(boolean useNewMysqlSyntax) {
         if (useNewMysqlSyntax) {
@@ -77,11 +67,7 @@ public final class DialectFactory {
     }
 
     /**
-     * 解析数据库类型字符串，无法识别时抛出异常。
-     *
-     * @param value 数据库类型字符串
-     * @return 解析后的 DbType 枚举
-     * @throws UpsertException 如果字符串无法解析
+     * @throws UpsertException 字符串无法解析为数据库类型
      */
     public static DbType parseDbType(String value) {
         return DbTypeDetector.parseDbType(value);
