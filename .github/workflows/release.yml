@@ -1,0 +1,68 @@
+name: Release to Maven Central
+
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+
+# 两个 bundle 并发上传 Central 会互相踩，发布流不允许取消进行中的运行
+concurrency:
+  group: maven-central-publish
+  cancel-in-progress: false
+
+jobs:
+  # 先做版本体检：SNAPSHOT 不能发，tag 必须与 ${revision} 一致，失败在几秒内而不是推完 Central 之后
+  preflight:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+      - name: Check the released version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          REV=$(mvn --batch-mode --quiet -DforceStdout help:evaluate -Dexpression=revision)
+          echo "revision is ${REV}"
+          case "${REV}" in
+            *-SNAPSHOT)
+              echo "::error::revision is still a SNAPSHOT (${REV}); a release must publish a final version."
+              exit 1
+              ;;
+          esac
+          if [ "${EVENT_NAME}" = "release" ]; then
+            TAG="${GITHUB_REF_NAME#v}"
+            if [ "${TAG}" != "${REV}" ]; then
+              echo "::error::Release tag ${GITHUB_REF_NAME} does not match revision ${REV}."
+              exit 1
+            fi
+          fi
+
+  # 测试由 ci.yml 在 push 到 main 时覆盖；release 流程只做版本体检后直接发布
+  publish:
+    needs: preflight
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 8
+        uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: GPG_PASSPHRASE
+      - name: Publish to Maven Central
+        run: >
+          mvn --errors --batch-mode deploy -DskipTests
+          -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
