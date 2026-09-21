@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # PR 的最小门禁：库模块在 JDK 8（编译目标下限）+ 默认 MyBatis-Plus 上全量测试，并做 Javadoc 校验
+  test:
+    name: test (JDK 8, MyBatis-Plus 3.5.9)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build and test
+        run: >
+          mvn --errors --batch-mode clean test
+          -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
+      - name: Javadoc check
+        run: >
+          mvn --batch-mode javadoc:javadoc
+          -pl mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-jdk8
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: ignore
+
+  # README"项目实测通过的版本"承诺由矩阵守着；3.5.9 已被上面的 test 覆盖，不重复跑
+  matrix:
+    name: test (JDK 8, MyBatis-Plus ${{ matrix.mybatis-plus-version }})
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      fail-fast: false
+      matrix:
+        mybatis-plus-version: ['3.5.7', '3.5.11', '3.5.13', '3.5.17']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '8'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build and test
+        run: >
+          mvn --errors --batch-mode clean test
+          -Dmybatis-plus.version=${{ matrix.mybatis-plus-version }}
+          -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-mp-${{ matrix.mybatis-plus-version }}
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: ignore
+
+  # 整 reactor 在 JDK 17 上构建：库在 Spring Boot 3 用户的环境里跑，同时覆盖 examples 的编译
+  # （examples 的 sb3 模块要 JDK 17，examples 测试由聚合工程的 skipTests 只编译不执行）
+  examples:
+    name: full reactor (JDK 17)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+      - name: Build and test
+        run: mvn --errors --batch-mode clean test
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-jdk17
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: ignore

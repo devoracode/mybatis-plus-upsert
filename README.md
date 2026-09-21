@@ -1,5 +1,8 @@
 # Mybatis-plus Upsert
 
+[![CI](https://github.com/devoracode/mybatis-plus-upsert/actions/workflows/ci.yml/badge.svg)](https://github.com/devoracode/mybatis-plus-upsert/actions/workflows/ci.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.devoracode/mybatis-plus-upsert-boot-starter)](https://central.sonatype.com/artifact/io.github.devoracode/mybatis-plus-upsert-boot-starter)
+
 基于 MyBatis Plus 扩展 `BaseMapper`，为 Spring Boot 2.x / 3.x 项目提供开箱即用的跨数据库 **Upsert** 能力（存在则更新，不存在则插入）。
 
 无需写 XML、无需自定义 SQL，只需在实体字段上加注解，调用 `upsert(entity)` / `upsert(Collection)` 即可。
