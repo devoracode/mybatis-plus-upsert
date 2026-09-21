@@ -34,6 +34,7 @@
         <module>mybatis-plus-upsert-core</module>
         <module>mybatis-plus-upsert-boot-starter</module>
         <module>mybatis-plus-upsert-dynamic-datasource-boot-starter</module>
+        <module>examples</module>
     </modules>
 
     <dependencyManagement>

@@ -4,111 +4,55 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.devoracode</groupId>
+    <parent>
+        <groupId>io.github.devoracode</groupId>
+        <artifactId>mybatis-plus-upsert-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
     <artifactId>examples</artifactId>
-    <version>1.0.0</version>
     <packaging>pom</packaging>
 
     <name>examples</name>
     <description>Examples for mybatis-plus-upsert</description>
+
     <properties>
-        <java.version>8</java.version>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>2.4.5</spring-boot.version>
-        <mybatis-plus.version>3.5.9</mybatis-plus.version>
-        <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
-        <lombok.version>1.18.38</lombok.version>
-        <mybatis-plus-upsert.version>1.6.1</mybatis-plus-upsert.version>
+        <!-- 示例只做演示：不打源码/文档 jar、不签名、不参与 flatten，也不进发布 reactor -->
+        <maven.source.skip>true</maven.source.skip>
+        <maven.javadoc.skip>true</maven.javadoc.skip>
+        <gpg.skip>true</gpg.skip>
+        <flatten.skip>true</flatten.skip>
         <maven.deploy.skip>true</maven.deploy.skip>
+        <!-- 示例测试需要真实 MySQL/PostgreSQL，根构建只编译不执行；手工验证时用
+             mvn -o -B test -pl examples/example-db -am -DskipTests=false -->
+        <skipTests>true</skipTests>
     </properties>
+
     <modules>
         <module>example-db</module>
         <module>example-db-sb3</module>
         <module>example-dynamic-db</module>
         <module>example-dynamic-db-sb3</module>
     </modules>
+
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>org.springframework.boot</groupId>
-                <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring-boot.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.projectlombok</groupId>
-                <artifactId>lombok</artifactId>
-                <version>${lombok.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-boot-starter</artifactId>
-                <version>${mybatis-plus.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-jsqlparser-4.9</artifactId>
-                <version>${mybatis-plus.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-                <version>${mybatis-plus.version}</version>
-            </dependency>
-
-            <dependency>
                 <groupId>io.github.devoracode</groupId>
                 <artifactId>mybatis-plus-upsert-core</artifactId>
-                <version>${mybatis-plus-upsert.version}</version>
+                <version>${revision}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.github.devoracode</groupId>
                 <artifactId>mybatis-plus-upsert-boot-starter</artifactId>
-                <version>${mybatis-plus-upsert.version}</version>
+                <version>${revision}</version>
             </dependency>
-
             <dependency>
                 <groupId>io.github.devoracode</groupId>
                 <artifactId>mybatis-plus-upsert-dynamic-datasource-boot-starter</artifactId>
-                <version>${mybatis-plus-upsert.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>dynamic-datasource-spring-boot-starter</artifactId>
-                <version>${dynamic-datasource.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.baomidou</groupId>
-                <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
-                <version>${dynamic-datasource.version}</version>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.10.1</version>
-                <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
-                </configuration>
-            </plugin>
-            <!-- 无此声明时 Maven 默认的 surefire 2.x 不支持 JUnit 5，mvn test 会静默跑 0 个测试 -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.0.0-M5</version>
-            </plugin>
-        </plugins>
-    </build>
 </project>

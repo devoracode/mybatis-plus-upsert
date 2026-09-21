@@ -29,7 +29,9 @@ jobs:
         gpg-passphrase: GPG_PASSPHRASE
 
     - name: Publish to Maven Central
-      run: mvn --batch-mode deploy -DskipTests
+      run: >
+        mvn --batch-mode deploy -DskipTests
+        -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
       env:
         CENTRAL_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
         CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}
