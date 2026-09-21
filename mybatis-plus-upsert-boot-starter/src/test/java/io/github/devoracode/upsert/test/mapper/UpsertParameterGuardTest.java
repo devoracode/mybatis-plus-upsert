@@ -17,6 +17,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Upsert 空值参数在运行时的拒绝行为（H2 MySQL 模式）。
@@ -101,6 +102,26 @@ class UpsertParameterGuardTest {
         assertThat(autoUserMapper.upsert(Collections.<AutoUserEntity>emptyList())).isEmpty();
 
         assertThat(autoUserMapper.selectCount(null)).isZero();
+    }
+
+    /**
+     * 批次大小的下限由 MyBatis-Plus 自己把关（在打开批次之前拒绝，消息含 {@code batchSize}），
+     * 本库不再重复实现一遍同名校验——因此这里抛出的是 MP 的异常而不是 {@link UpsertException}。
+     */
+    @Test
+    void non_positive_batch_size_is_rejected_by_mybatis_plus_before_writing_any_row() {
+        Collection<AutoUserEntity> entities = Collections.singletonList(user("guard-batch-size"));
+
+        assertThatThrownBy(() -> autoUserMapper.upsert(entities, 0))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("batchSize");
+        assertThatThrownBy(() -> autoUserMapper.upsert(entities, -1))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("batchSize");
+
+        assertThat(autoUserMapper.selectCount(null))
+                .as("批次大小非法时不应有任何一行落库")
+                .isZero();
     }
 
     @Test
