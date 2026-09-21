@@ -5,8 +5,9 @@ import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 
 /**
- * 返回 {@code BatchResult} 列表的批量 Upsert SQL 注入方法。
- * 由 UpsertMapper 中的 {@code upsert(Collection)} 和 {@code upsert(Collection, int)} 方法使用。
+ * 注入内部单行 Upsert 语句的方法，供 {@code UpsertMapper#upsert(Collection)}
+ * 在 {@code ExecutorType.BATCH} 下逐条复用；不对外暴露为 Mapper 方法，
+ * {@code List<BatchResult>} 由该 default 方法自身返回。
  *
  * @author devoracode
  * @since 1.0.0
@@ -18,23 +19,15 @@ public class UpsertExecutorMethod extends AbstractUpsertMethod {
      */
     public static final String METHOD_NAME = UpsertMethodNames.UPSERT_EXECUTOR;
 
-    /**
-     * 使用给定的方言和默认填充策略创建新的 UpsertExecutorMethod。
-     *
-     * @param dialect 用于 SQL 生成的 Upsert 方言
-     */
     public UpsertExecutorMethod(UpsertDialect dialect) {
-        super(METHOD_NAME, dialect, false);
+        super(METHOD_NAME, dialect);
     }
 
     /**
-     * 使用给定的方言和填充策略创建新的 UpsertExecutorMethod。
-     *
-     * @param dialect      用于 SQL 生成的 Upsert 方言
      * @param fillStrategy SQL 绑定前应用的自动填充策略
      * @since 1.6.0
      */
     public UpsertExecutorMethod(UpsertDialect dialect, FillStrategy fillStrategy) {
-        super(METHOD_NAME, dialect, false, fillStrategy);
+        super(METHOD_NAME, dialect, fillStrategy);
     }
 }

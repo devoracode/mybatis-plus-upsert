@@ -14,11 +14,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 动态数据源环境下的 {@link DynamicUpsertDialect} 实现。
- *
- * <p>维护数据源名称到 {@link UpsertDialect} 实例的映射。
- * 运行时通过检查当前数据源上下文（{@link DynamicDataSourceContextHolder}）
- * 解析正确的方言。如果没有活动上下文，则回退到已配置的主数据源。
+ * {@link DynamicUpsertDialect} 的动态数据源实现：持有"数据源名 → {@link UpsertDialect}"映射，
+ * 运行时按 {@link DynamicDataSourceContextHolder} 的当前栈顶解析；无活动上下文时回退主数据源。
  *
  * @author devoracode
  * @since 1.2.0
@@ -27,27 +24,18 @@ import java.util.concurrent.ConcurrentHashMap;
 public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
 
     private final Map<String, UpsertDialect> dialectMap = new ConcurrentHashMap<>();
-    /**
-     * 主数据源。
-     */
+    /** 主数据源名，上下文为空时使用。 */
     @Getter
     @Setter
     private volatile String primary;
 
-    /**
-     * 为指定数据源注册方言。
-     *
-     * @param dataSourceName 数据源名称（不能为 null）
-     * @param dialect UpsertDialect 实例（不能为 null）
-     */
+    /** 为指定数据源注册方言；两者都不能为 null。 */
     public void addDialect(String dataSourceName, UpsertDialect dialect) {
         dialectMap.put(dataSourceName, dialect);
     }
 
     /**
-     * 返回已注册方言映射的不可修改视图。
-     *
-     * @return 方言映射（数据源名称 → UpsertDialect）
+     * 已注册方言映射的不可修改视图（数据源名 → UpsertDialect）。
      */
     public Map<String, UpsertDialect> getDialectMap() {
         return Collections.unmodifiableMap(dialectMap);
@@ -72,10 +60,5 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
     @Override
     public String buildUpsertSql(UpsertMeta meta) {
         return getCurrentDialect().buildUpsertSql(meta);
-    }
-
-    @Override
-    public String buildUpsertBatchSql(UpsertMeta meta) {
-        return getCurrentDialect().buildUpsertBatchSql(meta);
     }
 }

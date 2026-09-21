@@ -96,17 +96,17 @@ class UpsertFillCountTest {
     }
 
     @Test
-    void upsertBatch_fills_every_entity_in_collection() {
+    void collection_upsert_fills_every_entity_in_collection() {
         List<UserEntity> list = Arrays.asList(
                 UserEntity.builder().id("1").name("batchfill1").email("bf1@example.com").age(20).build(),
                 UserEntity.builder().id("2").name("batchfill2").email("bf2@example.com").age(30).build()
         );
 
-        userMapper.upsertBatch(list);
+        userMapper.upsert(list);
 
-        // 预绑定处理器遍历 "list" 集合，updateFill 每实体恰好一次（共 2 次）：
+        // 逐条提交时每个实体各经历一次 getBoundSql，updateFill 每实体恰好一次（共 2 次）：
         // updateFill 对 INSERT 命令原生从不调用，本库预绑定是唯一调用点。
-        // insertFill 则每实体两次（预绑定 + 原生遍历集合），故只断言下限。
+        // insertFill 则每实体两次（预绑定 + 原生），故只断言下限。
         assertThat(countingHandler.getInsertFillCount()).isGreaterThanOrEqualTo(2);
         assertThat(countingHandler.getUpdateFillCount()).isEqualTo(2);
 
@@ -115,18 +115,18 @@ class UpsertFillCountTest {
     }
 
     @Test
-    void upsertBatch_insertFill_invoked_twice_per_entity_with_source_breakdown() {
+    void collection_upsert_insertFill_invoked_twice_per_entity_with_source_breakdown() {
         List<UserEntity> list = Arrays.asList(
                 UserEntity.builder().id("1").name("once1").email("once1@example.com").age(20).build(),
                 UserEntity.builder().id("2").name("once2").email("once2@example.com").age(21).build(),
                 UserEntity.builder().id("3").name("once3").email("once3@example.com").age(22).build()
         );
 
-        userMapper.upsertBatch(list);
+        userMapper.upsert(list);
 
-        // 实测：批量 upsert 时 insertFill 每个实体仍被调用两次（3 实体 = 6 次）：
+        // 实测：upsert(Collection) 逐条提交时，每个实体的 insertFill 仍被调用两次（3 实体 = 6 次）：
         // 一次来自本库预绑定处理器（UpsertFillProcessor），一次来自 MP 原生
-        // MybatisParameterHandler——后者在 3.5.9 中同样会遍历集合参数。
+        // MybatisParameterHandler——它在每条语句参数化时遍历 et 参数。
         // 而 updateFill 只有预绑定处理器调用（每实体一次，共 3 次）。
         assertThat(countingHandler.getInsertFillCount()).isEqualTo(6);
         assertThat(countingHandler.getUpdateFillCount()).isEqualTo(3);

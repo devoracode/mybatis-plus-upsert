@@ -1,6 +1,7 @@
 package io.github.devoracode.upsert.test.injector;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.dialect.*;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
@@ -25,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <p>验证与 MyBatis-Plus 原生 {@code Insert} 一致的 KeyGenerator 选择：
  * <ul>
  *   <li>IdType.AUTO + 单行路径（upsert / upsertExecutor）→ Jdbc3KeyGenerator + keyProperty/keyColumn；</li>
- *   <li>IdType.AUTO + 多行路径（upsertBatch）→ NoKeyGenerator，明确不承诺回填；</li>
+ *   <li>注入器只产出这两条单行语句，批量写入复用 {@code upsertExecutor}，不存在多行语句；</li>
  *   <li>IdType.INPUT 或无主键实体 → 所有路径均 NoKeyGenerator；</li>
  *   <li>上述选择对方言一致（MySQL / PostgreSQL / Oracle / SQL Server / H2 均相同）。</li>
  * </ul>
@@ -79,20 +80,19 @@ class UpsertKeyGeneratorInjectionTest {
     }
 
     @Test
-    void auto_id_multi_row_batch_keeps_no_key_generator() {
-        // 多行 VALUES SQL 的 generated keys 对应关系不可靠：不配置回填，避免键数校验异常
-        MappedStatement ms = statement(AutoIdUserMapper.class, "upsertBatch");
-        assertThat(ms).isNotNull();
-        assertThat(ms.getKeyGenerator()).isInstanceOf(NoKeyGenerator.class);
-        assertThat(ms.getKeyProperties()).isNullOrEmpty();
-        assertThat(ms.getKeyColumns()).isNullOrEmpty();
+    void only_single_row_statements_are_injected() {
+        // 批量写入复用 upsertExecutor 的单行语句，不再注入多行 upsertBatch 语句
+        for (String method : UpsertMethodNames.ALL) {
+            assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + "." + method, false))
+                    .as("injected statement %s", method).isTrue();
+        }
+        assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + ".upsertBatch", false))
+                .isFalse();
     }
 
     @Test
     void input_id_all_paths_use_no_key_generator() {
         assertThat(statement(InputIdUserMapper.class, "upsert").getKeyGenerator())
-                .isInstanceOf(NoKeyGenerator.class);
-        assertThat(statement(InputIdUserMapper.class, "upsertBatch").getKeyGenerator())
                 .isInstanceOf(NoKeyGenerator.class);
         assertThat(statement(InputIdUserMapper.class, "upsertExecutor").getKeyGenerator())
                 .isInstanceOf(NoKeyGenerator.class);
@@ -108,8 +108,8 @@ class UpsertKeyGeneratorInjectionTest {
     }
 
     /*
-     * 取键机制与方言无关（跟随 MP 原生 insert），因此各受支持数据库的 AUTO 主键路径
-     * 都应配置 Jdbc3KeyGenerator，多行路径都应保持 NoKeyGenerator。
+     * 取键机制与方言无关（跟随 MP 原生 insert），因此各受支持数据库的两条单行语句
+     * 都应配置 Jdbc3KeyGenerator。
      */
     @Test
     void key_generator_choice_is_identical_across_dialects() {
@@ -124,16 +124,15 @@ class UpsertKeyGeneratorInjectionTest {
         for (UpsertDialect dialect : dialects) {
             MybatisConfiguration cfg = new MybatisConfiguration();
             injectMapper(cfg, AutoIdUserMapper.class, dialect);
-            MappedStatement single = cfg.getMappedStatement(AutoIdUserMapper.class.getName() + ".upsert", false);
-            MappedStatement multi = cfg.getMappedStatement(AutoIdUserMapper.class.getName() + ".upsertBatch", false);
-            assertThat(single.getKeyGenerator())
-                    .as("dialect %s single upsert", dialect.getClass().getSimpleName())
-                    .isInstanceOf(Jdbc3KeyGenerator.class);
-            assertThat(single.getKeyProperties()).containsExactly("id");
-            assertThat(single.getKeyColumns()).containsExactly("id");
-            assertThat(multi.getKeyGenerator())
-                    .as("dialect %s multi-row upsertBatch", dialect.getClass().getSimpleName())
-                    .isInstanceOf(NoKeyGenerator.class);
+            for (String method : UpsertMethodNames.ALL) {
+                MappedStatement ms = cfg.getMappedStatement(
+                        AutoIdUserMapper.class.getName() + "." + method, false);
+                assertThat(ms.getKeyGenerator())
+                        .as("dialect %s statement %s", dialect.getClass().getSimpleName(), method)
+                        .isInstanceOf(Jdbc3KeyGenerator.class);
+                assertThat(ms.getKeyProperties()).containsExactly("id");
+                assertThat(ms.getKeyColumns()).containsExactly("id");
+            }
         }
     }
 

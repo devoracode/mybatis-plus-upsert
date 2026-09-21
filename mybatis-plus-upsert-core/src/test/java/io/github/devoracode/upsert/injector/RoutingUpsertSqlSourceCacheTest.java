@@ -53,8 +53,8 @@ class RoutingUpsertSqlSourceCacheTest {
                 .build();
     }
 
-    private RoutingUpsertSqlSource routingSource(DynamicUpsertDialect dynamicDialect, boolean batch) {
-        return new RoutingUpsertSqlSource(configuration, languageDriver, dynamicDialect, meta, batch, UserEntity.class);
+    private RoutingUpsertSqlSource routingSource(DynamicUpsertDialect dynamicDialect) {
+        return new RoutingUpsertSqlSource(configuration, languageDriver, dynamicDialect, meta, UserEntity.class);
     }
 
     private static String renderedSql(RoutingUpsertSqlSource source) {
@@ -68,7 +68,7 @@ class RoutingUpsertSqlSourceCacheTest {
         CountingDialect dsA = new CountingDialect("ds-a");
         CountingDialect dsB = new CountingDialect("ds-b");
         StubDynamicDialect dynamic = new StubDynamicDialect(dsA);
-        RoutingUpsertSqlSource source = routingSource(dynamic, false);
+        RoutingUpsertSqlSource source = routingSource(dynamic);
 
         assertThat(renderedSql(source)).contains("ds-a");
 
@@ -92,7 +92,7 @@ class RoutingUpsertSqlSourceCacheTest {
         assertThat(one.getClass().getSimpleName()).isEqualTo(two.getClass().getSimpleName());
 
         StubDynamicDialect dynamic = new StubDynamicDialect(one);
-        RoutingUpsertSqlSource source = routingSource(dynamic, false);
+        RoutingUpsertSqlSource source = routingSource(dynamic);
 
         assertThat(renderedSql(source)).contains("package-one");
         dynamic.current = two;
@@ -105,7 +105,7 @@ class RoutingUpsertSqlSourceCacheTest {
         EquitableDialect first = new EquitableDialect("shared");
         EquitableDialect second = new EquitableDialect("shared");
         StubDynamicDialect dynamic = new StubDynamicDialect(first);
-        RoutingUpsertSqlSource source = routingSource(dynamic, false);
+        RoutingUpsertSqlSource source = routingSource(dynamic);
 
         assertThat(renderedSql(source)).contains("shared");
         dynamic.current = second;
@@ -119,7 +119,7 @@ class RoutingUpsertSqlSourceCacheTest {
     @Test
     void repeated_calls_on_same_dialect_instance_build_sql_once() {
         CountingDialect dialect = new CountingDialect("ds-a");
-        RoutingUpsertSqlSource source = routingSource(new StubDynamicDialect(dialect), false);
+        RoutingUpsertSqlSource source = routingSource(new StubDynamicDialect(dialect));
 
         for (int i = 0; i < 50; i++) {
             assertThat(renderedSql(source)).contains("ds-a");
@@ -128,25 +128,9 @@ class RoutingUpsertSqlSourceCacheTest {
     }
 
     @Test
-    void batch_and_single_statements_keep_their_own_sql() {
-        CountingDialect dialect = new CountingDialect("ds-a");
-        StubDynamicDialect dynamic = new StubDynamicDialect(dialect);
-        RoutingUpsertSqlSource single = routingSource(dynamic, false);
-        RoutingUpsertSqlSource batch = routingSource(dynamic, true);
-
-        // 两条语句共享同一个动态方言实例，但 batch 维度必须区分开
-        for (int i = 0; i < 5; i++) {
-            assertThat(renderedSql(single)).contains("single-ds-a").doesNotContain("batch-ds-a");
-            assertThat(renderedSql(batch)).contains("batch-ds-a").doesNotContain("single-ds-a");
-        }
-        assertThat(dialect.singleCalls.get()).isEqualTo(1);
-        assertThat(dialect.batchCalls.get()).isEqualTo(1);
-    }
-
-    @Test
     void concurrent_first_access_builds_sql_once_per_dialect_instance() throws Exception {
         SlowDialect dialect = new SlowDialect("ds-a");
-        RoutingUpsertSqlSource source = routingSource(new StubDynamicDialect(dialect), false);
+        RoutingUpsertSqlSource source = routingSource(new StubDynamicDialect(dialect));
 
         int threads = 8;
         CyclicBarrier startLine = new CyclicBarrier(threads);
@@ -172,7 +156,7 @@ class RoutingUpsertSqlSourceCacheTest {
 
     @Test
     void dialect_resolved_per_call_never_fills_the_cache_and_stays_correct() throws Exception {
-        RoutingUpsertSqlSource source = routingSource(new AlwaysNewDialect(), false);
+        RoutingUpsertSqlSource source = routingSource(new AlwaysNewDialect());
 
         int calls = 200;
         for (int i = 0; i < calls; i++) {
@@ -191,12 +175,11 @@ class RoutingUpsertSqlSourceCacheTest {
     // --- 测试桩 ---
 
     /**
-     * 生成带自身标记的 SQL，并记录每种语句被构建的次数。
+     * 生成带自身标记的 SQL，并记录它被构建的次数。
      */
     static class CountingDialect implements UpsertDialect {
 
         final AtomicInteger singleCalls = new AtomicInteger();
-        final AtomicInteger batchCalls = new AtomicInteger();
         private final String marker;
 
         CountingDialect(String marker) {
@@ -207,12 +190,6 @@ class RoutingUpsertSqlSourceCacheTest {
         public String buildUpsertSql(UpsertMeta meta) {
             singleCalls.incrementAndGet();
             return sql("single-" + marker);
-        }
-
-        @Override
-        public String buildUpsertBatchSql(UpsertMeta meta) {
-            batchCalls.incrementAndGet();
-            return sql("batch-" + marker);
         }
 
         private static String sql(String tag) {
@@ -283,11 +260,6 @@ class RoutingUpsertSqlSourceCacheTest {
         public String buildUpsertSql(UpsertMeta meta) {
             return current.buildUpsertSql(meta);
         }
-
-        @Override
-        public String buildUpsertBatchSql(UpsertMeta meta) {
-            return current.buildUpsertBatchSql(meta);
-        }
     }
 
     /**
@@ -305,11 +277,6 @@ class RoutingUpsertSqlSourceCacheTest {
         @Override
         public String buildUpsertSql(UpsertMeta meta) {
             return getCurrentDialect().buildUpsertSql(meta);
-        }
-
-        @Override
-        public String buildUpsertBatchSql(UpsertMeta meta) {
-            return getCurrentDialect().buildUpsertBatchSql(meta);
         }
     }
 

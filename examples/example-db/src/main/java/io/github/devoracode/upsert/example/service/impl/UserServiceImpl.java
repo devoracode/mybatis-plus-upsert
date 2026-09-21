@@ -28,7 +28,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public List<User> upsertBatch(List<User> users) {
-        userMapper.upsertBatch(users);
+        userMapper.upsert(users);
         return userMapper.selectList(null);
     }
 

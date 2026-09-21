@@ -15,7 +15,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -28,7 +27,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 每个拒绝用例都会断言表里仍然一行都没有，作为"SQL 从未到达数据库"的证据。
  *
  * <p>{@code upsert(Collection)} 对 {@code null} 与空集合是明确定义的 no-op（返回空列表），
- * 与 {@code upsertBatch} 的"必须给出至少一行"不同，因此分开测试。
+ * 与 MyBatis-Plus 的 {@code Db#saveBatch} 一致；集合里的 {@code null} 元素则在轮到它
+ * 排队执行时被单行语句的守卫拒绝，不做整批预扫描。
  */
 @SpringBootTest(classes = TestApplication.class)
 @Transactional
@@ -78,26 +78,6 @@ class UpsertParameterGuardTest {
     void null_entity_is_rejected_before_any_sql_runs() {
         assertRejectedByUpsert(() -> autoUserMapper.upsert((AutoUserEntity) null),
                 "Upsert entity must not be null");
-    }
-
-    @Test
-    void null_batch_collection_is_rejected() {
-        assertRejectedByUpsert(() -> autoUserMapper.upsertBatch((List<AutoUserEntity>) null),
-                "Upsert batch parameter must be a non-null collection");
-    }
-
-    @Test
-    void empty_batch_collection_is_rejected() {
-        assertRejectedByUpsert(() -> autoUserMapper.upsertBatch(Collections.<AutoUserEntity>emptyList()),
-                "Upsert batch collection must not be empty");
-    }
-
-    @Test
-    void null_element_in_batch_collection_is_rejected_with_its_index() {
-        List<AutoUserEntity> withHole = Arrays.asList(user("guard-a"), null, user("guard-c"));
-
-        assertRejectedByUpsert(() -> autoUserMapper.upsertBatch(withHole),
-                "contains a null element at index 1");
     }
 
     /**

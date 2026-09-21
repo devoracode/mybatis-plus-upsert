@@ -39,7 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>两个数据源引用同一方言类的不同实例时，各自得到自己的 SQL，互不串库；</li>
  *   <li>两个数据源引用不同方言（MySQL 风格 / PostgreSQL）时，语法与路由结果一致；</li>
- *   <li>单行与多行语句在同一动态方言下各自缓存、互不覆盖；</li>
+ *   <li>注入的两条语句（{@code upsert} / {@code upsertExecutor}）在同一动态方言下各自缓存、互不覆盖；</li>
  *   <li>多线程并发路由到不同数据源时，缓存条目与线程上下文严格匹配。</li>
  * </ul>
  */
@@ -53,7 +53,7 @@ class DynamicRoutingSqlSourceCacheTest {
     private SchemaPrefixDialect schemaA;
     private SchemaPrefixDialect schemaB;
     private MappedStatement upsert;
-    private MappedStatement upsertBatch;
+    private MappedStatement upsertExecutor;
 
     @BeforeEach
     void injectMapperAgainstDynamicDialect() {
@@ -73,7 +73,7 @@ class DynamicRoutingSqlSourceCacheTest {
         new UpsertSqlInjector(dynamicDialect, FillStrategy.NONE).inspectInject(assistant, RoutingUserMapper.class);
 
         upsert = configuration.getMappedStatement(RoutingUserMapper.class.getName() + ".upsert", false);
-        upsertBatch = configuration.getMappedStatement(RoutingUserMapper.class.getName() + ".upsertBatch", false);
+        upsertExecutor = configuration.getMappedStatement(RoutingUserMapper.class.getName() + ".upsertExecutor", false);
     }
 
     @AfterEach
@@ -105,18 +105,19 @@ class DynamicRoutingSqlSourceCacheTest {
     }
 
     @Test
-    void single_and_batch_statements_keep_separate_cached_sql_per_data_source() {
+    void both_injected_statements_route_to_the_current_data_source() {
+        // upsert 与 upsertExecutor 各持一份路由源：两条语句都要按当前数据源解析方言，
+        // 且各自的缓存不会互相覆盖
         for (int i = 0; i < 3; i++) {
-            assertThat(render(upsert, SCHEMA_A_DS)).contains("/* single-schema_a */").doesNotContain("batch-schema_a");
-            assertThat(renderBatch(upsertBatch, SCHEMA_A_DS)).contains("/* batch-schema_a */").doesNotContain("single-schema_a");
+            assertThat(render(upsert, SCHEMA_A_DS)).contains("/* single-schema_a */");
+            assertThat(render(upsertExecutor, SCHEMA_A_DS)).contains("/* single-schema_a */");
             assertThat(render(upsert, SCHEMA_B_DS)).contains("/* single-schema_b */");
-            assertThat(renderBatch(upsertBatch, SCHEMA_B_DS)).contains("/* batch-schema_b */");
+            assertThat(render(upsertExecutor, SCHEMA_B_DS)).contains("/* single-schema_b */");
         }
 
-        assertThat(schemaA.singleCalls.get()).isEqualTo(1);
-        assertThat(schemaA.batchCalls.get()).isEqualTo(1);
-        assertThat(schemaB.singleCalls.get()).isEqualTo(1);
-        assertThat(schemaB.batchCalls.get()).isEqualTo(1);
+        // 每个数据源方言实例被两条语句各构建一次
+        assertThat(schemaA.singleCalls.get()).isEqualTo(2);
+        assertThat(schemaB.singleCalls.get()).isEqualTo(2);
     }
 
     @Test
@@ -173,12 +174,6 @@ class DynamicRoutingSqlSourceCacheTest {
         return statement.getBoundSql(parameter()).getSql();
     }
 
-    private String renderBatch(MappedStatement statement, String dataSourceName) {
-        DynamicDataSourceContextHolder.clear();
-        DynamicDataSourceContextHolder.push(dataSourceName);
-        return statement.getBoundSql(batchParameter()).getSql();
-    }
-
     private String renderWithoutContext(MappedStatement statement) {
         return statement.getBoundSql(parameter()).getSql();
     }
@@ -186,12 +181,6 @@ class DynamicRoutingSqlSourceCacheTest {
     private static Map<String, Object> parameter() {
         Map<String, Object> parameter = new HashMap<>();
         parameter.put(Constants.ENTITY, entity());
-        return parameter;
-    }
-
-    private static Map<String, Object> batchParameter() {
-        Map<String, Object> parameter = new HashMap<>();
-        parameter.put(Constants.LIST, Collections.singletonList(entity()));
         return parameter;
     }
 
@@ -206,7 +195,6 @@ class DynamicRoutingSqlSourceCacheTest {
     static final class SchemaPrefixDialect implements UpsertDialect {
 
         private final AtomicInteger singleCalls = new AtomicInteger();
-        private final AtomicInteger batchCalls = new AtomicInteger();
         private final String schema;
 
         SchemaPrefixDialect(String schema) {
@@ -219,14 +207,6 @@ class DynamicRoutingSqlSourceCacheTest {
             return "INSERT INTO " + schema + "." + meta.getTableName()
                     + " ( id, username, email ) VALUES ( #{et.id}, #{et.username}, #{et.email} )"
                     + " ON DUPLICATE KEY UPDATE email = VALUES(email) /* single-" + schema + " */";
-        }
-
-        @Override
-        public String buildUpsertBatchSql(UpsertMeta meta) {
-            batchCalls.incrementAndGet();
-            return "INSERT INTO " + schema + "." + meta.getTableName()
-                    + " ( id, username, email ) VALUES ( #{item.id}, #{item.username}, #{item.email} )"
-                    + " ON DUPLICATE KEY UPDATE email = VALUES(email) /* batch-" + schema + " */";
         }
     }
 }

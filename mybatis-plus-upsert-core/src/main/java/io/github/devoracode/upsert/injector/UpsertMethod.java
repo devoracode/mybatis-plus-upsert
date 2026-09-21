@@ -17,23 +17,15 @@ public class UpsertMethod extends AbstractUpsertMethod {
      */
     public static final String METHOD_NAME = UpsertMethodNames.UPSERT;
 
-    /**
-     * 使用给定的方言和默认填充策略创建新的 UpsertMethod。
-     *
-     * @param dialect 用于 SQL 生成的 Upsert 方言
-     */
     public UpsertMethod(UpsertDialect dialect) {
-        super(METHOD_NAME, dialect, false);
+        super(METHOD_NAME, dialect);
     }
 
     /**
-     * 使用给定的方言和填充策略创建新的 UpsertMethod。
-     *
-     * @param dialect      用于 SQL 生成的 Upsert 方言
      * @param fillStrategy SQL 绑定前应用的自动填充策略
      * @since 1.6.0
      */
     public UpsertMethod(UpsertDialect dialect, FillStrategy fillStrategy) {
-        super(METHOD_NAME, dialect, false, fillStrategy);
+        super(METHOD_NAME, dialect, fillStrategy);
     }
 }

@@ -122,26 +122,6 @@ class DialectSqlTest {
         assertThat(sql).contains("new.update_time");
     }
 
-    @Test
-    void mysql_legacy_batch_sql_uses_values_function() {
-        String sql = new MysqlLegacyUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).containsIgnoringCase("VALUES(email)");
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("#{item.email}");
-        assertThat(sql).doesNotContain("AS new");
-    }
-
-    @Test
-    void mysql_alias_batch_sql_uses_alias_syntax() {
-        String sql = new MysqlUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).contains("AS new ON DUPLICATE KEY UPDATE");
-        assertThat(sql).contains("new.email");
-        assertThat(sql).contains("new.update_time");
-        assertThat(sql).doesNotContain("VALUES(email)");
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("#{item.email}");
-    }
-
     // --- MySQL：动态字段场景 ---
 
     @Test
@@ -158,21 +138,6 @@ class DialectSqlTest {
     void mysql_legacy_single_sql_update_set_dynamic_field() {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(dynamicMeta);
         assertThat(sql).contains("<if test=\"et.email != null\">email = VALUES(email), </if>");
-    }
-
-    @Test
-    void mysql_legacy_batch_sql_unaffected_by_dynamic_meta() {
-        String sql = new MysqlLegacyUpsertDialect().buildUpsertBatchSql(dynamicMeta);
-        assertThat(sql).doesNotContain("<if test=");
-        assertThat(sql).contains("VALUES(email)");
-    }
-
-    @Test
-    void mysql_alias_batch_sql_unaffected_by_dynamic_meta() {
-        String sql = new MysqlUpsertDialect().buildUpsertBatchSql(dynamicMeta);
-        assertThat(sql).doesNotContain("<if test=");
-        assertThat(sql).contains("new.email");
-        assertThat(sql).doesNotContain("VALUES(email)");
     }
 
     // --- PostgreSQL ---
@@ -192,14 +157,6 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("ON CONFLICT (username)");
     }
 
-    @Test
-    void postgres_batch_sql() {
-        String sql = new PostgresUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("EXCLUDED.email");
-        assertThat(sql).containsIgnoringCase("ON CONFLICT (username)");
-    }
-
     // --- Oracle ---
 
     @Test
@@ -210,7 +167,7 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("FROM dual");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql).containsIgnoringCase("WHEN NOT MATCHED THEN INSERT");
-        // 单行 UPDATE SET 现在引用 src 别名（与 INSERT VALUES 和批量形式一致）
+        // UPDATE SET 引用 src 别名（与 INSERT VALUES 子句同一行引用）
         assertThat(sql).contains("email = src.email");
     }
 
@@ -224,37 +181,6 @@ class DialectSqlTest {
         assertThat(ifCount).isEqualTo(4); // src 列、INSERT 列名、INSERT 值、UPDATE SET
     }
 
-    @Test
-    void oracle_batch_sql_uses_union_all_source() {
-        String sql = new OracleUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("separator=\" UNION ALL \"");
-        assertThat(sql).contains("#{item.email}");
-        // 单条 MERGE：不再使用分号分隔多语句或 PL/SQL 匿名块
-        assertThat(sql).doesNotContain("separator=\";\"");
-        assertThat(sql).doesNotContain("BEGIN");
-        assertThat(sql).doesNotContain("END;");
-    }
-
-    @Test
-    void oracle_batch_sql_structure_is_valid_single_merge() {
-        // 回归测试：批量必须是单条 MERGE，源子查询由 UNION ALL 拼接，
-        // 不能回退为 foreach + 分号多语句（ORA-00911）或 PL/SQL 匿名块
-        String sql = new OracleUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).startsWith("MERGE INTO t_user t USING (<foreach");
-        assertThat(sql).contains(" FROM dual</foreach>) src ON (");
-        assertThat(sql.split("MERGE INTO", -1).length - 1).isEqualTo(1);
-        assertThat(sql.split("FROM dual", -1).length - 1).isEqualTo(1);
-        assertThat(sql.split(" ON \\(", -1).length - 1).isEqualTo(1);
-        assertThat(sql.split("WHEN MATCHED", -1).length - 1).isEqualTo(1);
-    }
-
-    @Test
-    void oracle_batch_sql_unaffected_by_dynamic_meta() {
-        String sql = new OracleUpsertDialect().buildUpsertBatchSql(dynamicMeta);
-        assertThat(sql).doesNotContain("<if test=");
-    }
-
     // --- SQL Server ---
 
     @Test
@@ -264,7 +190,7 @@ class DialectSqlTest {
         assertThat(sql).containsIgnoringCase("AS src");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql.trim()).endsWith(";");
-        // 单行 UPDATE SET 引用 src 别名（与 INSERT VALUES 和批量形式一致）
+        // UPDATE SET 引用 src 别名（与 INSERT VALUES 子句同一行引用）
         assertThat(sql).contains("email = src.email");
     }
 
@@ -274,22 +200,6 @@ class DialectSqlTest {
         // 单行场景使用基于 SELECT 的 src（而非 VALUES(...) AS src(cols)）以支持动态列
         assertThat(sql).containsIgnoringCase("USING (SELECT");
         assertThat(sql).contains("<if test=\"et.email != null\">");
-    }
-
-    @Test
-    void sqlserver_batch_sql_uses_multi_row_values() {
-        String sql = new SqlServerUpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("#{item.email}");
-        assertThat(sql.trim()).endsWith(";");
-        // 批量场景仍然使用 VALUES(...) AS src(cols)) 多行语法
-        assertThat(sql).containsIgnoringCase("USING (VALUES");
-    }
-
-    @Test
-    void sqlserver_batch_sql_unaffected_by_dynamic_meta() {
-        String sql = new SqlServerUpsertDialect().buildUpsertBatchSql(dynamicMeta);
-        assertThat(sql).doesNotContain("<if test=");
     }
 
     // --- H2 ---
@@ -307,13 +217,6 @@ class DialectSqlTest {
         String sql = new H2UpsertDialect().buildUpsertSql(dynamicMeta);
         assertThat(sql).contains("<if test=\"et.email != null\">email, </if>");
         assertThat(sql).contains("<if test=\"et.email != null\">#{et.email}, </if>");
-    }
-
-    @Test
-    void h2_batch_sql_uses_foreach_separator() {
-        String sql = new H2UpsertDialect().buildUpsertBatchSql(staticMeta);
-        assertThat(sql).contains("<foreach");
-        assertThat(sql).contains("separator=\";\"");
     }
 
     // --- checkEmpty（NOT_EMPTY 策略） ---
@@ -369,14 +272,17 @@ class DialectSqlTest {
                 .containsIgnoringCase("ON CONFLICT (tenant_id, biz_code)");
         assertThat(new H2UpsertDialect().buildUpsertSql(multiColumnMeta))
                 .containsIgnoringCase("KEY(tenant_id, biz_code)");
-        assertThat(new MysqlLegacyUpsertDialect().buildUpsertBatchSql(multiColumnMeta))
-                .contains("INSERT INTO t_multi_join (id, tenant_id, biz_code, name)");
-        assertThat(new SqlServerUpsertDialect().buildUpsertBatchSql(multiColumnMeta))
-                .contains("AS src(id, tenant_id, biz_code, name)");
+        assertThat(new SqlServerUpsertDialect().buildUpsertSql(multiColumnMeta))
+                .contains("ON (t.tenant_id = src.tenant_id AND t.biz_code = src.biz_code)");
+        assertThat(new OracleUpsertDialect().buildUpsertSql(multiColumnMeta))
+                .contains("ON (t.tenant_id = src.tenant_id AND t.biz_code = src.biz_code)");
+        // 静态元数据下 INSERT 列清单原样带出全部列，不含多列拼接产生的空位
+        assertThat(new MysqlLegacyUpsertDialect().buildUpsertSql(multiColumnMeta))
+                .contains("(<trim suffixOverrides=\",\">id, tenant_id, biz_code, name, </trim>)");
     }
 
     @Test
-    void single_item_list_produces_no_separator() {
+    void single_conflict_column_produces_no_separator_artifacts() {
         Map<String, String> singleMap = new HashMap<>();
         singleMap.put("id", "id");
         singleMap.put("code", "code");
@@ -398,8 +304,8 @@ class DialectSqlTest {
                 new MysqlLegacyUpsertDialect(), new PostgresUpsertDialect(), new H2UpsertDialect(),
                 new OracleUpsertDialect(), new SqlServerUpsertDialect());
         for (UpsertDialect dialect : dialects) {
-            String sql = dialect.buildUpsertBatchSql(singleColumnMeta);
-            assertThat(sql).as(dialect.getClass().getSimpleName() + " batch SQL")
+            String sql = dialect.buildUpsertSql(singleColumnMeta);
+            assertThat(sql).as(dialect.getClass().getSimpleName() + " single SQL")
                     .doesNotContain("(, ").doesNotContain(", ,");
         }
     }
@@ -444,21 +350,6 @@ class DialectSqlTest {
                 .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
         assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
                 .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
-    }
-
-    @Test
-    void update_only_field_falls_back_to_param_reference_in_batch_sql() {
-        UpsertMeta meta = paramRefMeta();
-        assertThat(new MysqlLegacyUpsertDialect().buildUpsertBatchSql(meta))
-                .contains("memo = #{item.memo}").doesNotContain("memo = VALUES(");
-        assertThat(new MysqlUpsertDialect().buildUpsertBatchSql(meta))
-                .contains("memo = #{item.memo}").doesNotContain("memo = new.memo");
-        assertThat(new PostgresUpsertDialect().buildUpsertBatchSql(meta))
-                .contains("memo = #{item.memo}").doesNotContain("memo = EXCLUDED.memo");
-        assertThat(new OracleUpsertDialect().buildUpsertBatchSql(meta))
-                .contains("t.memo = #{item.memo}").doesNotContain("t.memo = src.memo");
-        assertThat(new SqlServerUpsertDialect().buildUpsertBatchSql(meta))
-                .contains("t.memo = #{item.memo}").doesNotContain("t.memo = src.memo");
     }
 
     // --- 空 UPDATE SET 兜底：全部更新字段均为动态字段时追加自赋值 ---

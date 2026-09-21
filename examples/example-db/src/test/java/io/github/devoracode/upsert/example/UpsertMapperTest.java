@@ -1,5 +1,6 @@
 package io.github.devoracode.upsert.example;
 
+import org.apache.ibatis.executor.BatchResult;
 import io.github.devoracode.upsert.example.entity.User;
 import io.github.devoracode.upsert.example.mapper.UserMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,7 +81,7 @@ class UpsertMapperTest {
     }
 
     @Test
-    void upsertBatch_insert_multiple_users() {
+    void upsertCollection_insert_multiple_users() {
         String userId1 = UUID.randomUUID().toString();
         String userId2 = UUID.randomUUID().toString();
         User user1 = User.builder()
@@ -101,16 +102,16 @@ class UpsertMapperTest {
                 .updateTime(LocalDateTime.now())
                 .build();
 
-        int result = userMapper.upsertBatch(Arrays.asList(user1, user2));
+        List<BatchResult> results = userMapper.upsert(Arrays.asList(user1, user2));
 
-        assertThat(result).isGreaterThan(0);
+        assertThat(results).isNotEmpty();
 
         List<User> users = userMapper.selectList(null);
         assertThat(users).hasSize(2);
     }
 
     @Test
-    void upsertBatch_update_existing_users() {
+    void upsertCollection_update_existing_users() {
         String userId1 = UUID.randomUUID().toString();
         User user1 = User.builder()
                 .id(userId1)
@@ -137,9 +138,9 @@ class UpsertMapperTest {
                 .age(40)
                 .build();
 
-        int result = userMapper.upsertBatch(Arrays.asList(updateUser, newUser));
+        List<BatchResult> results = userMapper.upsert(Arrays.asList(updateUser, newUser));
 
-        assertThat(result).isGreaterThan(0);
+        assertThat(results).isNotEmpty();
 
         List<User> users = userMapper.selectList(null);
         assertThat(users).hasSize(2);

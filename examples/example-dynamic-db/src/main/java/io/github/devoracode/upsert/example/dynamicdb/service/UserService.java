@@ -10,11 +10,13 @@ public interface UserService {
 
     int upsert(User user);
 
-    int upsertBatch(List<User> users);
+    /**
+     * 批量 Upsert：复用单行语句，由 MyBatis-Plus 的 {@code MybatisBatch} 在
+     * {@code ExecutorType.BATCH} 下逐条提交，返回各批次的 {@link BatchResult}。
+     */
+    List<BatchResult> upsertBatch(Collection<User> users);
 
-    List<BatchResult> upsertBatchWithResult(Collection<User> users);
-
-    List<BatchResult> upsertBatchWithResult(Collection<User> users, int batchSize);
+    List<BatchResult> upsertBatch(Collection<User> users, int batchSize);
 
     User findByEmail(String email);
 

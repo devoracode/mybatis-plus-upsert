@@ -28,23 +28,16 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    @DS("postgresql")
-    @Transactional
-    public int upsertBatch(List<User> users) {
-        return userMapper.upsertBatch(users);
-    }
-
-    @Override
     @DS("mysql")
     @Transactional
-    public List<BatchResult> upsertBatchWithResult(Collection<User> users) {
+    public List<BatchResult> upsertBatch(Collection<User> users) {
         return userMapper.upsert(users);
     }
 
     @Override
     @DS("postgresql")
     @Transactional
-    public List<BatchResult> upsertBatchWithResult(Collection<User> users, int batchSize) {
+    public List<BatchResult> upsertBatch(Collection<User> users, int batchSize) {
         return userMapper.upsert(users, batchSize);
     }
 

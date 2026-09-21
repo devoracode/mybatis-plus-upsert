@@ -42,7 +42,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  * 三项上。本库不得自行拼序列 SQL 或引入第二套主键协议。
  *
- * <p>多行 {@code upsertBatch} 不配置任何 KeyGenerator，也就不会注册 SelectKey 语句。
+ * <p>注入器只产出 {@code upsert} 与 {@code upsertExecutor} 两条单行语句，各注册一条
+ * SelectKey 语句；{@code upsert(Collection)} 走后者逐条取号。
  */
 class UpsertKeySequenceInjectionTest {
 
@@ -139,15 +140,16 @@ class UpsertKeySequenceInjectionTest {
     }
 
     @Test
-    void multi_row_upsert_batch_registers_no_key_generator_and_no_select_key() {
+    void no_multi_row_statement_is_injected() {
+        // 序列取号逐行发生在单行语句上；不存在多行 upsertBatch 语句，
+        // 也就不会出现"一条 SELECT NEXT VALUE 供整批"的无法分配形态
         MybatisConfiguration configuration = configurationWith(new StubKeyGenerator());
         inject(configuration, KeySequenceUserMapper.class, new PostgresUpsertDialect());
 
-        MappedStatement batch = statement(configuration, KeySequenceUserMapper.class.getName(), "upsertBatch");
-        assertThat(batch.getKeyGenerator()).isInstanceOf(NoKeyGenerator.class);
-        assertThat(batch.getKeyProperties()).isNullOrEmpty();
-        assertThat(configuration.hasStatement(selectKeyId(KeySequenceUserMapper.class, "upsertBatch"), false))
-                .isFalse();
+        assertThat(configuration.hasStatement(
+                KeySequenceUserMapper.class.getName() + ".upsertBatch", false)).isFalse();
+        assertThat(configuration.hasStatement(
+                selectKeyId(KeySequenceUserMapper.class, "upsertBatch"), false)).isFalse();
     }
 
     /**

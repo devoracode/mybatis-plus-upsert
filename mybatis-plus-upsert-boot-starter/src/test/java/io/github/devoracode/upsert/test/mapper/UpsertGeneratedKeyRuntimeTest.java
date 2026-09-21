@@ -79,12 +79,11 @@ class UpsertGeneratedKeyRuntimeTest {
         assertThat(upsert.getKeyProperties()).containsExactly("id");
         assertThat(upsert.getKeyColumns()).containsExactly("id");
 
-        // 逐条提交用的语句与单条同构；多行语句明确不配回填
+        // 逐条提交用的语句与单条同构；注入器只产出这两条单行语句
         assertThat(statement(AutoUserMapper.class, UpsertMethodNames.UPSERT_EXECUTOR).getKeyGenerator())
                 .isInstanceOf(Jdbc3KeyGenerator.class);
-        MappedStatement batch = statement(AutoUserMapper.class, UpsertMethodNames.UPSERT_BATCH);
-        assertThat(batch.getKeyGenerator()).isInstanceOf(NoKeyGenerator.class);
-        assertThat(batch.getKeyProperties()).isNullOrEmpty();
+        assertThat(sqlSessionFactory.getConfiguration()
+                .hasStatement(AutoUserMapper.class.getName() + ".upsertBatch", false)).isFalse();
     }
 
     @Test
@@ -144,12 +143,11 @@ class UpsertGeneratedKeyRuntimeTest {
     }
 
     @Test
-    void entity_without_primary_key_also_works_on_the_multi_row_path() {
-        int rows = keylessUserMapper.upsertBatch(Arrays.asList(
+    void entity_without_primary_key_also_works_on_the_collection_path() {
+        keylessUserMapper.upsert(Arrays.asList(
                 KeylessUserEntity.builder().username("keyless-a").email("a@example.com").build(),
                 KeylessUserEntity.builder().username("keyless-b").email("b@example.com").build()));
 
-        assertThat(rows).isGreaterThanOrEqualTo(0);
         assertThat(keylessUserMapper.selectList(null)).hasSize(2);
     }
 

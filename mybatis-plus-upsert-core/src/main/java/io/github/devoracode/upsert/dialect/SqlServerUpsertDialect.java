@@ -6,10 +6,11 @@ import io.github.devoracode.upsert.core.UpsertMeta;
 import java.util.List;
 
 /**
- * SQL Server 方言，使用 {@code MERGE INTO ... USING (...) AS src ON (...) WHEN MATCHED ... WHEN NOT MATCHED ...} 语法。
+ * SQL Server 方言，使用 {@code MERGE INTO t AS t USING (...) AS src ON (...)
+ * WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT}，动态列的裁剪方式与
+ * {@link OracleUpsertDialect} 相同。
  *
- * <p>SQL Server 的 MERGE 语句必须以分号结尾。该方言生成带有条件标签
- * 的 MyBatis XML 以处理动态字段。
+ * <p>SQL Server 要求 MERGE 以分号结尾，因此语句末尾带 {@code ;}（Oracle 不带）。
  *
  * @author devoracode
  * @since 1.0.0
@@ -67,25 +68,6 @@ public class SqlServerUpsertDialect implements UpsertDialect {
             }
         }
         sb.append("</trim>");
-        sb.append(";");
-        return sb.toString();
-    }
-
-    @Override
-    public String buildUpsertBatchSql(UpsertMeta meta) {
-        StringBuilder sb = new StringBuilder(256 + meta.getInsertColumns().size() * 30
-                + meta.getUpdateColumns().size() * 20);
-        sb.append("MERGE INTO ").append(meta.getTableName()).append(" AS t USING (VALUES ");
-        sb.append("<foreach collection=\"list\" item=\"item\" separator=\",\">(");
-        for (int i = 0; i < meta.getInsertFields().size(); i++) {
-            if (i > 0) sb.append(", ");
-            sb.append("#{item.").append(meta.getInsertFields().get(i)).append("}");
-        }
-        sb.append(")</foreach>");
-        sb.append(") AS src(");
-        DynamicSqlBuilder.appendJoin(sb, meta.getInsertColumns());
-        DynamicSqlBuilder.appendMergeOnClause(sb, meta.getConflictColumns());
-        DynamicSqlBuilder.appendMergeUpdateAndInsert(sb, meta);
         sb.append(";");
         return sb.toString();
     }

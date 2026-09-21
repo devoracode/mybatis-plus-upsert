@@ -57,15 +57,16 @@ class UpsertMapperTest {
     }
 
     @Test
-    void upsertBatch_insert_and_update() {
+    void upsertCollection_inserts_and_updates_in_one_call() {
         userMapper.upsert(buildUser("1", "alice", "old@example.com", 20));
 
         List<UserEntity> list = Arrays.asList(
                 buildUser("1", "alice", "new@example.com", 99),
                 buildUser("2", "bob",   "bob@example.com", 30)
         );
-        userMapper.upsertBatch(list);
+        userMapper.upsert(list);
 
+        // 同一集合里既有冲突更新又有新插入：逐条提交，每行走各自的单行 Upsert 语句
         List<UserEntity> all = userMapper.selectList(null);
         assertThat(all).hasSize(2);
 
@@ -162,7 +163,7 @@ class UpsertMapperTest {
     }
 
     @Test
-    void upsertBatch_auto_fills_when_null() {
+    void upsertCollection_auto_fills_when_null() {
         List<UserEntity> list = Arrays.asList(
                 UserEntity.builder()
                         .id("1")
@@ -181,7 +182,7 @@ class UpsertMapperTest {
                         .updateTime(null)
                         .build()
         );
-        userMapper.upsertBatch(list);
+        userMapper.upsert(list);
 
         UserEntity u1 = userMapper.selectById("1");
         UserEntity u2 = userMapper.selectById("2");

@@ -115,9 +115,9 @@ class UpsertMapperTest {
                     .build());
         }
 
-        int result = userService.upsertBatch(users);
+        List<BatchResult> results = userService.upsertBatch(users);
 
-        assertThat(result).isGreaterThan(0);
+        assertThat(results).isNotEmpty();
     }
 
     @Test
@@ -159,13 +159,13 @@ class UpsertMapperTest {
                     .build());
         }
 
-        int result = userService.upsertBatch(updatedUsers);
+        int result = userService.upsertBatch(updatedUsers).size();
 
         assertThat(result).isGreaterThan(0);
     }
 
     @Test
-    void upsertBatchWithResult_insert_multiple_users() {
+    void upsertBatchWithCustomBatchSize_insert_multiple_users() {
         List<User> users = new ArrayList<>();
         for (int i = 30; i < 33; i++) {
             users.add(User.builder()
@@ -183,14 +183,14 @@ class UpsertMapperTest {
                     .build());
         }
 
-        List<BatchResult> results = userService.upsertBatchWithResult(users);
+        List<BatchResult> results = userService.upsertBatch(users, 2);
 
         assertThat(results).isNotNull();
         assertThat(results).hasSizeGreaterThan(0);
     }
 
     @Test
-    void upsertBatchWithResult_update_existing_users() {
+    void upsertBatchWithCustomBatchSize_update_existing_users() {
         // 先插入初始数据
         List<User> users = new ArrayList<>();
         for (int i = 40; i < 43; i++) {
@@ -208,7 +208,7 @@ class UpsertMapperTest {
                     .updateTime(LocalDateTime.now())
                     .build());
         }
-        userService.upsertBatchWithResult(users);
+        userService.upsertBatch(users, 2);
 
         // 更新数据
         List<User> updatedUsers = new ArrayList<>();
@@ -228,7 +228,7 @@ class UpsertMapperTest {
                     .build());
         }
 
-        List<BatchResult> results = userService.upsertBatchWithResult(updatedUsers);
+        List<BatchResult> results = userService.upsertBatch(updatedUsers);
 
         assertThat(results).isNotNull();
         assertThat(results).hasSizeGreaterThan(0);

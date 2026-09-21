@@ -179,10 +179,5 @@ class DynamicUpsertAutoConfigurationTest {
         public String buildUpsertSql(io.github.devoracode.upsert.core.UpsertMeta meta) {
             return "INSERT INTO " + meta.getTableName() + " ... ON DUPLICATE KEY UPDATE ...";
         }
-
-        @Override
-        public String buildUpsertBatchSql(io.github.devoracode.upsert.core.UpsertMeta meta) {
-            return "INSERT INTO " + meta.getTableName() + " ... ON DUPLICATE KEY UPDATE ...";
-        }
     }
 }

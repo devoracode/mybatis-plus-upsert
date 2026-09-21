@@ -24,8 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>单条 {@code upsert}：走 MyBatis-Plus 原生 {@code Jdbc3KeyGenerator} 机制回填 AUTO 主键；</li>
  *   <li>{@code upsert(Collection)}：逐条单行 SQL 在 BATCH 执行器下提交，主键在批次刷新后回填；</li>
- *   <li>{@code upsertBatch}：单条多行 VALUES SQL，明确不承诺回填（各数据库/驱动对多行
- *       generated keys 的返回语义不一致）。</li>
+ *   <li>无主键生成策略的实体（INPUT 主键）：用户提供的 id 原样保留。</li>
  * </ul>
  */
 @SpringBootTest(classes = TestApplication.class)
@@ -90,16 +89,17 @@ class UpsertAutoIdBackfillTest {
     }
 
     @Test
-    void multi_row_batch_upsert_does_not_backfill_ids_by_design() {
+    void collection_upsert_persists_every_row_with_distinct_generated_ids() {
         List<AutoUserEntity> users = Arrays.asList(
                 AutoUserEntity.builder().username("erin").email("erin@example.com").build(),
                 AutoUserEntity.builder().username("frank").email("frank@example.com").build());
 
-        autoUserMapper.upsertBatch(users);
+        autoUserMapper.upsert(users);
 
-        // 明确不承诺：多行 SQL 的 generated keys 与行的对应关系不可靠，主键保持 null
-        assertThat(users).allSatisfy(u -> assertThat(u.getId()).isNull());
-        assertThat(autoUserMapper.selectList(null)).hasSize(2);
+        // 逐条提交的都是单行语句，因此每一行都拿到自己的生成主键并落库
+        assertThat(autoUserMapper.selectList(null)).hasSize(2)
+                .extracting(AutoUserEntity::getId)
+                .doesNotContainNull().doesNotHaveDuplicates();
     }
 
     @Test

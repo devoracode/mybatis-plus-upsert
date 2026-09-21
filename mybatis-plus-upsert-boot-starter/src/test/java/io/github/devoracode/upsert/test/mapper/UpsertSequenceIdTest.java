@@ -149,19 +149,21 @@ class UpsertSequenceIdTest {
     }
 
     /**
-     * 多行 VALUES 语句一条取号 SQL 只能得到一个值，无法逐行分配，因此该路径不接序列：
-     * 主键必须由调用方提供，本库也不会用序列值覆盖它。
+     * 序列主键在语句执行前取号，且取到的号会<em>覆盖</em>实体上预置的值——
+     * 与单条 {@code upsert} 的既有语义一致（MyBatis-Plus 的 SelectKey 生成器不判断主键是否已有值），
+     * 逐条提交的 {@code upsert(Collection)} 走同一机制。
+     * 需要自己决定主键值请用 {@code IdType.INPUT}。
      */
     @Test
-    void multi_row_upsert_batch_never_allocates_sequence_numbers() {
+    void caller_supplied_id_is_overwritten_by_the_sequence_number() {
         KeySeqUserEntity first = KeySeqUserEntity.builder().id(500001L).username("seq-grace").email("g@example.com").build();
         KeySeqUserEntity second = KeySeqUserEntity.builder().id(500002L).username("seq-henry").email("h@example.com").build();
 
-        int rows = keySeqUserMapper.upsertBatch(Arrays.asList(first, second));
+        keySeqUserMapper.upsert(Arrays.asList(first, second));
 
-        assertThat(rows).isGreaterThanOrEqualTo(0);
-        assertThat(first.getId()).isEqualTo(500001L);
-        assertThat(second.getId()).isEqualTo(500002L);
-        assertThat(keySeqUserMapper.selectList(null)).hasSize(2);
+        assertThat(first.getId()).isNotEqualTo(500001L).isGreaterThanOrEqualTo(1000L);
+        assertThat(second.getId()).isNotEqualTo(500002L).isGreaterThan(first.getId());
+        assertThat(keySeqUserMapper.selectById(first.getId()).getUsername()).isEqualTo("seq-grace");
+        assertThat(keySeqUserMapper.selectById(second.getId()).getUsername()).isEqualTo("seq-henry");
     }
 }
