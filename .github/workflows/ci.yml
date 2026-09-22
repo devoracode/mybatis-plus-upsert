@@ -23,14 +23,12 @@ jobs:
           java-version: '8'
           distribution: 'temurin'
           cache: maven
-      - name: Build and test
+      # javadoc:javadoc 单独跑只走到 generate-sources，同 reactor 的兄弟模块拿不到产物，
+      # 所以必须和 test 挂在同一次调用里（Maven 会先跑完 test 阶段再执行该 goal）
+      - name: Build, test and check Javadoc
         run: >
-          mvn --errors --batch-mode clean test
+          mvn --errors --batch-mode clean test javadoc:javadoc
           -pl .,mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
-      - name: Javadoc check
-        run: >
-          mvn --batch-mode javadoc:javadoc
-          -pl mybatis-plus-upsert-core,mybatis-plus-upsert-boot-starter,mybatis-plus-upsert-dynamic-datasource-boot-starter
       - name: Upload test reports
         if: failure()
         uses: actions/upload-artifact@v4
