@@ -68,6 +68,7 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
      * 主键回填也与单条一致，细节见 {@link #upsert(Collection, int)}。
      *
      * @param entityList 待 upsert 的实体集合；为 null 或空时不执行任何 SQL，返回空列表
+     * @return 各批次的执行结果，可从 {@code getUpdateCounts()} 读出逐行受影响行数
      */
     default List<BatchResult> upsert(Collection<T> entityList) {
         return upsert(entityList, Constants.DEFAULT_BATCH_SIZE);
