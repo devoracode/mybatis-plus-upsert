@@ -33,8 +33,7 @@ public class DbTypeDetector {
     }
 
     /**
-     * 把数据库类型字符串解析为 {@link DbType}，不区分大小写、允许部分匹配，无法识别时返回
-     * {@link DbType#UNKNOWN} 而不抛异常。
+     * 把数据库类型字符串解析为 {@link DbType}，不区分大小写、允许部分匹配；无法识别时返回 {@link DbType#UNKNOWN} 而不抛异常。
      *
      * @param dbType 数据库类型字符串，可为 null
      */
@@ -67,10 +66,10 @@ public class DbTypeDetector {
     }
 
     /**
-     * 按 JDBC URL 中的子串（{@code :mysql:}、{@code :postgresql:} 等）识别数据库类型。
+     * 按 JDBC URL 中的子串识别数据库类型。
      *
      * @param jdbcUrl JDBC URL，可为 null
-     * @return 识别结果；URL 为 null 或不含已知前缀时返回 {@link DbType#UNKNOWN}
+     * @return 识别结果；URL 为 null 或不含已知前缀时为 {@link DbType#UNKNOWN}
      */
     public static DbType parseDbTypeByJdbcUrl(String jdbcUrl) {
         if (jdbcUrl == null) {

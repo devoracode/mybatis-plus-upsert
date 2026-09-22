@@ -10,14 +10,7 @@ import org.apache.ibatis.session.Configuration;
 
 /**
  * 创建 Upsert 语句 {@link SqlSource} 的包私有工厂，无状态。
- *
- * <p>单数据源用静态 {@link UpsertDialect}，SQL 构建一次即烘焙进 SqlSource；
- * 方言是 {@link DynamicUpsertDialect} 时改建 {@link RoutingUpsertSqlSource}，
- * 由它在运行时按数据源解析方言。
- *
- * <p>包装顺序：{@code fillStrategy} 非 {@link FillStrategy#NONE} 时套 {@link PreFillSqlSource}
- * （位于路由源之外——填充与方言无关，也不触碰按方言缓存的 SqlSource），
- * 最外层再统一套 {@link ParameterGuardSqlSource} 拒绝 null 参数。
+ * 静态方言直接烘焙 SQL，{@link DynamicUpsertDialect} 改建 {@link RoutingUpsertSqlSource}。
  *
  * @author devoracode
  * @since 1.2.0

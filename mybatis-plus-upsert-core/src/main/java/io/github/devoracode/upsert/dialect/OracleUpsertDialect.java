@@ -9,10 +9,6 @@ import java.util.List;
  * Oracle 方言，使用 {@code MERGE INTO t USING (SELECT ... FROM dual) src ON (...)
  * WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT}。
  *
- * <p>生成的 SQL 带 {@code <if>}/{@code <trim>} 标签，列集合按字段策略在运行时裁剪。
- * {@code upsert(Collection)} 逐条执行这份语句（每行一个 MERGE），所以多条记录不会拼进同一个
- * 源子查询，也就不存在"重复冲突键命中同一目标行"的 ORA-30926（unable to get a stable set of rows）。
- *
  * @author devoracode
  * @since 1.0.0
  */

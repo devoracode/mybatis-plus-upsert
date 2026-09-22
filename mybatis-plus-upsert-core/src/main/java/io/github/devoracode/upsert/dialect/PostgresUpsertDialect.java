@@ -28,8 +28,7 @@ public class PostgresUpsertDialect implements UpsertDialect {
     }
 
     /**
-     * 兜底自赋值需以目标表名限定列引用（{@code col = t_user.col}）才能读到目标行当前值。
-     * PostgreSQL 的 SET 子句中限定符只接受表名（别名），不含 schema 前缀，故取最后一段。
+     * 兜底自赋值需以目标表名限定列引用才能读到目标行当前值；PostgreSQL 只接受表名不含 schema 前缀，故取最后一段。
      */
     private static String targetQualifier(String tableName) {
         int dot = tableName.lastIndexOf('.');

@@ -6,8 +6,6 @@ import io.github.devoracode.upsert.core.UpsertMeta;
  * MySQL 方言，使用 8.0.19+ 的行别名语法：{@code INSERT ... AS new ON DUPLICATE KEY UPDATE
  * col = new.col}。
  *
- * <p>MySQL 8.0.19 以下与 MariaDB 请用 {@link MysqlLegacyUpsertDialect}——MariaDB 不支持行别名。
- *
  * @author devoracode
  * @since 1.0.0
  */

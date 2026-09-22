@@ -26,10 +26,7 @@ public class FieldMeta {
     private final boolean checkEmpty;
 
     /**
-     * UPDATE SET 是否回退为 {@code #{param.property}} 参数引用而非行引用。
-     * 仅对参与 UPDATE 却被排除在 INSERT 之外的字段（{@code insertStrategy = NEVER}）为 true：
-     * 行引用（{@code new.col} / {@code EXCLUDED.col} / {@code src.col} / {@code VALUES(col)}）
-     * 指向的列在插入行里并不存在。
+     * UPDATE SET 是否回退为 {@code #{param.property}} 参数引用而非行引用，仅对参与 UPDATE 却不参与 INSERT 的字段为 true。
      *
      * @since 1.6.1
      */

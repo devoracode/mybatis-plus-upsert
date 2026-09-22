@@ -5,9 +5,8 @@ import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 
 /**
- * 注入内部单行 Upsert 语句的方法，供 {@code UpsertMapper#upsert(Collection)}
- * 在 {@code ExecutorType.BATCH} 下逐条复用；不对外暴露为 Mapper 方法，
- * {@code List<BatchResult>} 由该 default 方法自身返回。
+ * 注入内部单行 Upsert 语句的方法，供 {@code upsert(Collection)} 在 BATCH 执行器下逐条复用，
+ * 不对外暴露为 Mapper 方法。
  *
  * @author devoracode
  * @since 1.0.0

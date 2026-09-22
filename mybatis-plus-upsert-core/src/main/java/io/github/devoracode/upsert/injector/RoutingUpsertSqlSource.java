@@ -14,16 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 动态数据源下按当前线程的数据源解析方言、再委托该方言绑定 SQL 的 {@link SqlSource}。
- *
- * <p>不固定绑定某个 {@link UpsertDialect}，而是每次通过 {@code DynamicDataSourceContextHolder}
- * 询问 {@link DynamicUpsertDialect} 当前该用哪个方言；解析出的 SqlSource 按
- * "<em>方言实例</em> + 实体标识"缓存，因此每个方言的 SQL 只生成一次——
- * 扮演的角色与单数据源下 MP 的 {@code MappedStatement.SqlSource} 相同。
- *
- * <p>键用方言实例而不是类名：同一方言类可能有两个带不同配置的实例（两个数据源各引用一个自定义
- * 方言 Bean），不同包下也可能有同名简单类，按类名缓存会让数据源 B 直接命中 A 生成的 SQL。
- * 方言重写 {@code equals/hashCode} 声明两个实例等价时，共享同一份缓存 SQL 即为正确行为。
+ * 动态数据源下按当前线程的数据源解析方言、再委托该方言绑定 SQL 的 {@link SqlSource}，
+ * 解析出的 SqlSource 按方言实例缓存。
  *
  * @author devoracode
  * @since 1.2.0
@@ -32,8 +24,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class RoutingUpsertSqlSource implements SqlSource {
 
     /**
-     * 缓存条目上限。正常的 {@link DynamicUpsertDialect} 实现按数据源返回稳定实例，远低于该值；
-     * 每次都新建方言实例的实现既命中不了缓存也会让缓存无限增长，达到上限后改为直接构建。
+     * 缓存条目上限，防止方言实现每次新建实例导致缓存无限增长；达到上限后改为直接构建。
      */
     private static final int MAX_CACHED_SQL_SOURCES = 64;
 

@@ -15,29 +15,23 @@ import java.util.*;
 /**
  * 把 MyBatis-Plus {@link TableInfo} 解析为 {@link UpsertMeta} 的无状态解析器。
  *
- * <p>唯一数据来源是调用方在注入期传入的那份 {@link TableInfo}：本类既没有元数据缓存，
- * 也不通过 {@code TableInfoHelper} 全局注册表按实体类反查。因此多个 Spring 上下文 /
- * 多个 {@code Configuration} 共存时，各自注入的语句只用各自上下文的元数据。
- * 运行期执行 Upsert 不经过本类，所以无需缓存。
- *
  * @author devoracode
  * @since 1.0.0
  */
 public class UpsertMetaParser {
 
     /**
-     * 实体是否含至少一个 {@link ConflictKey} 字段。只扫注解，与 {@code Configuration} 无关。
+     * 实体是否含至少一个 {@link ConflictKey} 字段。
      */
     public static boolean hasConflictKey(Class<?> entityClass) {
         return scanAnnotations(entityClass).hasConflictKey;
     }
 
     /**
-     * 解析 {@link TableInfo} 所属实体的完整 {@link UpsertMeta}：每次调用都基于入参重新解析。
+     * 基于入参 {@link TableInfo} 解析实体的完整 {@link UpsertMeta}。
      *
-     * @param tableInfo 当前 Configuration 下的实体表元数据（不能为 null）
-     * @throws UpsertMetaException 没有 {@code @ConflictKey}、无可更新列，
-     *         或冲突键落在 {@code IdType.AUTO} 主键上、声明了 {@code insertStrategy = NEVER}
+     * @param tableInfo 当前 Configuration 下的实体表元数据
+     * @throws UpsertMetaException 元数据校验不通过（如缺少冲突键、无可更新列）
      */
     public static UpsertMeta getMeta(TableInfo tableInfo) {
         Objects.requireNonNull(tableInfo, "tableInfo must not be null");
@@ -149,8 +143,7 @@ public class UpsertMetaParser {
     }
 
     /**
-     * 按 order 升序排序冲突键字段；order 相同（含全部为默认值 0）时按字段名
-     * 字典序稳定排序，保证生成的 SQL 在不同 JVM 运行间一致。
+     * 按 order 升序排序冲突键字段，order 相同时按字段名稳定排序。
      */
     private static List<String> sortConflictFields(Map<String, Integer> conflictFieldOrder) {
         List<String> sorted = new ArrayList<>(conflictFieldOrder.keySet());
@@ -240,9 +233,7 @@ public class UpsertMetaParser {
         return result;
     }
 
-    /**
-     * 一次性的注解扫描结果，仅在单次解析内复用（本类不缓存它）。
-     */
+    /** 单次解析内复用的注解扫描结果。 */
     private static final class AnnotationScan {
         final boolean hasConflictKey;
         final Map<String, Integer> conflictFieldOrder;

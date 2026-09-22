@@ -1,7 +1,6 @@
 package io.github.devoracode.upsert.autoconfigure;
 
 import com.baomidou.mybatisplus.autoconfigure.MybatisPlusAutoConfiguration;
-import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
@@ -21,10 +20,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
 /**
- * 单数据源 Upsert 的自动配置：解析数据库类型、创建 {@link UpsertDialect}、注册
- * {@link UpsertSqlInjector}。
- *
- * <p>绑定前自动填充由注入器携带的 {@link FillStrategy} 实现，不注册全局 MyBatis 拦截器。
+ * 单数据源 Upsert 的自动配置：解析数据库类型、创建 {@link UpsertDialect}、注册 {@link UpsertSqlInjector}。
  *
  * @author devoracode
  * @since 1.0.0
@@ -47,7 +43,6 @@ public class UpsertAutoConfiguration {
 
     /**
      * 注册内置方言：{@code db-type} 显式配置时直接用它，否则从 JDBC URL 推断。
-     * 两种方式都识别不出数据库类型时启动失败。
      *
      * @return 配置好的 UpsertDialect
      */
@@ -80,7 +75,6 @@ public class UpsertAutoConfiguration {
 
     /**
      * 注册 Upsert 注入器，并把 {@code fill-strategy} 解析出的策略交给它。
-     * 用户自带 {@code ISqlInjector} 时本 Bean 不生效。
      *
      * @param dialect 用于 SQL 生成的 upsert 方言
      * @return 配置好的 UpsertSqlInjector

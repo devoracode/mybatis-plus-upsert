@@ -9,8 +9,6 @@ import java.lang.annotation.Target;
 /**
  * 将字段从 Upsert 的 UPDATE 子句中排除：仍参与 INSERT，冲突命中时不被覆盖。
  *
- * <p>典型用于系统托管字段（{@code create_time}、{@code created_by}）。
- *
  * @author devoracode
  * @since 1.0.0
  */

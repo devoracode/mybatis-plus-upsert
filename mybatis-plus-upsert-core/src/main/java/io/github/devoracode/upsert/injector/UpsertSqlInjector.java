@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * 在 MyBatis-Plus {@link DefaultSqlInjector} 的基础上追加 {@link UpsertMethod} 与
- * {@link UpsertExecutorMethod} 两条语句。
+ * {@link UpsertExecutorMethod} 两条注入语句的 SQL 注入器。
  *
  * @author devoracode
  * @since 1.0.0

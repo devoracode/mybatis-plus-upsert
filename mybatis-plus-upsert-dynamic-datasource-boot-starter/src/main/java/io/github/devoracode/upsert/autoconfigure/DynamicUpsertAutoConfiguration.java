@@ -24,11 +24,7 @@ import org.springframework.util.StringUtils;
 import java.util.Map;
 
 /**
- * 动态数据源 upsert 支持的自动配置。
- *
- * <p>自动为 {@code spring.datasource.dynamic.datasource} 中定义的每个数据源注册
- * {@link UpsertDialect}。如果未显式配置，则从 JDBC URL 推断数据库类型。支持通过
- * {@code db-type=custom} 和 {@code dialect-ref} 配置自定义方言 Bean。
+ * 动态数据源 upsert 支持的自动配置。多数据源路由、方言注册与自定义方言的用法见 README「多数据源支持」一节。
  *
  * @author devoracode
  * @since 1.2.0
@@ -54,9 +50,7 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * 为 {@code spring.datasource.dynamic.datasource} 里的每个数据源推断（或按配置取用）
-     * 数据库类型并注册对应方言，随后校验主数据源也在其中。
-     * 任何一步不成立都在启动期抛 {@link UpsertException}。
+     * 为 {@code spring.datasource.dynamic.datasource} 里的每个数据源推断（或按配置取用）数据库类型并注册方言，随后校验主数据源也在其中。
      *
      * @return DynamicUpsertDialect 实例
      */
@@ -126,8 +120,8 @@ public class DynamicUpsertAutoConfiguration {
     }
 
     /**
-     * 解析单个数据源的方言：{@code dbType} 为 CUSTOM 时按 {@code config} 的
-     * {@code dialect-ref} 从容器取用户 Bean，否则用 {@link DialectFactory} 创建内置方言。
+     * 解析单个数据源的方言：{@code dbType} 为 CUSTOM 时按 {@code dialect-ref} 从容器取用户 Bean，
+     * 否则用 {@link DialectFactory} 创建内置方言。
      *
      * @param config 该数据源的 upsert 配置，可为 null
      * @throws UpsertException custom 缺少 dialect-ref、引用的 Bean 不存在或类型不符，
@@ -168,9 +162,6 @@ public class DynamicUpsertAutoConfiguration {
 
     /**
      * 注册携带动态方言与 {@code fill-strategy} 的 {@link UpsertSqlInjector}。
-     *
-     * <p>与单数据源 starter 对称地按 {@code ISqlInjector} 类型做缺失检查：用户已注册任何自定义
-     * 注入器（无论 bean 名）时不再自动注册，避免两个注入器并存。
      *
      * @param dynamicDialect 动态 upsert 方言
      * @return 配置好的 UpsertSqlInjector

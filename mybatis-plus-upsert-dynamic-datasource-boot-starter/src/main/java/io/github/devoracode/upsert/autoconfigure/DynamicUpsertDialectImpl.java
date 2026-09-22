@@ -14,8 +14,8 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * {@link DynamicUpsertDialect} 的动态数据源实现：持有"数据源名 → {@link UpsertDialect}"映射，
- * 运行时按 {@link DynamicDataSourceContextHolder} 的当前栈顶解析；无活动上下文时回退主数据源。
+ * {@link DynamicUpsertDialect} 的动态数据源实现：按 {@link DynamicDataSourceContextHolder}
+ * 的当前栈顶路由到对应 {@link UpsertDialect}，无活动上下文时回退主数据源。
  *
  * @author devoracode
  * @since 1.2.0

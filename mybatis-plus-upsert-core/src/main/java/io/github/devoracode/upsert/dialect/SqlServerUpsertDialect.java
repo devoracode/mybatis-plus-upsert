@@ -8,9 +8,7 @@ import java.util.List;
 /**
  * SQL Server 方言，使用 {@code MERGE INTO t AS t USING (...) AS src ON (...)
  * WHEN MATCHED THEN UPDATE / WHEN NOT MATCHED THEN INSERT}，动态列的裁剪方式与
- * {@link OracleUpsertDialect} 相同。
- *
- * <p>SQL Server 要求 MERGE 以分号结尾，因此语句末尾带 {@code ;}（Oracle 不带）。
+ * {@link OracleUpsertDialect} 相同，语句末尾带要求的分号。
  *
  * @author devoracode
  * @since 1.0.0

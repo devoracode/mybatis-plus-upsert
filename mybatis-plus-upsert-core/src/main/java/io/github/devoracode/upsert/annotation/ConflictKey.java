@@ -9,9 +9,6 @@ import java.lang.annotation.Target;
 /**
  * 标记字段为 Upsert 的冲突键：命中该列（组合）已有行时转为更新，否则插入。
  *
- * <p>实体必须至少有一个此注解的字段，否则该 Mapper 不会注入 Upsert 语句。
- * 多个冲突键列按 {@link #order()} 升序排列。
- *
  * @author devoracode
  * @since 1.0.0
  */

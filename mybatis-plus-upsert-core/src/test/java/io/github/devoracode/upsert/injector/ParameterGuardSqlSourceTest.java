@@ -82,7 +82,7 @@ class ParameterGuardSqlSourceTest {
         assertThat(delegate.calls).isZero();
     }
 
-    /** MyBatis 的 ParamMap 在键缺失时抛 BindingException，守卫必须先判断键存在再取值。 */
+    /** MyBatis 的 ParamMap 对缺失键抛 BindingException，守卫必须把它转成能直接读懂的 UpsertException。 */
     @Test
     void rejects_param_map_without_the_entity_key() {
         ParameterGuardSqlSource guard = new ParameterGuardSqlSource(new CountingSqlSource());

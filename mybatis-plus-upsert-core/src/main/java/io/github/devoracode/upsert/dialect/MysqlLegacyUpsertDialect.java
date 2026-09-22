@@ -3,11 +3,8 @@ package io.github.devoracode.upsert.dialect;
 import io.github.devoracode.upsert.core.UpsertMeta;
 
 /**
- * MySQL / MariaDB 方言，使用旧版 {@code ON DUPLICATE KEY UPDATE col = VALUES(col)} 语法：
- * {@code VALUES(col)} 引用本行即将插入的列值，兼容所有支持该子句的 MySQL / MariaDB 版本。
- *
- * <p>{@code VALUES()} 自 MySQL 8.0.20 起被官方标记废弃（仍可用）；8.0.19+ 建议改用
- * {@link MysqlUpsertDialect}。MariaDB 只能停在本方言。
+ * MySQL / MariaDB 方言，使用旧版 {@code ON DUPLICATE KEY UPDATE col = VALUES(col)} 语法，
+ * 兼容所有支持该子句的 MySQL / MariaDB 版本。
  *
  * @author devoracode
  * @since 1.0.0

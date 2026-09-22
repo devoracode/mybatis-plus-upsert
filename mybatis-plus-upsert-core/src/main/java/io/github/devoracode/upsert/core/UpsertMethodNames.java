@@ -19,10 +19,7 @@ public final class UpsertMethodNames {
     /** 对外暴露的单行 Upsert 语句名。 */
     public static final String UPSERT = "upsert";
 
-    /**
-     * 内部单行语句名，不对外暴露为 Mapper 方法：{@code upsert(Collection)} 在
-     * BATCH 执行器下逐条复用这条语句。
-     */
+    /** 内部单行语句名，不对外暴露为 Mapper 方法，供 {@code upsert(Collection)} 逐条复用。 */
     public static final String UPSERT_EXECUTOR = "upsertExecutor";
 
     /** 全部注入语句名。 */

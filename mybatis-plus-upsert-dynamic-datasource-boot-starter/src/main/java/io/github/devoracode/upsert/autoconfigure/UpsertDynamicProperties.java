@@ -10,9 +10,6 @@ import java.util.Map;
 /**
  * {@code mybatis-plus.upsert.dynamic} 前缀下的配置属性。
  *
- * <p>按数据源的 {@code db-type} 可省略，此时从
- * {@code spring.datasource.dynamic.datasource} 里该数据源的 JDBC URL 推断。
- *
  * @author devoracode
  * @since 1.2.0
  */
@@ -55,14 +52,11 @@ public class UpsertDynamicProperties {
         /** 该数据源的数据库类型；未配置时从其 JDBC URL 推断。 */
         private String dbType;
         /**
-         * 该数据源的 MySQL 是否使用 8.0.19+ 的 AS 别名语法。
-         * 为 {@code null}（未配置）时继承全局 {@code use-new-mysql-syntax}，显式声明则覆盖。
+         * 该数据源的 MySQL 是否使用 8.0.19+ 的 AS 别名语法；为 {@code null}（未配置）时
+         * 继承全局 {@code use-new-mysql-syntax}，显式声明则覆盖。
          */
         private Boolean useNewMysqlSyntax;
-        /**
-         * {@code db-type} 为 {@code custom} 时引用的用户自定义 {@code UpsertDialect} Bean 名；
-         * 对内置数据库类型无效。
-         */
+        /** {@code db-type} 为 {@code custom} 时引用的用户自定义 {@code UpsertDialect} Bean 名；对内置数据库类型无效。 */
         private String dialectRef;
     }
 }

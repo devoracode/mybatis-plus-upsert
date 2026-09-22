@@ -20,10 +20,7 @@ public class UpsertProperties {
     /** 数据库类型（如 {@code mysql}、{@code postgresql}）；未配置时从 JDBC URL 推断。 */
     private String dbType;
 
-    /**
-     * MySQL 是否使用 8.0.19+ 的 AS 别名语法，默认 false（旧版 {@code VALUES()} 语法）。
-     * 仅在数据库类型为 MySQL 时生效。
-     */
+    /** MySQL 是否使用 8.0.19+ 的 AS 别名语法，默认 false（旧版 {@code VALUES()} 语法），仅在数据库类型为 MySQL 时生效。 */
     private boolean useNewMysqlSyntax = false;
 
     /**

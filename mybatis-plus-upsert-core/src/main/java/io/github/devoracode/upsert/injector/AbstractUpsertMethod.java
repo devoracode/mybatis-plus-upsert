@@ -20,11 +20,6 @@ import org.apache.ibatis.mapping.SqlSource;
  * Upsert 注入方法的基类：子类只声明要注册的语句名，公共的元数据解析与
  * {@link SqlSource} 构建由本类完成（{@link UpsertSqlSourceFactory}）。
  *
- * <p>注入的语句一律是单行 SQL：批量写入由 MP 的 {@code MybatisBatch} 在
- * {@code ExecutorType.BATCH} 下把同一份语句逐条提交，不另生成多行 SQL。
- * 实体没有 {@link io.github.devoracode.upsert.annotation.ConflictKey} 字段时不注入任何语句
- * （返回 {@code null}），该 Mapper 对此实体不启用 Upsert。
- *
  * @author devoracode
  * @since 1.0.0
  */
@@ -47,11 +42,7 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
     }
 
     /**
-     * 主键生成器与 MP 原生 {@code Insert} 走同一套机制，单条与 {@code upsertExecutor}
-     * 两条语句都配置：{@code IdType.AUTO} 用 {@link Jdbc3KeyGenerator}（值取自数据库返回的
-     * generated keys，不是内存预测值），序列主键复用 {@link TableInfoHelper#genKeyGenerator}
-     * 并由 {@link SequenceKeyGeneratorDecorator} 把号搬回实体，其余策略不回填。
-     * 批量路径的生成键在 {@code flushStatements} 时写回。
+     * 解析元数据并构建本方法对应的 {@link MappedStatement}；实体无冲突键字段时返回 {@code null} 不注入。
      */
     @Override
     public MappedStatement injectMappedStatement(Class<?> mapperClass, Class<?> modelClass, TableInfo tableInfo) {

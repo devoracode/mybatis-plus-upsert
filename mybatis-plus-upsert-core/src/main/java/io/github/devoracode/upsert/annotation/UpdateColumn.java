@@ -7,9 +7,7 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * 声明 UPDATE 子句的白名单：实体中只要有任意字段使用本注解，UPDATE 就只包含被注解的字段，
- * 此时 {@link IgnoreOnUpdate} 不再参与判断。默认（无本注解）为非冲突键、非
- * {@code @IgnoreOnUpdate} 的全部字段。
+ * 声明 UPDATE 子句的白名单：实体中只要有任意字段使用本注解，UPDATE 就只包含被注解的字段。
  *
  * @author devoracode
  * @since 1.0.0
