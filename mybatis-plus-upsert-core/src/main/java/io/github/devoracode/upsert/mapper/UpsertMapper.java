@@ -6,8 +6,8 @@ import com.baomidou.mybatisplus.core.override.MybatisMapperProxy;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.core.toolkit.MybatisBatchUtils;
 import com.baomidou.mybatisplus.core.toolkit.MybatisUtils;
-import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.exception.UpsertException;
+import io.github.devoracode.upsert.injector.UpsertMethod;
 import org.apache.ibatis.executor.BatchResult;
 import org.apache.ibatis.session.SqlSessionFactory;
 
@@ -61,6 +61,6 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
         SqlSessionFactory sqlSessionFactory = MybatisUtils.getSqlSessionFactory(mybatisMapperProxy);
         MybatisBatch.Method<T> method = new MybatisBatch.Method<>(mybatisMapperProxy.getMapperInterface());
         return MybatisBatchUtils.execute(sqlSessionFactory, entityList,
-                method.get(UpsertMethodNames.UPSERT, entity -> entity), batchSize);
+                method.get(UpsertMethod.METHOD_NAME, entity -> entity), batchSize);
     }
 }

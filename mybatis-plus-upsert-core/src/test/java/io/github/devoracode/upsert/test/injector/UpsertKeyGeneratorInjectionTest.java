@@ -1,8 +1,8 @@
 package io.github.devoracode.upsert.test.injector;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.dialect.*;
+import io.github.devoracode.upsert.injector.UpsertMethod;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
 import io.github.devoracode.upsert.test.support.AutoIdUserMapper;
@@ -14,8 +14,6 @@ import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.apache.ibatis.mapping.MappedStatement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -71,10 +69,8 @@ class UpsertKeyGeneratorInjectionTest {
     @Test
     void only_single_row_statements_are_injected() {
         // 批量写入复用单行的 upsert 语句，不再注入独立的 upsertExecutor 或多行 upsertBatch 语句
-        for (String method : UpsertMethodNames.ALL) {
-            assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + "." + method, false))
-                    .as("injected statement %s", method).isTrue();
-        }
+        assertThat(configuration.hasStatement(
+                AutoIdUserMapper.class.getName() + "." + UpsertMethod.METHOD_NAME, false)).isTrue();
         assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + ".upsertExecutor", false))
                 .isFalse();
         assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + ".upsertBatch", false))
@@ -113,15 +109,13 @@ class UpsertKeyGeneratorInjectionTest {
         for (UpsertDialect dialect : dialects) {
             MybatisConfiguration cfg = new MybatisConfiguration();
             injectMapper(cfg, AutoIdUserMapper.class, dialect);
-            for (String method : UpsertMethodNames.ALL) {
-                MappedStatement ms = cfg.getMappedStatement(
-                        AutoIdUserMapper.class.getName() + "." + method, false);
-                assertThat(ms.getKeyGenerator())
-                        .as("dialect %s statement %s", dialect.getClass().getSimpleName(), method)
-                        .isInstanceOf(Jdbc3KeyGenerator.class);
-                assertThat(ms.getKeyProperties()).containsExactly("id");
-                assertThat(ms.getKeyColumns()).containsExactly("id");
-            }
+            MappedStatement ms = cfg.getMappedStatement(
+                    AutoIdUserMapper.class.getName() + "." + UpsertMethod.METHOD_NAME, false);
+            assertThat(ms.getKeyGenerator())
+                    .as("dialect %s", dialect.getClass().getSimpleName())
+                    .isInstanceOf(Jdbc3KeyGenerator.class);
+            assertThat(ms.getKeyProperties()).containsExactly("id");
+            assertThat(ms.getKeyColumns()).containsExactly("id");
         }
     }
 

@@ -1,6 +1,5 @@
 package io.github.devoracode.upsert.injector;
 
-import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 
@@ -15,7 +14,7 @@ public class UpsertMethod extends AbstractUpsertMethod {
     /**
      * 在 Mapper 中注册的方法名。
      */
-    public static final String METHOD_NAME = UpsertMethodNames.UPSERT;
+    public static final String METHOD_NAME = "upsert";
 
     public UpsertMethod(UpsertDialect dialect) {
         super(METHOD_NAME, dialect);

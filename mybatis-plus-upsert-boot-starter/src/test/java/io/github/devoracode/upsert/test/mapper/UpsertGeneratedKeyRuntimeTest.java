@@ -1,7 +1,7 @@
 package io.github.devoracode.upsert.test.mapper;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import io.github.devoracode.upsert.core.UpsertMethodNames;
+import io.github.devoracode.upsert.injector.UpsertMethod;
 import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.support.AutoUserEntity;
 import io.github.devoracode.upsert.test.support.AutoUserMapper;
@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -73,7 +72,7 @@ class UpsertGeneratedKeyRuntimeTest {
 
     @Test
     void key_generator_configuration_reaches_the_live_mapped_statement() {
-        MappedStatement upsert = statement(AutoUserMapper.class, UpsertMethodNames.UPSERT);
+        MappedStatement upsert = statement(AutoUserMapper.class, UpsertMethod.METHOD_NAME);
         assertThat(upsert.getKeyGenerator()).isInstanceOf(Jdbc3KeyGenerator.class);
         assertThat(upsert.getKeyProperties()).containsExactly("id");
         assertThat(upsert.getKeyColumns()).containsExactly("id");
@@ -119,7 +118,7 @@ class UpsertGeneratedKeyRuntimeTest {
     @Test
     void input_id_entity_gets_no_key_generator_and_keeps_its_own_key() {
         // 用户提供的 String 主键：不创建任何 KeyGenerator（值原样落库见 UpsertAutoIdBackfillTest）
-        MappedStatement upsert = statement(UserMapper.class, UpsertMethodNames.UPSERT);
+        MappedStatement upsert = statement(UserMapper.class, UpsertMethod.METHOD_NAME);
         assertThat(upsert.getKeyGenerator()).isInstanceOf(NoKeyGenerator.class);
         assertThat(upsert.getKeyProperties()).isNullOrEmpty();
     }
@@ -130,7 +129,7 @@ class UpsertGeneratedKeyRuntimeTest {
      */
     @Test
     void entity_without_primary_key_upserts_without_error() {
-        assertThat(statement(KeylessUserMapper.class, UpsertMethodNames.UPSERT).getKeyGenerator())
+        assertThat(statement(KeylessUserMapper.class, UpsertMethod.METHOD_NAME).getKeyGenerator())
                 .isInstanceOf(NoKeyGenerator.class);
 
         keylessUserMapper.upsert(KeylessUserEntity.builder().username("keyless").email("old@example.com").build());
