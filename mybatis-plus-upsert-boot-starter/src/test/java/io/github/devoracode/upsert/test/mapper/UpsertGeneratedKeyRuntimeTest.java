@@ -1,7 +1,6 @@
 package io.github.devoracode.upsert.test.mapper;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
-import com.baomidou.mybatisplus.core.toolkit.Constants;
 import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.support.AutoUserEntity;
@@ -79,9 +78,9 @@ class UpsertGeneratedKeyRuntimeTest {
         assertThat(upsert.getKeyProperties()).containsExactly("id");
         assertThat(upsert.getKeyColumns()).containsExactly("id");
 
-        // 逐条提交用的语句与单条同构；注入器只产出这两条单行语句
-        assertThat(statement(AutoUserMapper.class, UpsertMethodNames.UPSERT_EXECUTOR).getKeyGenerator())
-                .isInstanceOf(Jdbc3KeyGenerator.class);
+        // 逐条提交复用同一条 upsert 语句；不再有独立的 upsertExecutor statement
+        assertThat(sqlSessionFactory.getConfiguration()
+                .hasStatement(AutoUserMapper.class.getName() + ".upsertExecutor", false)).isFalse();
         assertThat(sqlSessionFactory.getConfiguration()
                 .hasStatement(AutoUserMapper.class.getName() + ".upsertBatch", false)).isFalse();
     }
@@ -171,20 +170,13 @@ class UpsertGeneratedKeyRuntimeTest {
                 .collect(Collectors.toList());
         assertThat(submitted).hasSize(3);
         for (Object parameter : submitted) {
-            // 提交给 BATCH 执行器的是 @Param("et") 的参数映射，取出的实体必须就是原对象
-            AutoUserEntity entity = (AutoUserEntity) entityOf(parameter);
+            // 提交给 BATCH 执行器的参数就是实体本身（与 MP 原生批量一致）
+            AutoUserEntity entity = (AutoUserEntity) parameter;
             assertThat(users).contains(entity);
             assertThat(entity.getId()).isNotNull();
         }
         for (AutoUserEntity user : users) {
             assertThat(autoUserMapper.selectById(user.getId()).getUsername()).isEqualTo(user.getUsername());
         }
-    }
-
-    private static Object entityOf(Object parameter) {
-        if (parameter instanceof Map && ((Map<?, ?>) parameter).containsKey(Constants.ENTITY)) {
-            return ((Map<?, ?>) parameter).get(Constants.ENTITY);
-        }
-        return parameter;
     }
 }

@@ -2,7 +2,6 @@ package io.github.devoracode.upsert.test.mapper;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
-import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.support.KeySeqUserEntity;
 import io.github.devoracode.upsert.test.support.KeySeqUserMapper;
@@ -29,8 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 并且这条链路完整复用了 MyBatis-Plus 既有的 selectKey 机制：
  * 由 MP 的 {@link TableInfoHelper#genKeyGenerator} 注册
  * {@code <语句>!selectKey} 语句并挂上 {@link SelectKeyGenerator}，
- * 取号 SQL 来自容器里注册的 {@code IKeyGenerator} Bean；本库至多在生成的
- * {@code SelectKeyGenerator} 外面包一层装饰器，把号从命名参数映射搬回实体。
+ * 取号 SQL 来自容器里注册的 {@code IKeyGenerator} Bean，取号与写回本库均不参与。
  *
  * <p>序列号不会随事务回滚，且 {@code CREATE SEQUENCE} 从 1000 起，
  * 因此断言只看"不小于 1000""互不相同"，不钉死具体数字。
@@ -67,23 +65,16 @@ class UpsertSequenceIdTest {
     void single_upsert_reuses_the_mp_select_key_generator_for_sequence_ids() {
         MappedStatement upsert = statement("upsert");
 
-        // 取号由 MP 注册的 !selectKey 语句负责；本库只在其外面套一层把号写回实体的
-        // 装饰器（SequenceKeyGeneratorDecorator，包私有），所以这里只断言挂载点：
-        // 语句上配了 keyProperty，且取号语句确实由 MP 注册、SQL 来自容器的 IKeyGenerator Bean。
+        // 取号与写回都由 MP 注册的 SelectKeyGenerator 完成，本库不参与；
+        // 这里断言挂载点：语句上配了 keyProperty，取号语句由 MP 注册、SQL 来自容器的 IKeyGenerator Bean。
         assertThat(upsert.getKeyProperties()).containsExactly("id");
-        assertThat(upsert.getKeyGenerator().getClass().getName())
-                .as("主键生成器只能是本库对 MP 生成器的包装，不能是 MyBatis 自带类型")
-                .startsWith("io.github.devoracode.upsert.injector.");
+        assertThat(upsert.getKeyGenerator()).isInstanceOf(SelectKeyGenerator.class);
         // MP 为序列主键注册的取号语句，本库不另外拼序列 SQL
         assertThat(statement("upsert" + SelectKeyGenerator.SELECT_KEY_SUFFIX).getBoundSql(null).getSql())
                 .isEqualTo("SELECT NEXT VALUE FOR seq_key_seq_user");
-        assertThat(statement(UpsertMethodNames.UPSERT_EXECUTOR).getKeyProperties())
-                .containsExactly("id");
+        // upsert(Collection) 复用同一条 upsert 语句；不再有独立的 upsertExecutor statement
         assertThat(configuration().hasStatement(
-                KeySeqUserMapper.class.getName() + "." + UpsertMethodNames.UPSERT_EXECUTOR
-                        + SelectKeyGenerator.SELECT_KEY_SUFFIX, false))
-                .as("逐条提交路径同样复用 MP 的取号语句")
-                .isTrue();
+                KeySeqUserMapper.class.getName() + ".upsertExecutor", false)).isFalse();
     }
 
     @Test

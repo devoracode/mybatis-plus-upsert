@@ -18,7 +18,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -39,7 +38,6 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>两个数据源引用同一方言类的不同实例时，各自得到自己的 SQL，互不串库；</li>
  *   <li>两个数据源引用不同方言（MySQL 风格 / PostgreSQL）时，语法与路由结果一致；</li>
- *   <li>注入的两条语句（{@code upsert} / {@code upsertExecutor}）在同一动态方言下各自缓存、互不覆盖；</li>
  *   <li>多线程并发路由到不同数据源时，缓存条目与线程上下文严格匹配。</li>
  * </ul>
  */
@@ -53,7 +51,6 @@ class DynamicRoutingSqlSourceCacheTest {
     private SchemaPrefixDialect schemaA;
     private SchemaPrefixDialect schemaB;
     private MappedStatement upsert;
-    private MappedStatement upsertExecutor;
 
     @BeforeEach
     void injectMapperAgainstDynamicDialect() {
@@ -73,7 +70,6 @@ class DynamicRoutingSqlSourceCacheTest {
         new UpsertSqlInjector(dynamicDialect, FillStrategy.NONE).inspectInject(assistant, RoutingUserMapper.class);
 
         upsert = configuration.getMappedStatement(RoutingUserMapper.class.getName() + ".upsert", false);
-        upsertExecutor = configuration.getMappedStatement(RoutingUserMapper.class.getName() + ".upsertExecutor", false);
     }
 
     @AfterEach
@@ -102,22 +98,6 @@ class DynamicRoutingSqlSourceCacheTest {
                 .doesNotContain("ON DUPLICATE KEY UPDATE");
         assertThat(render(upsert, SCHEMA_A_DS)).contains("ON DUPLICATE KEY UPDATE")
                 .doesNotContain("ON CONFLICT");
-    }
-
-    @Test
-    void both_injected_statements_route_to_the_current_data_source() {
-        // upsert 与 upsertExecutor 各持一份路由源：两条语句都要按当前数据源解析方言，
-        // 且各自的缓存不会互相覆盖
-        for (int i = 0; i < 3; i++) {
-            assertThat(render(upsert, SCHEMA_A_DS)).contains("/* single-schema_a */");
-            assertThat(render(upsertExecutor, SCHEMA_A_DS)).contains("/* single-schema_a */");
-            assertThat(render(upsert, SCHEMA_B_DS)).contains("/* single-schema_b */");
-            assertThat(render(upsertExecutor, SCHEMA_B_DS)).contains("/* single-schema_b */");
-        }
-
-        // 每个数据源方言实例被两条语句各构建一次
-        assertThat(schemaA.singleCalls.get()).isEqualTo(2);
-        assertThat(schemaB.singleCalls.get()).isEqualTo(2);
     }
 
     @Test

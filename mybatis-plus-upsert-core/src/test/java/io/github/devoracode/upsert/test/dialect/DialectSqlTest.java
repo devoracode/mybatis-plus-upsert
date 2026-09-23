@@ -127,17 +127,17 @@ class DialectSqlTest {
     @Test
     void mysql_legacy_single_sql_wraps_dynamic_field_with_if() {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(dynamicMeta);
-        assertThat(sql).contains("<if test=\"et.email != null\">email, </if>");
-        assertThat(sql).contains("<if test=\"et.email != null\">#{et.email}, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">email, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">#{email}, </if>");
         assertThat(sql).contains("update_time, ");
-        assertThat(sql).doesNotContain("<if test=\"et.updateTime");
+        assertThat(sql).doesNotContain("<if test=\"updateTime");
         assertThat(sql).contains("<trim suffixOverrides=\",\">");
     }
 
     @Test
     void mysql_legacy_single_sql_update_set_dynamic_field() {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(dynamicMeta);
-        assertThat(sql).contains("<if test=\"et.email != null\">email = VALUES(email), </if>");
+        assertThat(sql).contains("<if test=\"email != null\">email = VALUES(email), </if>");
     }
 
     // --- PostgreSQL ---
@@ -153,7 +153,7 @@ class DialectSqlTest {
     @Test
     void postgres_single_sql_dynamic_field() {
         String sql = new PostgresUpsertDialect().buildUpsertSql(dynamicMeta);
-        assertThat(sql).contains("<if test=\"et.email != null\">email, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">email, </if>");
         assertThat(sql).containsIgnoringCase("ON CONFLICT (username)");
     }
 
@@ -177,7 +177,7 @@ class DialectSqlTest {
         // email 必须在四个位置使用相同的 <if> 条件包裹：
         // src 子查询列、INSERT 列名、INSERT 值、UPDATE SET。
         // 否则列数量不匹配会导致生成非法 SQL。
-        long ifCount = sql.split("<if test=\"et\\.email != null\">", -1).length - 1;
+        long ifCount = sql.split("<if test=\"email != null\">", -1).length - 1;
         assertThat(ifCount).isEqualTo(4); // src 列、INSERT 列名、INSERT 值、UPDATE SET
     }
 
@@ -199,7 +199,7 @@ class DialectSqlTest {
         String sql = new SqlServerUpsertDialect().buildUpsertSql(dynamicMeta);
         // 单行场景使用基于 SELECT 的 src（而非 VALUES(...) AS src(cols)）以支持动态列
         assertThat(sql).containsIgnoringCase("USING (SELECT");
-        assertThat(sql).contains("<if test=\"et.email != null\">");
+        assertThat(sql).contains("<if test=\"email != null\">");
     }
 
     // --- H2 ---
@@ -209,14 +209,14 @@ class DialectSqlTest {
         String sql = new H2UpsertDialect().buildUpsertSql(staticMeta);
         assertThat(sql).containsIgnoringCase("MERGE INTO t_user");
         assertThat(sql).containsIgnoringCase("KEY(username)");
-        assertThat(sql).contains("#{et.email}");
+        assertThat(sql).contains("#{email}");
     }
 
     @Test
     void h2_single_sql_dynamic_field() {
         String sql = new H2UpsertDialect().buildUpsertSql(dynamicMeta);
-        assertThat(sql).contains("<if test=\"et.email != null\">email, </if>");
-        assertThat(sql).contains("<if test=\"et.email != null\">#{et.email}, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">email, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">#{email}, </if>");
     }
 
     // --- checkEmpty（NOT_EMPTY 策略） ---
@@ -238,7 +238,7 @@ class DialectSqlTest {
                 .fieldToColumnMap(map)
                 .build();
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(meta);
-        assertThat(sql).contains("et.name != null and et.name != ''");
+        assertThat(sql).contains("name != null and name != ''");
     }
 
     // --- 多列冲突键处理 ---
@@ -314,7 +314,7 @@ class DialectSqlTest {
 
     /**
      * memo 为只更新不插入的字段（paramRef=true）：INSERT 列不含 memo，
-     * UPDATE SET 不能用行引用（new./EXCLUDED./src./VALUES()），必须用 #{param.memo}。
+     * UPDATE SET 不能用行引用（new./EXCLUDED./src./VALUES()），必须用 #{memo}。
      */
     private UpsertMeta paramRefMeta() {
         Map<String, String> map = new HashMap<>();
@@ -341,15 +341,15 @@ class DialectSqlTest {
     void update_only_field_falls_back_to_param_reference_in_single_sql() {
         UpsertMeta meta = paramRefMeta();
         assertThat(new MysqlLegacyUpsertDialect().buildUpsertSql(meta))
-                .contains("memo = #{et.memo}").doesNotContain("memo = VALUES(");
+                .contains("memo = #{memo}").doesNotContain("memo = VALUES(");
         assertThat(new MysqlUpsertDialect().buildUpsertSql(meta))
-                .contains("memo = #{et.memo}").doesNotContain("memo = new.memo");
+                .contains("memo = #{memo}").doesNotContain("memo = new.memo");
         assertThat(new PostgresUpsertDialect().buildUpsertSql(meta))
-                .contains("memo = #{et.memo}").doesNotContain("memo = EXCLUDED.memo");
+                .contains("memo = #{memo}").doesNotContain("memo = EXCLUDED.memo");
         assertThat(new OracleUpsertDialect().buildUpsertSql(meta))
-                .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
+                .contains("memo = #{memo}").doesNotContain("memo = src.memo");
         assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
-                .contains("memo = #{et.memo}").doesNotContain("memo = src.memo");
+                .contains("memo = #{memo}").doesNotContain("memo = src.memo");
     }
 
     // --- 空 UPDATE SET 兜底：全部更新字段均为动态字段时追加自赋值 ---
@@ -405,14 +405,14 @@ class DialectSqlTest {
     void all_dynamic_update_fields_get_self_assignment_fallback_per_dialect() {
         UpsertMeta meta = allDynamicUpdateMeta();
         // 兜底由反向条件包裹：仅当 email 与 age 运行时都被过滤（SET 将为空）才渲染
-        String fallbackCond = "<if test=\"et.email == null and et.age == null\">";
+        String fallbackCond = "<if test=\"email == null and age == null\">";
         // MySQL 两种语法：非限定列名自赋值
         assertThat(new MysqlLegacyUpsertDialect().buildUpsertSql(meta))
-                .contains("<if test=\"et.email != null\">email = VALUES(email), </if>")
-                .contains("<if test=\"et.age != null\">age = VALUES(age), </if>")
+                .contains("<if test=\"email != null\">email = VALUES(email), </if>")
+                .contains("<if test=\"age != null\">age = VALUES(age), </if>")
                 .contains(fallbackCond + "email = email, </if>");
         assertThat(new MysqlUpsertDialect().buildUpsertSql(meta))
-                .contains("<if test=\"et.email != null\">email = new.email, </if>")
+                .contains("<if test=\"email != null\">email = new.email, </if>")
                 .contains(fallbackCond + "email = email, </if>")
                 .doesNotContain("new.email = new.email");
         // PostgreSQL：以目标表名限定，且 schema 前缀被剥离
@@ -421,18 +421,18 @@ class DialectSqlTest {
                 .doesNotContain("public.t_user_all_dyn.email");
         // Oracle / SQL Server：以目标别名 t 限定（兜底列非 ON 条件列，规避 ORA-38104）
         assertThat(new OracleUpsertDialect().buildUpsertSql(meta))
-                .contains("<if test=\"et.email != null\">email = src.email, </if>")
+                .contains("<if test=\"email != null\">email = src.email, </if>")
                 .contains(fallbackCond + "email = t.email, </if>");
         assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
-                .contains("<if test=\"et.email != null\">email = src.email, </if>")
+                .contains("<if test=\"email != null\">email = src.email, </if>")
                 .contains(fallbackCond + "email = t.email, </if>");
     }
 
     @Test
     void fallback_appended_for_single_dynamic_update_field() {
         String sql = new MysqlLegacyUpsertDialect().buildUpsertSql(singleDynamicUpdateMeta());
-        assertThat(sql).contains("<if test=\"et.email != null\">email = VALUES(email), </if>")
-                .contains("<if test=\"et.email == null\">email = email, </if>");
+        assertThat(sql).contains("<if test=\"email != null\">email = VALUES(email), </if>")
+                .contains("<if test=\"email == null\">email = email, </if>");
     }
 
     @Test
@@ -454,8 +454,8 @@ class DialectSqlTest {
                 .fieldToColumnMap(meta.getFieldToColumnMap())
                 .build();
         assertThat(new MysqlLegacyUpsertDialect().buildUpsertSql(withNotEmpty))
-                .contains("<if test=\"et.email == null and et.age == null"
-                        + " and (et.nickname == null or et.nickname == '')\">email = email, </if>");
+                .contains("<if test=\"email == null and age == null"
+                        + " and (nickname == null or nickname == '')\">email = email, </if>");
     }
 
     @Test
@@ -503,9 +503,7 @@ class DialectSqlTest {
         Configuration configuration = new Configuration();
         SqlSource sqlSource = new XMLLanguageDriver()
                 .createSqlSource(configuration, "<script>" + script + "</script>", UserEntity.class);
-        Map<String, Object> param = new HashMap<>();
-        param.put("et", entity);
-        return sqlSource.getBoundSql(param).getSql().replaceAll("\\s+", " ").trim();
+        return sqlSource.getBoundSql(entity).getSql().replaceAll("\\s+", " ").trim();
     }
 
     @Test

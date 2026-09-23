@@ -22,8 +22,6 @@ import org.apache.ibatis.mapping.SqlCommandType;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -32,8 +30,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>核心回归点：序列主键必须原样复用 MyBatis-Plus 的
  * {@link TableInfoHelper#genKeyGenerator}，也就是由 MP 注册
- * {@code <语句名>!selectKey} 语句并返回 {@link SelectKeyGenerator}；本库只在外面
- * 套一层 {@link SequenceKeyGeneratorDecorator} 负责把号写回实体，取号本身不经本库。
+ * {@code <语句名>!selectKey} 语句并返回 {@link SelectKeyGenerator}；取号与写回
+ * 全部由 MP 的既有机制完成，本库不参与。
  * 因此断言全部落在
  * <ul>
  *   <li>MP 注册的 SelectKey 语句本身（其 SQL 来自用户注册的 {@link IKeyGenerator}）</li>
@@ -42,8 +40,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </ul>
  * 三项上。本库不得自行拼序列 SQL 或引入第二套主键协议。
  *
- * <p>注入器只产出 {@code upsert} 与 {@code upsertExecutor} 两条单行语句，各注册一条
- * SelectKey 语句；{@code upsert(Collection)} 走后者逐条取号。
+ * <p>注入器只产出 {@code upsert} 一条单行语句，注册一条 SelectKey 语句；
+ * {@code upsert(Collection)} 复用同一条语句逐条取号。
  */
 class UpsertKeySequenceInjectionTest {
 
@@ -85,21 +83,14 @@ class UpsertKeySequenceInjectionTest {
         return mapperClass.getName() + "." + method + SelectKeyGenerator.SELECT_KEY_SUFFIX;
     }
 
-    private Map<String, Object> parameter(KeySequenceEntity entity) {
-        Map<String, Object> parameter = new HashMap<>();
-        parameter.put("et", entity);
-        parameter.put("param1", entity);
-        return parameter;
-    }
-
     @Test
     void sequence_id_single_upsert_reuses_mp_select_key_generator() {
         MybatisConfiguration configuration = configurationWith(new StubKeyGenerator());
 
         MappedStatement ms = inject(configuration, KeySequenceUserMapper.class, new PostgresUpsertDialect());
 
-        // 取号仍由 MP 注册的 !selectKey 语句负责，本库只套一层写回实体的装饰器
-        assertThat(ms.getKeyGenerator()).isInstanceOf(SequenceKeyGeneratorDecorator.class);
+        // 取号与写回都由 MP 注册的 SelectKeyGenerator 负责
+        assertThat(ms.getKeyGenerator()).isInstanceOf(SelectKeyGenerator.class);
         assertThat(ms.getKeyProperties()).containsExactly("id");
         assertThat(ms.getKeyColumns()).containsExactly("id");
         assertThat(configuration.hasStatement(selectKeyId(KeySequenceUserMapper.class, "upsert"), false)).isTrue();
@@ -119,11 +110,9 @@ class UpsertKeySequenceInjectionTest {
         assertThat(selectKey.getResultMaps()).hasSize(1);
         assertThat(selectKey.getResultMaps().get(0).getType()).isEqualTo(Long.class);
 
-        // upsert(Collection) 逐条提交用同一机制，各得一条 SelectKey 语句
-        assertThat(statement(configuration, KeySequenceUserMapper.class.getName(), "upsertExecutor")
-                .getKeyGenerator()).isInstanceOf(SequenceKeyGeneratorDecorator.class);
-        assertThat(configuration.hasStatement(selectKeyId(KeySequenceUserMapper.class, "upsertExecutor"), false))
-                .isTrue();
+        // upsert(Collection) 逐条提交复用同一条 upsert 语句；不再有独立的 upsertExecutor statement
+        assertThat(configuration.hasStatement(
+                KeySequenceUserMapper.class.getName() + ".upsertExecutor", false)).isFalse();
     }
 
     @Test
@@ -133,7 +122,7 @@ class UpsertKeySequenceInjectionTest {
         MappedStatement ms = inject(configuration, KeySequenceUserMapper.class, new PostgresUpsertDialect());
 
         KeySequenceEntity entity = KeySequenceEntity.builder().id(77L).username("u").email("u@example.com").build();
-        String sql = ms.getBoundSql(parameter(entity)).getSql().replaceAll("\\s+", " ");
+        String sql = ms.getBoundSql(entity).getSql().replaceAll("\\s+", " ");
 
         assertThat(sql).contains("id");
         assertThat(sql).containsIgnoringCase("INSERT INTO t_key_seq_user ( id, username, email )");
@@ -180,7 +169,7 @@ class UpsertKeySequenceInjectionTest {
             MappedStatement ms = inject(configuration, KeySequenceUserMapper.class, dialect);
             assertThat(ms.getKeyGenerator())
                     .as("dialect %s single upsert", dialect.getClass().getSimpleName())
-                    .isInstanceOf(SequenceKeyGeneratorDecorator.class);
+                    .isInstanceOf(SelectKeyGenerator.class);
             assertThat(configuration.hasStatement(selectKeyId(KeySequenceUserMapper.class, "upsert"), false))
                     .as("dialect %s select key statement", dialect.getClass().getSimpleName())
                     .isTrue();

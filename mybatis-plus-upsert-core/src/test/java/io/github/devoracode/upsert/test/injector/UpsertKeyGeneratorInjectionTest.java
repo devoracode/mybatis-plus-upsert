@@ -15,8 +15,7 @@ import org.apache.ibatis.mapping.MappedStatement;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -25,9 +24,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>验证与 MyBatis-Plus 原生 {@code Insert} 一致的 KeyGenerator 选择：
  * <ul>
- *   <li>IdType.AUTO + 单行路径（upsert / upsertExecutor）→ Jdbc3KeyGenerator + keyProperty/keyColumn；</li>
- *   <li>注入器只产出这两条单行语句，批量写入复用 {@code upsertExecutor}，不存在多行语句；</li>
- *   <li>IdType.INPUT 或无主键实体 → 所有路径均 NoKeyGenerator；</li>
+ *   <li>IdType.AUTO → Jdbc3KeyGenerator + keyProperty/keyColumn；</li>
+ *   <li>注入器只产出一条单行语句，批量写入复用同一条语句，不存在多行语句；</li>
+ *   <li>IdType.INPUT 或无主键实体 → NoKeyGenerator；</li>
  *   <li>上述选择对方言一致（MySQL / PostgreSQL / Oracle / SQL Server / H2 均相同）。</li>
  * </ul>
  */
@@ -70,31 +69,21 @@ class UpsertKeyGeneratorInjectionTest {
     }
 
     @Test
-    void auto_id_executor_method_uses_jdbc3_key_generator() {
-        // upsert(Collection) 经该语句在 BATCH 执行器下逐条提交单行 SQL，回填配置与单条一致
-        MappedStatement ms = statement(AutoIdUserMapper.class, "upsertExecutor");
-        assertThat(ms).isNotNull();
-        assertThat(ms.getKeyGenerator()).isInstanceOf(Jdbc3KeyGenerator.class);
-        assertThat(ms.getKeyProperties()).containsExactly("id");
-        assertThat(ms.getKeyColumns()).containsExactly("id");
-    }
-
-    @Test
     void only_single_row_statements_are_injected() {
-        // 批量写入复用 upsertExecutor 的单行语句，不再注入多行 upsertBatch 语句
+        // 批量写入复用单行的 upsert 语句，不再注入独立的 upsertExecutor 或多行 upsertBatch 语句
         for (String method : UpsertMethodNames.ALL) {
             assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + "." + method, false))
                     .as("injected statement %s", method).isTrue();
         }
+        assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + ".upsertExecutor", false))
+                .isFalse();
         assertThat(configuration.hasStatement(AutoIdUserMapper.class.getName() + ".upsertBatch", false))
                 .isFalse();
     }
 
     @Test
-    void input_id_all_paths_use_no_key_generator() {
+    void input_id_uses_no_key_generator() {
         assertThat(statement(InputIdUserMapper.class, "upsert").getKeyGenerator())
-                .isInstanceOf(NoKeyGenerator.class);
-        assertThat(statement(InputIdUserMapper.class, "upsertExecutor").getKeyGenerator())
                 .isInstanceOf(NoKeyGenerator.class);
     }
 
@@ -108,7 +97,7 @@ class UpsertKeyGeneratorInjectionTest {
     }
 
     /*
-     * 取键机制与方言无关（跟随 MP 原生 insert），因此各受支持数据库的两条单行语句
+     * 取键机制与方言无关（跟随 MP 原生 insert），因此各受支持数据库的单行语句
      * 都应配置 Jdbc3KeyGenerator。
      */
     @Test
@@ -140,10 +129,8 @@ class UpsertKeyGeneratorInjectionTest {
     void auto_id_single_insert_columns_exclude_id() {
         // AUTO 主键不进入 INSERT 列（由数据库生成），这是 generated keys 回填的前提
         AutoIdEntity entity = AutoIdEntity.builder().username("u1").email("u1@example.com").build();
-        Map<String, Object> parameter = new HashMap<>();
-        parameter.put("et", entity);
         String sql = statement(AutoIdUserMapper.class, "upsert")
-                .getBoundSql(parameter).getSql().replaceAll("\\s+", " ");
+                .getBoundSql(entity).getSql().replaceAll("\\s+", " ");
         assertThat(sql).startsWith("INSERT INTO t_auto_user ( username, email )");
         assertThat(sql).endsWith("ON DUPLICATE KEY UPDATE email = new.email");
     }
