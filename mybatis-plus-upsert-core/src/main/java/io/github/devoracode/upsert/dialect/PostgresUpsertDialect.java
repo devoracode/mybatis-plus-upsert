@@ -18,11 +18,11 @@ public class PostgresUpsertDialect implements UpsertDialect {
         sb.append("INSERT INTO ").append(meta.getTableName()).append(' ');
         sb.append(DynamicSqlBuilder.insertColumnsTrim(meta.getInsertFieldMetas()));
         sb.append(" VALUES ");
-        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas(), "et"));
+        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas()));
         sb.append(" ON CONFLICT (");
         DynamicSqlBuilder.appendJoin(sb, meta.getConflictColumns());
         sb.append(") DO UPDATE SET ");
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "EXCLUDED.", "",
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "EXCLUDED.", "",
                 targetQualifier(meta.getTableName())));
         return sb.toString();
     }

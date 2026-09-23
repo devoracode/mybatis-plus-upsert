@@ -45,8 +45,8 @@ final class MergeUpsertSqlBuilder {
                 .append(" USING (SELECT ");
         // 动态字段各自包在 <if> 里，末尾逗号由 <trim suffixOverrides> 去掉
         sb.append("<trim suffixOverrides=\",\">");
-        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas, "et",
-                fm -> "#{et." + fm.getProperty() + "} AS " + fm.getColumn() + ", ");
+        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas,
+                fm -> "#{" + fm.getProperty() + "} AS " + fm.getColumn() + ", ");
         sb.append("</trim>");
         sb.append(usingClose);
         for (int i = 0; i < confCols.size(); i++) {
@@ -57,15 +57,15 @@ final class MergeUpsertSqlBuilder {
         sb.append(") WHEN MATCHED THEN UPDATE SET ");
         // 引用 src.*，与 USING 子查询用同一组 <if> 条件保持同步；
         // 兜底自赋值引用目标别名 t——首个更新列必不在 ON 条件里，不触发 ORA-38104
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "src.", "", "t."));
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "src.", "", "t."));
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
         // 列名与值都按同一组 <if> 条件裁剪，两者始终一一对应
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");
-        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas, "et", fm -> fm.getColumn() + ", ");
+        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas, fm -> fm.getColumn() + ", ");
         sb.append("</trim>");
         sb.append(" VALUES ");
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");
-        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas, "et", fm -> "src." + fm.getColumn() + ", ");
+        DynamicSqlBuilder.appendIfWrapped(sb, insertMetas, fm -> "src." + fm.getColumn() + ", ");
         sb.append("</trim>");
         sb.append(statementSuffix);
         return sb.toString();

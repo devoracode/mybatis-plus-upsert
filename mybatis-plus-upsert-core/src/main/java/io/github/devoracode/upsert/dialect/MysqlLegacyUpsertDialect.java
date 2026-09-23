@@ -18,10 +18,10 @@ public class MysqlLegacyUpsertDialect implements UpsertDialect {
         sb.append("INSERT INTO ").append(meta.getTableName()).append(' ');
         sb.append(DynamicSqlBuilder.insertColumnsTrim(meta.getInsertFieldMetas()));
         sb.append(" VALUES ");
-        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas(), "et"));
+        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas()));
         sb.append(" ON DUPLICATE KEY UPDATE ");
         // 兜底自赋值用非限定列名（targetRefPrefix 为空串）：引用目标行当前值
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "et", "VALUES(", ")", ""));
+        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "VALUES(", ")", ""));
         return sb.toString();
     }
 }

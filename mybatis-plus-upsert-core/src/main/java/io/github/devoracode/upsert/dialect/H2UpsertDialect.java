@@ -21,7 +21,7 @@ public class H2UpsertDialect implements UpsertDialect {
         sb.append(" KEY(");
         DynamicSqlBuilder.appendJoin(sb, meta.getConflictColumns());
         sb.append(") VALUES ");
-        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas(), "et"));
+        sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas()));
         return sb.toString();
     }
 }

@@ -66,10 +66,8 @@ abstract class AbstractUpsertMethod extends AbstractMethod {
                 keyProperty = tableInfo.getKeyProperty();
                 keyColumn = SqlInjectionUtils.removeEscapeCharacter(tableInfo.getKeyColumn());
             } else if (null != tableInfo.getKeySequence()) {
-                /* 序列主键：取号仍由 MP 完成，只补一步把号写回 @Param("et") 包裹的实体 */
-                keyGenerator = new SequenceKeyGeneratorDecorator(
-                        TableInfoHelper.genKeyGenerator(methodName, tableInfo, builderAssistant),
-                        configuration, tableInfo.getKeyProperty());
+                // 序列主键：取号与写回都由 MP 的 selectKey 机制完成，与原生 Insert 一致
+                keyGenerator = TableInfoHelper.genKeyGenerator(methodName, tableInfo, builderAssistant);
                 keyProperty = tableInfo.getKeyProperty();
                 keyColumn = tableInfo.getKeyColumn();
             }

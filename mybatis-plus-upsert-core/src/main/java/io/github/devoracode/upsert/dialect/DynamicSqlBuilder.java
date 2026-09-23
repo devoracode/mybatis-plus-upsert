@@ -19,16 +19,16 @@ final class DynamicSqlBuilder {
     static String insertColumnsTrim(List<FieldMeta> insertFieldMetas) {
         StringBuilder sb = new StringBuilder(insertFieldMetas.size() * 24 + 32);
         sb.append("(<trim suffixOverrides=\",\">");
-        appendIfWrapped(sb, insertFieldMetas, "et", fm -> fm.getColumn() + ", ");
+        appendIfWrapped(sb, insertFieldMetas, fm -> fm.getColumn() + ", ");
         sb.append("</trim>)");
         return sb.toString();
     }
 
-    static String insertValuesTrim(List<FieldMeta> insertFieldMetas, String paramPrefix) {
+    static String insertValuesTrim(List<FieldMeta> insertFieldMetas) {
         StringBuilder sb = new StringBuilder(insertFieldMetas.size() * 24 + 32);
         sb.append("(<trim suffixOverrides=\",\">");
-        appendIfWrapped(sb, insertFieldMetas, paramPrefix,
-                fm -> "#{" + paramPrefix + "." + fm.getProperty() + "}, ");
+        appendIfWrapped(sb, insertFieldMetas,
+                fm -> "#{" + fm.getProperty() + "}, ");
         sb.append("</trim>)");
         return sb.toString();
     }
@@ -40,17 +40,17 @@ final class DynamicSqlBuilder {
      * @param valueSuffix     赋值表达式中列名后的固定后缀
      * @param targetRefPrefix 空 SET 兜底自赋值中引用目标行的列前缀
      */
-    static String updateSetTrim(List<FieldMeta> updateFieldMetas, String paramPrefix,
+    static String updateSetTrim(List<FieldMeta> updateFieldMetas,
                                 String valuePrefix, String valueSuffix, String targetRefPrefix) {
         StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 64);
         sb.append("<trim suffixOverrides=\",\">");
-        appendIfWrapped(sb, updateFieldMetas, paramPrefix, fm -> {
+        appendIfWrapped(sb, updateFieldMetas, fm -> {
             String value = fm.isParamRef()
-                    ? "#{" + paramPrefix + "." + fm.getProperty() + "}"
+                    ? "#{" + fm.getProperty() + "}"
                     : valuePrefix + fm.getColumn() + valueSuffix;
             return fm.getColumn() + " = " + value + ", ";
         });
-        appendEmptySetFallback(sb, updateFieldMetas, paramPrefix, targetRefPrefix);
+        appendEmptySetFallback(sb, updateFieldMetas, targetRefPrefix);
         sb.append("</trim>");
         return sb.toString();
     }
@@ -59,7 +59,7 @@ final class DynamicSqlBuilder {
      * 全部更新列都被跳过时向 SET 追加一条兜底自赋值，避免 SET 渲染为空；不能无条件渲染。
      */
     private static void appendEmptySetFallback(StringBuilder sb, List<FieldMeta> updateFieldMetas,
-                                               String paramPrefix, String targetRefPrefix) {
+                                               String targetRefPrefix) {
         if (updateFieldMetas.isEmpty()) {
             return;
         }
@@ -71,7 +71,7 @@ final class DynamicSqlBuilder {
             if (allOmitted.length() > 0) {
                 allOmitted.append(" and ");
             }
-            String ref = paramPrefix + "." + fm.getProperty();
+            String ref = fm.getProperty();
             if (fm.isCheckEmpty()) {
                 allOmitted.append('(').append(ref).append(" == null or ").append(ref).append(" == '')");
             } else {
@@ -83,8 +83,8 @@ final class DynamicSqlBuilder {
                 .append(column).append(" = ").append(targetRefPrefix).append(column).append(", </if>");
     }
 
-    static String ifTestExpr(String paramPrefix, FieldMeta fm) {
-        String ref = paramPrefix + "." + fm.getProperty();
+    static String ifTestExpr(FieldMeta fm) {
+        String ref = fm.getProperty();
         if (fm.isCheckEmpty()) {
             return ref + " != null and " + ref + " != ''";
         }
@@ -95,12 +95,12 @@ final class DynamicSqlBuilder {
      * 逐个渲染 {@code expr(fm)} 生成的 SQL 片段：非动态直接拼接，动态字段包在 {@code <if test="...">} 里。
      * 片段自带尾逗号时由外层 {@code <trim suffixOverrides>} 去掉。
      */
-    static void appendIfWrapped(StringBuilder sb, List<FieldMeta> fieldMetas, String paramPrefix,
+    static void appendIfWrapped(StringBuilder sb, List<FieldMeta> fieldMetas,
                                 Function<FieldMeta, String> expr) {
         for (FieldMeta fm : fieldMetas) {
             String piece = expr.apply(fm);
             if (fm.isDynamic()) {
-                sb.append("<if test=\"").append(ifTestExpr(paramPrefix, fm)).append("\">")
+                sb.append("<if test=\"").append(ifTestExpr(fm)).append("\">")
                         .append(piece).append("</if>");
             } else {
                 sb.append(piece);

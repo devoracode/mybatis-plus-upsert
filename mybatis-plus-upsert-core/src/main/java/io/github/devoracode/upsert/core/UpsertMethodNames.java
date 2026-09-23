@@ -2,9 +2,7 @@ package io.github.devoracode.upsert.core;
 
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 
-import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -16,15 +14,11 @@ import java.util.Set;
  */
 public final class UpsertMethodNames {
 
-    /** 对外暴露的单行 Upsert 语句名。 */
+    /** 单行 Upsert 语句名。 */
     public static final String UPSERT = "upsert";
 
-    /** 内部单行语句名，不对外暴露为 Mapper 方法，供 {@code upsert(Collection)} 逐条复用。 */
-    public static final String UPSERT_EXECUTOR = "upsertExecutor";
-
     /** 全部注入语句名。 */
-    public static final Set<String> ALL = Collections.unmodifiableSet(
-            new HashSet<>(Arrays.asList(UPSERT, UPSERT_EXECUTOR)));
+    public static final Set<String> ALL = Collections.singleton(UPSERT);
 
     private UpsertMethodNames() {
     }

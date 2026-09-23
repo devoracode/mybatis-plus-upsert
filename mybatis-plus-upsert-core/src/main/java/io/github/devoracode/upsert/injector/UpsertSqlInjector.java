@@ -10,8 +10,8 @@ import org.apache.ibatis.session.Configuration;
 import java.util.List;
 
 /**
- * 在 MyBatis-Plus {@link DefaultSqlInjector} 的基础上追加 {@link UpsertMethod} 与
- * {@link UpsertExecutorMethod} 两条注入语句的 SQL 注入器。
+ * 在 MyBatis-Plus {@link DefaultSqlInjector} 的基础上追加 {@link UpsertMethod}
+ * 注入语句的 SQL 注入器。
  *
  * @author devoracode
  * @since 1.0.0
@@ -43,7 +43,6 @@ public class UpsertSqlInjector extends DefaultSqlInjector {
     public List<AbstractMethod> getMethodList(Configuration configuration, Class<?> mapperClass, TableInfo tableInfo) {
         List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
         methods.add(new UpsertMethod(dialect, fillStrategy));
-        methods.add(new UpsertExecutorMethod(dialect, fillStrategy));
         return methods;
     }
 }

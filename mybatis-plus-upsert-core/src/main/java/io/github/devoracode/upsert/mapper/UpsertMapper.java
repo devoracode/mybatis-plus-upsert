@@ -6,12 +6,9 @@ import com.baomidou.mybatisplus.core.override.MybatisMapperProxy;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.core.toolkit.MybatisBatchUtils;
 import com.baomidou.mybatisplus.core.toolkit.MybatisUtils;
+import io.github.devoracode.upsert.core.UpsertMethodNames;
 import io.github.devoracode.upsert.exception.UpsertException;
-import io.github.devoracode.upsert.injector.UpsertExecutorMethod;
-import org.apache.ibatis.annotations.Param;
-import org.apache.ibatis.binding.MapperMethod.ParamMap;
 import org.apache.ibatis.executor.BatchResult;
-import org.apache.ibatis.reflection.ParamNameResolver;
 import org.apache.ibatis.session.SqlSessionFactory;
 
 import java.util.Collection;
@@ -37,7 +34,7 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
      * @param entity 待 upsert 的实体，为 null 时抛 {@link UpsertException}
      * @return 受影响行数（MySQL 下 1=插入、2=更新、0=值未变化，其他数据库不区分插入与更新）
      */
-    int upsert(@Param("et") T entity);
+    int upsert(T entity);
 
     /**
      * 用 MyBatis-Plus 的默认批次大小逐条 upsert 实体集合，等价于 {@code upsert(entityList, DEFAULT_BATCH_SIZE)}。
@@ -64,13 +61,6 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
         SqlSessionFactory sqlSessionFactory = MybatisUtils.getSqlSessionFactory(mybatisMapperProxy);
         MybatisBatch.Method<T> method = new MybatisBatch.Method<>(mybatisMapperProxy.getMapperInterface());
         return MybatisBatchUtils.execute(sqlSessionFactory, entityList,
-                method.get(UpsertExecutorMethod.METHOD_NAME, entity -> {
-                    // 必须用 ParamMap 而非普通 HashMap：Jdbc3KeyGenerator 只对 ParamMap 识别
-                    // “带 @Param 的单参数”，从而把生成主键写回实体本身而不是 map 的键
-                    ParamMap<T> parameter = new ParamMap<>();
-                    parameter.put(Constants.ENTITY, entity);
-                    parameter.put(ParamNameResolver.GENERIC_NAME_PREFIX + 1, entity);
-                    return parameter;
-                }), batchSize);
+                method.get(UpsertMethodNames.UPSERT, entity -> entity), batchSize);
     }
 }
