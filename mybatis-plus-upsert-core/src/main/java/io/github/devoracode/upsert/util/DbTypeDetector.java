@@ -42,13 +42,25 @@ public class DbTypeDetector {
             return DbType.UNKNOWN;
         }
         String upper = dbType.toUpperCase();
-        if (upper.contains("MYSQL") || upper.contains("MARIADB")) return DbType.MYSQL;
-        if (upper.contains("POSTGRESQL") || upper.contains("POSTGRES")) return DbType.POSTGRESQL;
-        if (upper.contains("ORACLE"))                              return DbType.ORACLE;
+        if (upper.contains("MYSQL") || upper.contains("MARIADB")) {
+            return DbType.MYSQL;
+        }
+        if (upper.contains("POSTGRESQL") || upper.contains("POSTGRES")) {
+            return DbType.POSTGRESQL;
+        }
+        if (upper.contains("ORACLE")) {
+            return DbType.ORACLE;
+        }
         if (upper.contains("SQLSERVER") || upper.contains("SQL SERVER") || upper.contains("SQL-SERVER")
-                || upper.contains("MICROSOFT"))                   return DbType.SQLSERVER;
-        if (upper.contains("H2"))                                  return DbType.H2;
-        if (upper.contains("CUSTOM"))                              return DbType.CUSTOM;
+                || upper.contains("MICROSOFT")) {
+            return DbType.SQLSERVER;
+        }
+        if (upper.contains("H2")) {
+            return DbType.H2;
+        }
+        if (upper.contains("CUSTOM")) {
+            return DbType.CUSTOM;
+        }
         return DbType.UNKNOWN;
     }
 

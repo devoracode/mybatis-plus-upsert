@@ -29,20 +29,13 @@ final class ParameterGuardSqlSource implements SqlSource {
     }
 
     private void requireEntity(Object parameterObject) {
+        // getOrDefault 而非 get：ParamMap 对缺失键抛 BindingException，须转成 UpsertException
         Object entity = parameterObject instanceof Map
-                ? valueOfMap(parameterObject, Constants.ENTITY)
+                ? ((Map<?, ?>) parameterObject).getOrDefault(Constants.ENTITY, null)
                 : parameterObject;
         if (entity == null) {
             throw new UpsertException("Upsert entity must not be null: a null entity binds every column to NULL "
                     + "instead of failing fast. Pass the entity you want to insert or update.");
         }
-    }
-
-    private static Object valueOfMap(Object parameterObject, String key) {
-        if (!(parameterObject instanceof Map)) {
-            return null;
-        }
-        Map<?, ?> map = (Map<?, ?>) parameterObject;
-        return map.getOrDefault(key, null);
     }
 }

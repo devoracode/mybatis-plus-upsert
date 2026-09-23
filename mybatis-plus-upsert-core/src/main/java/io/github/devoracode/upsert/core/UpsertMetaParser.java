@@ -10,7 +10,15 @@ import io.github.devoracode.upsert.annotation.UpdateColumn;
 import io.github.devoracode.upsert.exception.UpsertMetaException;
 
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * 把 MyBatis-Plus {@link TableInfo} 解析为 {@link UpsertMeta} 的无状态解析器。

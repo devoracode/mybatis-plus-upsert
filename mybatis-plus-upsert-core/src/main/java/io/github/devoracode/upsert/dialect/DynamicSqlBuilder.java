@@ -3,6 +3,7 @@ package io.github.devoracode.upsert.dialect;
 import io.github.devoracode.upsert.core.FieldMeta;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 各方言共用的动态 SQL 片段构建器（包私有、无状态）。
@@ -18,14 +19,7 @@ final class DynamicSqlBuilder {
     static String insertColumnsTrim(List<FieldMeta> insertFieldMetas) {
         StringBuilder sb = new StringBuilder(insertFieldMetas.size() * 24 + 32);
         sb.append("(<trim suffixOverrides=\",\">");
-        for (FieldMeta fm : insertFieldMetas) {
-            if (fm.isDynamic()) {
-                sb.append("<if test=\"").append(ifTestExpr("et", fm)).append("\">")
-                        .append(fm.getColumn()).append(", </if>");
-            } else {
-                sb.append(fm.getColumn()).append(", ");
-            }
-        }
+        appendIfWrapped(sb, insertFieldMetas, "et", fm -> fm.getColumn() + ", ");
         sb.append("</trim>)");
         return sb.toString();
     }
@@ -33,15 +27,8 @@ final class DynamicSqlBuilder {
     static String insertValuesTrim(List<FieldMeta> insertFieldMetas, String paramPrefix) {
         StringBuilder sb = new StringBuilder(insertFieldMetas.size() * 24 + 32);
         sb.append("(<trim suffixOverrides=\",\">");
-        for (FieldMeta fm : insertFieldMetas) {
-            String valueExpr = "#{" + paramPrefix + "." + fm.getProperty() + "}";
-            if (fm.isDynamic()) {
-                sb.append("<if test=\"").append(ifTestExpr(paramPrefix, fm)).append("\">")
-                        .append(valueExpr).append(", </if>");
-            } else {
-                sb.append(valueExpr).append(", ");
-            }
-        }
+        appendIfWrapped(sb, insertFieldMetas, paramPrefix,
+                fm -> "#{" + paramPrefix + "." + fm.getProperty() + "}, ");
         sb.append("</trim>)");
         return sb.toString();
     }
@@ -57,18 +44,12 @@ final class DynamicSqlBuilder {
                                 String valuePrefix, String valueSuffix, String targetRefPrefix) {
         StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 64);
         sb.append("<trim suffixOverrides=\",\">");
-        for (FieldMeta fm : updateFieldMetas) {
+        appendIfWrapped(sb, updateFieldMetas, paramPrefix, fm -> {
             String value = fm.isParamRef()
                     ? "#{" + paramPrefix + "." + fm.getProperty() + "}"
                     : valuePrefix + fm.getColumn() + valueSuffix;
-            String assignment = fm.getColumn() + " = " + value + ", ";
-            if (fm.isDynamic()) {
-                sb.append("<if test=\"").append(ifTestExpr(paramPrefix, fm)).append("\">")
-                        .append(assignment).append("</if>");
-            } else {
-                sb.append(assignment);
-            }
-        }
+            return fm.getColumn() + " = " + value + ", ";
+        });
         appendEmptySetFallback(sb, updateFieldMetas, paramPrefix, targetRefPrefix);
         sb.append("</trim>");
         return sb.toString();
@@ -108,6 +89,23 @@ final class DynamicSqlBuilder {
             return ref + " != null and " + ref + " != ''";
         }
         return ref + " != null";
+    }
+
+    /**
+     * 逐个渲染 {@code expr(fm)} 生成的 SQL 片段：非动态直接拼接，动态字段包在 {@code <if test="...">} 里。
+     * 片段自带尾逗号时由外层 {@code <trim suffixOverrides>} 去掉。
+     */
+    static void appendIfWrapped(StringBuilder sb, List<FieldMeta> fieldMetas, String paramPrefix,
+                                Function<FieldMeta, String> expr) {
+        for (FieldMeta fm : fieldMetas) {
+            String piece = expr.apply(fm);
+            if (fm.isDynamic()) {
+                sb.append("<if test=\"").append(ifTestExpr(paramPrefix, fm)).append("\">")
+                        .append(piece).append("</if>");
+            } else {
+                sb.append(piece);
+            }
+        }
     }
 
     static void appendJoin(StringBuilder sb, List<String> items) {

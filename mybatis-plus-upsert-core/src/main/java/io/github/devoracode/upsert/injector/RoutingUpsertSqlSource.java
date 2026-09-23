@@ -24,7 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 final class RoutingUpsertSqlSource implements SqlSource {
 
     /**
-     * 缓存条目上限，防止方言实现每次新建实例导致缓存无限增长；达到上限后改为直接构建。
+     * 缓存条目上限，防止方言实现每次新建实例导致缓存无限增长；达到上限后整个缓存退化，
+     * 所有方言（含已缓存的）都改为直接构建、不再写入缓存。
      */
     private static final int MAX_CACHED_SQL_SOURCES = 64;
 

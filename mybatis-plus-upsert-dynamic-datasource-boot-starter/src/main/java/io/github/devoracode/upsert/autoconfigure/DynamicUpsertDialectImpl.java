@@ -43,10 +43,8 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
 
     @Override
     public UpsertDialect getCurrentDialect() {
-        String dataSourceName = DynamicDataSourceContextHolder.peek();
-        if(dataSourceName == null) {
-            dataSourceName = primary;
-        }
+        String peeked = DynamicDataSourceContextHolder.peek();
+        String dataSourceName = peeked != null ? peeked : primary;
         UpsertDialect dialect = dialectMap.get(dataSourceName);
         if (dialect == null) {
             throw new UpsertException("No upsert dialect configured for data source '" + dataSourceName + "'");

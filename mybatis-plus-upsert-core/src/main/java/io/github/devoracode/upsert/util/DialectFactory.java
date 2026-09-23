@@ -41,7 +41,7 @@ public final class DialectFactory {
         if (dbType == DbType.CUSTOM) {
             return null;
         }
-        String cacheKey = dbType + ":" + (dbType == DbType.MYSQL ? Boolean.toString(useNewMysqlSyntax) : "");
+        String cacheKey = dbType + (dbType == DbType.MYSQL ? ":" + useNewMysqlSyntax : "");
         return INSTANCES.computeIfAbsent(cacheKey,
                 k -> newInstance(dbType, useNewMysqlSyntax));
     }

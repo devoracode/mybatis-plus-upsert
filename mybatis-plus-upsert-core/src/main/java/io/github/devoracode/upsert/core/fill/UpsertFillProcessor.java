@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.config.GlobalConfig;
 import com.baomidou.mybatisplus.core.handlers.MetaObjectHandler;
 import com.baomidou.mybatisplus.core.metadata.TableInfo;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.baomidou.mybatisplus.core.toolkit.Constants;
 import com.baomidou.mybatisplus.core.toolkit.GlobalConfigUtils;
 import org.apache.ibatis.reflection.MetaObject;
 import org.apache.ibatis.session.Configuration;
@@ -62,7 +63,7 @@ public final class UpsertFillProcessor {
     private static List<Object> extractEntities(Object parameter) {
         if (parameter instanceof Map) {
             Map<?, ?> paramMap = (Map<?, ?>) parameter;
-            Object entity = paramMap.getOrDefault("et", null);
+            Object entity = paramMap.getOrDefault(Constants.ENTITY, null);
             return entity == null ? Collections.emptyList() : Collections.singletonList(entity);
         }
         return Collections.singletonList(parameter);

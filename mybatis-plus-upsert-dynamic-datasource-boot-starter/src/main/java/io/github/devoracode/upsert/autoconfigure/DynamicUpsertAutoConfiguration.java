@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -71,32 +72,10 @@ public class DynamicUpsertAutoConfiguration {
 
         for (Map.Entry<String, DataSourceProperty> entry : allDatasources.entrySet()) {
             String dsName = entry.getKey();
-            DataSourceProperty dsProp = entry.getValue();
-
             UpsertDynamicProperties.DataSourceConfig upsertConfig = upsertConfigs.get(dsName);
 
-            DbTypeDetector.DbType dbType;
-            if (upsertConfig != null && StringUtils.hasText(upsertConfig.getDbType())) {
-                dbType = DbTypeDetector.tryParseDbType(upsertConfig.getDbType());
-                if (dbType == DbTypeDetector.DbType.UNKNOWN) {
-                    throw new UpsertException("Unknown db-type '" + upsertConfig.getDbType() + "' for data source '" + dsName + "'");
-                }
-            } else {
-                String url = dsProp.getUrl();
-                dbType = DbTypeDetector.parseDbTypeByJdbcUrl(url);
-                if (dbType == DbTypeDetector.DbType.UNKNOWN) {
-                    throw new UpsertException("Cannot infer db-type from JDBC URL '" + url + "' for data source '" + dsName
-                            + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName);
-                }
-            }
-
-            boolean useNewMysqlSyntax = upsertDynamicProperties.isUseNewMysqlSyntax();
-            if (upsertConfig != null && upsertConfig.getUseNewMysqlSyntax() != null) {
-                // 只有显式声明该开关的数据源才覆盖全局，未声明（null）时继承全局值
-                useNewMysqlSyntax = upsertConfig.getUseNewMysqlSyntax();
-            }
-
-            UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType, useNewMysqlSyntax);
+            DbTypeDetector.DbType dbType = inferDbType(dsName, entry.getValue(), upsertConfig);
+            UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType, resolveUseNewMysqlSyntax(upsertConfig));
             dynamicDialect.addDialect(dsName, dialect);
             log.info("Registered upsert dialect {} for data source '{}'", dialect.getClass().getSimpleName(), dsName);
         }
@@ -107,16 +86,47 @@ public class DynamicUpsertAutoConfiguration {
             }
         }
 
-        if (dynamicDialect.getDialectMap().isEmpty()) {
-            throw new UpsertException("No valid upsert dialects were registered from datasource configurations");
-        }
         String primaryDs = dynamicDataSourceProperties.getPrimary();
         if (!dynamicDialect.getDialectMap().containsKey(primaryDs)) {
             throw new UpsertException("Primary data source '" + primaryDs
                     + "' is not configured for upsert. Available upsert data sources: " + dynamicDialect.getDialectMap().keySet());
         }
-        dynamicDialect.setPrimary(dynamicDataSourceProperties.getPrimary());
+        dynamicDialect.setPrimary(primaryDs);
         return dynamicDialect;
+    }
+
+    /**
+     * 推断单个数据源的数据库类型：显式配置的 {@code db-type} 优先，否则从 JDBC URL 推断。
+     *
+     * @param config 该数据源的 upsert 配置，可为 null
+     * @throws UpsertException 显式配置无法识别，或 JDBC URL 无法推断
+     */
+    private DbTypeDetector.DbType inferDbType(String dsName, DataSourceProperty dsProp,
+                                              UpsertDynamicProperties.DataSourceConfig config) {
+        if (config != null && StringUtils.hasText(config.getDbType())) {
+            DbTypeDetector.DbType dbType = DbTypeDetector.tryParseDbType(config.getDbType());
+            if (dbType == DbTypeDetector.DbType.UNKNOWN) {
+                throw new UpsertException("Unknown db-type '" + config.getDbType() + "' for data source '" + dsName + "'");
+            }
+            return dbType;
+        }
+        String url = dsProp.getUrl();
+        DbTypeDetector.DbType dbType = DbTypeDetector.parseDbTypeByJdbcUrl(url);
+        if (dbType == DbTypeDetector.DbType.UNKNOWN) {
+            throw new UpsertException("Cannot infer db-type from JDBC URL '" + url + "' for data source '" + dsName
+                    + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName);
+        }
+        return dbType;
+    }
+
+    /**
+     * 解析 MySQL 语法开关：只有显式声明该开关的数据源才覆盖全局，未声明（null）时继承全局值。
+     */
+    private boolean resolveUseNewMysqlSyntax(UpsertDynamicProperties.DataSourceConfig config) {
+        if (config != null && config.getUseNewMysqlSyntax() != null) {
+            return config.getUseNewMysqlSyntax();
+        }
+        return upsertDynamicProperties.isUseNewMysqlSyntax();
     }
 
     /**
