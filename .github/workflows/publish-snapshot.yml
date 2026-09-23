@@ -1,8 +1,11 @@
 name: Publish SNAPSHOT
 
+# 不直接跟 push：CI 那条 run 全绿后由 workflow_run 接力，避免把没验过的提交推上快照仓库。
 on:
-  push:
-    branches: [main, develop]
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
   workflow_dispatch:
 
 # 与 release.yml 共用同一组，避免快照与正式发布并发上传 Central 互相踩
@@ -14,6 +17,8 @@ jobs:
   # 先读 ${revision}：不是 SNAPSHOT 就整个跳过，绝不把非快照版本推上 Central
   check:
     runs-on: ubuntu-latest
+    # workflow_run 的 completed 不分成败，这里只放行 CI 成功的 run；手动触发不受限
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       snapshot: ${{ steps.revision.outputs.snapshot }}
     steps:
