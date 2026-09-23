@@ -363,9 +363,8 @@ public class UserService {
 ### SQL 缓存
 
 路由方言内部按 **"<数据源解析出的方言实例> + 实体"** 缓存已构建的 `SqlSource`，
-所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。缓存挂在每个注入出的
-statement 自己身上（`upsert` 与内部 `upsertExecutor` 各持一份），因此批量路径复用单行语句时
-不会与单条路径互相覆盖。
+所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。缓存挂在注入出的 `upsert`
+statement 自己身上，`upsert(Collection)` 复用的正是这条语句，单条与批量路径共享同一份缓存。
 
 缓存键落在**方言实例**而不是方言类名上，原因是类名不足以区分两个数据源：
 
@@ -568,7 +567,7 @@ public class UserEntity {
 | `IdType.INPUT` + `@KeySequence` | 复用 `TableInfoHelper.genKeyGenerator`：由 MP 注册 `<语句>!selectKey` 取号语句，取号 SQL 来自容器里注册的 `IKeyGenerator` Bean |
 | `ASSIGN_ID` / `ASSIGN_UUID` / 无 `@TableId` 的实体 | 不配置 `KeyGenerator`，给什么写什么；实体只有 `@ConflictKey` 而没有主键时也不会因此报错 |
 
-`@KeySequence` 路径上本库只做一件事：MP 生成的 `SelectKeyGenerator` 按 MyBatis 协议把号写在**参数对象**上，而 Upsert 的实体被 `@Param("et")` 包在命名参数映射里，对 Map 写 `id` 不会落到实体上，因此外面套了一层装饰器把号搬回实体。取号方仍是 MP，本库不引入第二套主键协议；MP 原生 `insert(T entity)` 的入参没有 `@Param`，不受影响。
+`@KeySequence` 路径与 MP 原生 `insert` 完全同构：取号与写回都由 MP 生成的 `SelectKeyGenerator` 完成——Upsert 语句的参数就是实体本身（不包命名参数映射），取到的号直接写回实体的主键属性，本库不额外包装任何一层。取号方仍是 MP，不引入第二套主键协议。
 
 选择规则与各数据库方言无关，完全跟随 MP 的主键策略语义，因此 Oracle / SQL Server / PostgreSQL 上以 `@KeySequence` + `IdType.INPUT` 使用序列主键的既有写法照常工作；`IdType.AUTO` 只在数据库本身提供自增/标识列（MySQL `AUTO_INCREMENT`、PostgreSQL `serial`/`IDENTITY`、Oracle 12c+ identity column、SQL Server `IDENTITY`）时才应使用，本库不会为任何方言额外猜测取键方式。
 
@@ -635,29 +634,24 @@ default List<BatchResult> upsert(Collection<T> entityList, int batchSize) {
 
     // 2) 交给 MyBatis-Plus 的批量工具：它自己开 ExecutorType.BATCH 的 SqlSession
     MybatisBatch.Method<T> method = new MybatisBatch.Method<>(proxy.getMapperInterface());
+    // 3) 每条实体的参数转换就是它本身：直接作为单条 upsert 语句的入参
     return MybatisBatchUtils.execute(sqlSessionFactory, entityList,
-            method.get("upsertExecutor", entity -> {
-                // 3) 每条实体翻译成单条 upsert 语句的参数映射
-                ParamMap<T> parameter = new ParamMap<>();
-                parameter.put(Constants.ENTITY, entity);                           // et
-                parameter.put(ParamNameResolver.GENERIC_NAME_PREFIX + 1, entity);  // param1
-                return parameter;
-            }), batchSize);
+            method.get("upsert", entity -> entity), batchSize);
 }
 ```
 
 要点逐条对应：
 
-1. **不拼多行 SQL**。这里没有任何"把 N 条记录合并成一条 `VALUES (...), (...)`"的代码；批量执行器复用的是 `upsert(entity)` 那一条单行语句（注册为内部 statement `upsertExecutor`）。
+1. **不拼多行 SQL**。这里没有任何"把 N 条记录合并成一条 `VALUES (...), (...)`"的代码；批量执行器复用的是 `upsert(entity)` 那一条单行语句（同一个注入的 `upsert` statement）。
 2. **执行的是 MyBatis-Plus 的机制，不是自造的一套**。`MybatisBatch` / `MybatisBatchUtils` 与 MP 原生 `BaseMapper#insert(Collection)` 用的是同一组 API，因此会话、flush、返回值的语义与 MP 的批量 insert 一致，本库不引入第二种批量协议。
-3. **参数必须是 `ParamMap`**。`Jdbc3KeyGenerator` 只对 `ParamMap` 识别"带 `@Param` 的单参数"这一形态，从而把生成主键写回实体本身；换成普通 `HashMap` 就只能写进 map 的键，实体拿不到值。同时要放 `et` 和 `param1` 两个键——前者供语句里的 `#{et.xxx}` 取值，后者供上述判定。
+3. **参数就是实体本身**。语句与 MP 原生 `insert(T entity)` 以同一形态绑定参数：`#{xxx}` 直接从实体属性取值，`Jdbc3KeyGenerator` 和 `SelectKeyGenerator` 都走"裸参数对象"分支，把生成主键写回实体本身，不需要构造任何参数映射。
 
 ### 与 MP 原生批量 insert 的一致性
 
 | 维度 | MP `insert(Collection)` | 本库 `upsert(Collection)` |
 |---|---|---|
 | 执行器 | `ExecutorType.BATCH`，独立 SqlSession | 同上（由 `MybatisBatch` 负责） |
-| SQL 条数 | 1 条单行语句，重复 `addBatch` | 同上（语句来自注入的 `upsertExecutor`） |
+| SQL 条数 | 1 条单行语句，重复 `addBatch` | 同上（语句就是注入的 `upsert`，与单条路径共用） |
 | 分块 | 每 `batchSize` 条 flush 并提交一次 | 同上 |
 | 动态列 | 逐条按 `FieldStrategy` 判空 | 逐条按 `FieldStrategy` 判空（同一条 `<if>` 模板） |
 | 生成主键回填 | `flushStatements` 时写回实体 | 同上，`@KeySequence` 走 MP 的 selectKey |
@@ -744,7 +738,7 @@ mybatis-plus:
 
 ## 与已有自定义 SqlInjector 共存
 
-如果项目中已有自定义 `ISqlInjector`（通常继承自 `DefaultSqlInjector`），starter 的自动注册会因 `@ConditionalOnMissingBean(ISqlInjector.class)` 而跳过，导致 `upsert` 方法（以及 `upsert(Collection)` 依赖的内部 `upsertExecutor` statement）无法注入。
+如果项目中已有自定义 `ISqlInjector`（通常继承自 `DefaultSqlInjector`），starter 的自动注册会因 `@ConditionalOnMissingBean(ISqlInjector.class)` 而跳过，导致 `upsert` 方法（`upsert(Collection)` 同样依赖它）无法注入。
 
 **解决方式：让已有的 SqlInjector 继承 `UpsertSqlInjector`。**
 
@@ -780,7 +774,7 @@ public ISqlInjector sqlInjector(UpsertDialect upsertDialect) {
 
 > 重写 `getMethodList` 时请使用带 `Configuration` 的三参数版本（MP 3.5.6+ 签名）。两参数版本 `getMethodList(Class, TableInfo)` 虽仍被 MP 兼容调用但已标记 `@Deprecated`，且只在返回非空列表时生效，容易踩坑。
 
-`UpsertSqlInjector` 继承自 `DefaultSqlInjector`，`super.getMethodList()` 会包含 MP 全部原生方法 + `upsert` + 内部 `upsertExecutor`（供 `upsert(Collection)` 复用单行语句，不对外暴露为 Mapper 方法），行为完全向下兼容。
+`UpsertSqlInjector` 继承自 `DefaultSqlInjector`，`super.getMethodList()` 会包含 MP 全部原生方法 + `upsert`（`upsert(Collection)` 复用的就是这条语句，不另外注入内部 statement），行为完全向下兼容。
 
 ---
 
@@ -805,7 +799,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
     @Override
     public String buildUpsertSql(UpsertMeta meta) {
         // 返回含 MyBatis 占位符的 SQL 字符串
-        // 单条参数绑定前缀为 et，例如 #{et.username}
+        // 参数就是实体本身，例如 #{username}
         // 含动态标签时需包裹 <script>（由 Injector 层自动包裹，这里只返回内层内容）
         // ...
         return "INSERT INTO " + meta.getTableName() + " ... ";
@@ -830,7 +824,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 | `fieldToColumnMap` | `Map<String, String>` | Java 字段名到列名的映射 |
 | `entityClass` | `Class<?>` | 元数据解析自的实体类，参与 SQL 缓存键 |
 
-`FieldMeta` 包含五个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）、`paramRef`（UPDATE SET 赋值是否回退为 `#{et.字段}` 参数引用而非行引用——仅出现在"参与更新但被排除出 INSERT"的字段上，如 `insertStrategy = NEVER` 的可更新字段）。自定义方言若要支持这种按值裁剪列的动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="et.xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
+`FieldMeta` 包含五个属性：`column`（列名）、`property`（Java 字段名）、`dynamic`（是否需要 `<if>` 判断）、`checkEmpty`（`dynamic=true` 时是否同时判断空字符串）、`paramRef`（UPDATE SET 赋值是否回退为 `#{字段}` 参数引用而非行引用——仅出现在"参与更新但被排除出 INSERT"的字段上，如 `insertStrategy = NEVER` 的可更新字段）。自定义方言若要支持这种按值裁剪列的动态 SQL，可参考内置 `DynamicSqlBuilder`（包内私有工具类，不对外暴露，可自行实现等价逻辑）按 `<trim suffixOverrides=",">`>+ `<if test="xxx != null">` 的模式拼接，需保证列名片段和取值片段使用完全相同的判断条件，避免列数不对齐。
 
 ---
 
@@ -875,7 +869,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 
 以下示例基于 `UserEntity`（冲突键 `username`，更新 `email`、`age`、`update_time`，忽略 `create_time`）。`UserEntity` 字段均未显式标注 `@TableField`，按 MP 全局默认策略 `NOT_NULL`，因此 `email`、`age`、`update_time` 等非冲突键字段在下面每个数据库的单行语句中均为动态字段；为保持示例简洁，以下只展示 `email` 的 `<if>` 片段，其余动态字段省略号代替，结构相同。主键 `id` 和冲突键 `username` 始终原样拼接，不做动态判断。
 
-> 本节只列单行语句的形态：`upsert(Collection<T>)` 复用的正是下面每个数据库的这条 SQL（注册成独立的 `upsertExecutor` statement，逐条走 BATCH executor），因此这些示例同时就是批量写入实际执行的 SQL。为什么批量不拼一条多行 `VALUES` SQL，见[批量 Upsert 的实现](#批量-upsert-的实现)。
+> 本节只列单行语句的形态：`upsert(Collection<T>)` 复用的正是下面每个数据库的这条 SQL（同一条注入的 `upsert` statement，逐条走 BATCH executor），因此这些示例同时就是批量写入实际执行的 SQL。为什么批量不拼一条多行 `VALUES` SQL，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
 ### MySQL / MariaDB
 
@@ -883,20 +877,20 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 ```xml
 INSERT INTO t_user (<trim suffixOverrides=",">
   id, username,
-  <if test="et.email != null">email, </if>
-  <if test="et.age != null">age, </if>
-  <if test="et.updateTime != null">update_time, </if>
+  <if test="email != null">email, </if>
+  <if test="age != null">age, </if>
+  <if test="updateTime != null">update_time, </if>
 </trim>)
 VALUES (<trim suffixOverrides=",">
-  #{et.id}, #{et.username},
-  <if test="et.email != null">#{et.email}, </if>
-  <if test="et.age != null">#{et.age}, </if>
-  <if test="et.updateTime != null">#{et.updateTime}, </if>
+  #{id}, #{username},
+  <if test="email != null">#{email}, </if>
+  <if test="age != null">#{age}, </if>
+  <if test="updateTime != null">#{updateTime}, </if>
 </trim>)
 ON DUPLICATE KEY UPDATE <trim suffixOverrides=",">
-  <if test="et.email != null">email = VALUES(email), </if>
-  <if test="et.age != null">age = VALUES(age), </if>
-  <if test="et.updateTime != null">update_time = VALUES(update_time), </if>
+  <if test="email != null">email = VALUES(email), </if>
+  <if test="age != null">age = VALUES(age), </if>
+  <if test="updateTime != null">update_time = VALUES(update_time), </if>
 </trim>
 ```
 若调用时 `email` 为 `null`，MyBatis 执行期会跳过对应的 `<if>` 块，实际生效的 SQL 等价于 `INSERT INTO t_user (id, username, age, update_time) VALUES (...) ON DUPLICATE KEY UPDATE age = ..., update_time = ...`，`email` 既不参与插入也不参与更新。批量写入时这条语句被逐条 `addBatch`，每行各自渲染自己的 `<if>` 结果。
@@ -911,7 +905,7 @@ ON DUPLICATE KEY UPDATE <trim suffixOverrides=",">
 INSERT INTO t_user (<trim suffixOverrides=",">...</trim>)
 VALUES (<trim suffixOverrides=",">...</trim>)
 ON CONFLICT (username) DO UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">email = EXCLUDED.email, </if>
+  <if test="email != null">email = EXCLUDED.email, </if>
   ...
 </trim>
 ```
@@ -925,22 +919,22 @@ ON CONFLICT (username) DO UPDATE SET <trim suffixOverrides=",">
 **单行语句（`src` 子查询列表、INSERT 列名、INSERT 取值三处使用完全相同的 `<if>` 条件，保证列数严格对齐）：**
 ```xml
 MERGE INTO t_user t USING (SELECT <trim suffixOverrides=",">
-  #{et.id} AS id, #{et.username} AS username,
-  <if test="et.email != null">#{et.email} AS email, </if>
+  #{id} AS id, #{username} AS username,
+  <if test="email != null">#{email} AS email, </if>
   ...
 </trim> FROM dual) src
 ON (t.username = src.username)
 WHEN MATCHED THEN UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">email = src.email, </if>
+  <if test="email != null">email = src.email, </if>
   ...
 </trim>
 WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
   id, username,
-  <if test="et.email != null">email, </if>
+  <if test="email != null">email, </if>
   ...
 </trim>) VALUES (<trim suffixOverrides=",">
   src.id, src.username,
-  <if test="et.email != null">src.email, </if>
+  <if test="email != null">src.email, </if>
   ...
 </trim>)
 ```
@@ -956,13 +950,13 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
 **单行语句（改用 `USING (SELECT ...) AS src` 而非 `USING (VALUES (...)) AS src(cols)`，原理与 Oracle 一致）：**
 ```xml
 MERGE INTO t_user AS t USING (SELECT <trim suffixOverrides=",">
-  #{et.id} AS id, #{et.username} AS username,
-  <if test="et.email != null">#{et.email} AS email, </if>
+  #{id} AS id, #{username} AS username,
+  <if test="email != null">#{email} AS email, </if>
   ...
 </trim>) AS src
 ON (t.username = src.username)
 WHEN MATCHED THEN UPDATE SET <trim suffixOverrides=",">
-  <if test="et.email != null">email = src.email, </if>
+  <if test="email != null">email = src.email, </if>
   ...
 </trim>
 WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">...</trim>)
@@ -979,11 +973,11 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">...</trim>)
 ```xml
 MERGE INTO t_user (<trim suffixOverrides=",">
   id, username,
-  <if test="et.email != null">email, </if>
+  <if test="email != null">email, </if>
   ...
 </trim>) KEY(username) VALUES (<trim suffixOverrides=",">
-  #{et.id}, #{et.username},
-  <if test="et.email != null">#{et.email}, </if>
+  #{id}, #{username},
+  <if test="email != null">#{email}, </if>
   ...
 </trim>)
 ```
