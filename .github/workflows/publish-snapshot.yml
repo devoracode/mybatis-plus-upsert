@@ -18,7 +18,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     # workflow_run 的 completed 不分成败，这里只放行 CI 成功的 run；手动触发不受限
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     outputs:
       snapshot: ${{ steps.revision.outputs.snapshot }}
     steps:
