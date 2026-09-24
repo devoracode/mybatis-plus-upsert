@@ -21,8 +21,22 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     outputs:
       snapshot: ${{ steps.revision.outputs.snapshot }}
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Verify the checked-out commit
+        id: commit
+        env:
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::Checked out ${ACTUAL_SHA}, expected ${EXPECTED_SHA}."
+            exit 1
+          fi
+          echo "sha=${ACTUAL_SHA}" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-java@v4
         with:
           java-version: '8'
@@ -44,6 +58,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.check.outputs.sha }}
       - name: Set up JDK 8
         uses: actions/setup-java@v4
         with:
@@ -53,6 +69,15 @@ jobs:
           server-id: central
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
+      - name: Verify the checked-out commit
+        env:
+          EXPECTED_SHA: ${{ needs.check.outputs.sha }}
+        run: |
+          ACTUAL_SHA=$(git rev-parse HEAD)
+          if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
+            echo "::error::Checked out ${ACTUAL_SHA}, expected ${EXPECTED_SHA}."
+            exit 1
+          fi
       - name: Publish SNAPSHOT to Maven Central
         # central-publishing-maven-plugin 0.7.0+ 对 -SNAPSHOT 版本自动路由到快照仓库；
         # Portal 对快照不做校验、可覆盖发布，签名无意义
