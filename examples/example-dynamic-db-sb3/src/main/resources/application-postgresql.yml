@@ -4,12 +4,12 @@ spring:
       primary: postgresql
       datasource:
         mysql:
-          url: jdbc:mysql://localhost:33306/test?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
-          username: root
-          password: root@123
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:33306}/${MYSQL_DATABASE:test}?useUnicode=true&characterEncoding=utf-8&serverTimezone=Asia/Shanghai&sslMode=${MYSQL_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL_USERNAME}
+          password: ${MYSQL_PASSWORD}
           driver-class-name: com.mysql.cj.jdbc.Driver
         postgresql:
-          url: jdbc:postgresql://localhost:15432/test?currentSchema=public
-          username: postgres
-          password: pg@test
+          url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:15432}/${POSTGRES_DATABASE:test}?currentSchema=public&sslmode=${POSTGRES_SSL_MODE:verify-full}
+          username: ${POSTGRES_USERNAME}
+          password: ${POSTGRES_PASSWORD}
           driver-class-name: org.postgresql.Driver

@@ -40,6 +40,13 @@
 
 > **数据库验证等级**：自动回归测试套件只在 **H2（MySQL 模式）** 上运行；**MySQL、PostgreSQL** 通过 `examples/` 下的示例工程做过实际运行验证（非 CI 自动化）；**Oracle 和 SQL Server 方言未在真实数据库上验证过**——SQL 已按官方语法编写并有结构级断言测试覆盖，首次接入生产前请务必在自己的环境中充分测试；**MariaDB、TiDB** 等 MySQL 协议兼容数据库复用 MySQL 方言，属协议级理论兼容，未单独验证。详见[数据库注意事项](#数据库注意事项)。
 
+> **示例工程连接配置**：
+> - 四个 `examples/` 子工程均不默认激活数据库 profile；运行时通过 `SPRING_PROFILES_ACTIVE=mysql` 或 `SPRING_PROFILES_ACTIVE=postgresql` 显式选择。动态数据源示例默认初始化两套连接池，启动前两种数据库都必须可达、通过证书校验，并提供两组账号。
+> - 必须通过 `MYSQL_USERNAME` / `MYSQL_PASSWORD`、`POSTGRES_USERNAME` / `POSTGRES_PASSWORD` 注入专用最小权限账户；主机、端口和数据库名可分别通过对应的 `MYSQL_HOST`、`MYSQL_PORT`、`MYSQL_DATABASE`、`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_DATABASE` 覆盖。不要使用数据库超级用户，也不要把凭据提交到配置文件。
+> - MySQL 默认使用 `sslMode=VERIFY_IDENTITY`，PostgreSQL 默认使用 `sslmode=verify-full`，并校验服务器证书；私有 CA 需加入 JDBC 驱动使用的信任库。
+> - 仅本地无 TLS 数据库可显式设置 `MYSQL_SSL_MODE=DISABLED` 或 `POSTGRES_SSL_MODE=disable`，不得用于共享或生产环境。MySQL 8 的 `caching_sha2_password` 在无 TLS 时还要求 Connector/J 通过可信文件获得服务器 RSA 公钥；可配置 `serverRsaPublicKeyFile`（单数据源使用 `spring.datasource.hikari.data-source-properties.serverRsaPublicKeyFile`，动态数据源使用 `spring.datasource.dynamic.datasource.mysql.hikari.data-source-properties.serverRsaPublicKeyFile`），不要开启 `allowPublicKeyRetrieval`。
+> - SQL 及绑定参数日志默认关闭；仅本地临时排查可追加 `--mybatis-plus.configuration.log-impl=org.apache.ibatis.logging.stdout.StdOutImpl`，不要在共享或生产环境启用。
+
 > **MyBatis Plus 版本说明**：最低要求 **3.5.7**。
 >
 > - **下限来源**：批量写入路径依赖 3.5.7 才引入的 API——`MybatisBatchUtils.execute(SqlSessionFactory, Collection, BatchMethod, int batchSize)` 以及 `MybatisUtils.getMybatisMapperProxy(Object)` / `getSqlSessionFactory(MybatisMapperProxy)`（均 `@since 3.5.7`）；3.5.6 及以下因找不到对应方法重载而无法编译。单条 `upsert(entity)` 与 SQL 注入逻辑本身兼容更早的 3.4.0+ API，但受批量路径约束，整体下限仍为 3.5.7。
@@ -235,13 +242,13 @@ spring:
       primary: mysql
       datasource:
         mysql-master:
-          url: jdbc:mysql://localhost:3306/db_master
-          username: root
-          password: ***
+          url: jdbc:mysql://${MYSQL_MASTER_HOST:localhost}:${MYSQL_MASTER_PORT:3306}/${MYSQL_MASTER_DATABASE:db_master}?sslMode=${MYSQL_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL_MASTER_USERNAME}
+          password: ${MYSQL_MASTER_PASSWORD}
         mysql-slave1:
-          url: jdbc:mysql://localhost:3307/db_slave
-          username: root
-          password: ***
+          url: jdbc:mysql://${MYSQL_SLAVE1_HOST:localhost}:${MYSQL_SLAVE1_PORT:3307}/${MYSQL_SLAVE1_DATABASE:db_slave}?sslMode=${MYSQL_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL_SLAVE1_USERNAME}
+          password: ${MYSQL_SLAVE1_PASSWORD}
 
 mybatis-plus:
   upsert:
@@ -259,13 +266,13 @@ spring:
       primary: mysql
       datasource:
         mysql:
-          url: jdbc:mysql://localhost:3306/db_mysql
-          username: root
-          password: ***
+          url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db_mysql}?sslMode=${MYSQL_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL_USERNAME}
+          password: ${MYSQL_PASSWORD}
         postgresql:
-          url: jdbc:postgresql://localhost:5432/db_pg
-          username: postgres
-          password: ***
+          url: jdbc:postgresql://${POSTGRES_HOST:localhost}:${POSTGRES_PORT:5432}/${POSTGRES_DATABASE:db_pg}?sslmode=${POSTGRES_SSL_MODE:verify-full}
+          username: ${POSTGRES_USERNAME}
+          password: ${POSTGRES_PASSWORD}
 
 mybatis-plus:
   upsert:
@@ -283,13 +290,13 @@ spring:
       primary: mysql8
       datasource:
         mysql8:
-          url: jdbc:mysql://localhost:3306/db_mysql8
-          username: root
-          password: ***
+          url: jdbc:mysql://${MYSQL8_HOST:localhost}:${MYSQL8_PORT:3306}/${MYSQL8_DATABASE:db_mysql8}?sslMode=${MYSQL8_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL8_USERNAME}
+          password: ${MYSQL8_PASSWORD}
         mysql5:
-          url: jdbc:mysql://localhost:3307/db_mysql5
-          username: root
-          password: ***
+          url: jdbc:mysql://${MYSQL5_HOST:localhost}:${MYSQL5_PORT:3307}/${MYSQL5_DATABASE:db_mysql5}?sslMode=${MYSQL5_SSL_MODE:VERIFY_IDENTITY}
+          username: ${MYSQL5_USERNAME}
+          password: ${MYSQL5_PASSWORD}
 
 mybatis-plus:
   upsert:
@@ -309,9 +316,11 @@ spring:
     dynamic:
       datasource:
         tidb:
-          url: jdbc:mysql://localhost:4000/db_tidb   # TiDB 使用 MySQL 协议，自动推断为 mysql
+          url: jdbc:mysql://${TIDB_HOST:localhost}:${TIDB_PORT:4000}/${TIDB_DATABASE:db_tidb}?sslMode=${TIDB_SSL_MODE:VERIFY_IDENTITY}   # TiDB 使用 MySQL 协议，自动推断为 mysql
+          username: ${TIDB_USERNAME}
+          password: ${TIDB_PASSWORD}
         clickhouse:
-          url: jdbc:clickhouse://localhost:8123/db_ch
+          url: jdbc:clickhouse://${CLICKHOUSE_HOST:localhost}:${CLICKHOUSE_PORT:8123}/${CLICKHOUSE_DATABASE:db_ch}
 
 mybatis-plus:
   upsert:
@@ -713,9 +722,9 @@ starter 会从 JDBC URL 自动推断数据库类型，无需手动配置。可�
 # 零配置示例：自动推断为 MySQL
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/db
-    username: root
-    password: ***
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:db}?sslMode=${MYSQL_SSL_MODE:VERIFY_IDENTITY}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
 
 # 无需 mybatis-plus.upsert.db-type 配置
 ```
