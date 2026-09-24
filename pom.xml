@@ -27,6 +27,7 @@
              本库代码零 jsqlparser 引用，此依赖仅为 provided 的传递性补偿，固定版本安全。 -->
         <mybatis-plus-jsqlparser.version>3.5.9</mybatis-plus-jsqlparser.version>
         <dynamic-datasource.version>4.3.1</dynamic-datasource.version>
+        <caffeine.version>2.9.3</caffeine.version>
         <lombok.version>1.18.38</lombok.version>
     </properties>
 
@@ -79,6 +80,12 @@
                 <groupId>com.baomidou</groupId>
                 <artifactId>dynamic-datasource-spring-boot3-starter</artifactId>
                 <version>${dynamic-datasource.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

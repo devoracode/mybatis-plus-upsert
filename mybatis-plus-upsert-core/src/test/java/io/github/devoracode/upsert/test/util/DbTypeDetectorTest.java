@@ -4,6 +4,8 @@ import io.github.devoracode.upsert.util.DbTypeDetector;
 import io.github.devoracode.upsert.util.DbTypeDetector.DbType;
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class DbTypeDetectorTest {
@@ -45,5 +47,31 @@ class DbTypeDetectorTest {
     void parse_db_type_still_throws_for_user_supplied_configuration_errors() {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> DbTypeDetector.parseDbType("oceanbase"))
                 .isInstanceOf(io.github.devoracode.upsert.exception.UpsertException.class);
+    }
+
+    @Test
+    void try_parse_db_type_is_independent_of_default_locale() {
+        Locale originalLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+
+            assertThat(DbTypeDetector.tryParseDbType("mariadb")).isEqualTo(DbType.MYSQL);
+            assertThat(DbTypeDetector.tryParseDbType("Microsoft")).isEqualTo(DbType.SQLSERVER);
+        } finally {
+            Locale.setDefault(originalLocale);
+        }
+    }
+
+    @Test
+    void parse_db_type_by_jdbc_url_is_independent_of_default_locale() {
+        Locale originalLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"));
+
+            assertThat(DbTypeDetector.parseDbTypeByJdbcUrl("jdbc:MARIADB://localhost:3306/test"))
+                    .isEqualTo(DbType.MYSQL);
+        } finally {
+            Locale.setDefault(originalLocale);
+        }
     }
 }

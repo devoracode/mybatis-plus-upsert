@@ -66,8 +66,7 @@ class UpsertFillDisabledTest {
 
     /**
      * 回归测试：全部可更新字段均为动态字段（默认 NOT_NULL）且运行时全为 null 时，
-     * UPDATE SET 不得渲染为空——修复前 H2（MySQL 模式）会直接报
-     * {@code ON DUPLICATE KEY UPDATE} 空子句语法错误，由自赋值兜底保证 SQL 完整。
+     * 冲突分支不应产生有效更新赋值，原有字段值必须保留。
      * 使用更新列全部可空的 t_secret_holder，避开 H2 模拟实现对缺失 NOT NULL 列的先行校验。
      */
     @Test
@@ -77,7 +76,7 @@ class UpsertFillDisabledTest {
                 .id(1L).code("c1").secret("top").visible("yes").build());
 
         // 仅携带主键与冲突键，secret / visible 全为 null：
-        // 冲突分支所有动态 <if> 均不成立，渲染后仅剩兜底自赋值
+        // 冲突分支没有有效更新赋值，原值应保持不变
         secretHolderMapper.upsert(SecretHolderEntity.builder().id(1L).code("c1").build());
 
         SecretHolderEntity saved = secretHolderMapper.selectById(1L);

@@ -36,13 +36,12 @@ final class DynamicSqlBuilder {
     /**
      * 构建 UPDATE 的 {@code SET col = <value>, ...} 片段（{@code <trim>} 包裹，动态列用 {@code <if>} 跳过）。
      *
-     * @param valuePrefix     赋值表达式中列名前的固定前缀
-     * @param valueSuffix     赋值表达式中列名后的固定后缀
-     * @param targetRefPrefix 空 SET 兜底自赋值中引用目标行的列前缀
+     * @param valuePrefix 赋值表达式中列名前的固定前缀
+     * @param valueSuffix 赋值表达式中列名后的固定后缀
      */
     static String updateSetTrim(List<FieldMeta> updateFieldMetas,
-                                String valuePrefix, String valueSuffix, String targetRefPrefix) {
-        StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 64);
+                                String valuePrefix, String valueSuffix) {
+        StringBuilder sb = new StringBuilder(updateFieldMetas.size() * 32 + 32);
         sb.append("<trim suffixOverrides=\",\">");
         appendIfWrapped(sb, updateFieldMetas, fm -> {
             String value = fm.isParamRef()
@@ -50,37 +49,50 @@ final class DynamicSqlBuilder {
                     : valuePrefix + fm.getColumn() + valueSuffix;
             return fm.getColumn() + " = " + value + ", ";
         });
-        appendEmptySetFallback(sb, updateFieldMetas, targetRefPrefix);
         sb.append("</trim>");
         return sb.toString();
     }
 
     /**
-     * 全部更新列都被跳过时向 SET 追加一条兜底自赋值，避免 SET 渲染为空；不能无条件渲染。
+     * 返回全部动态更新字段都被过滤时的条件；存在静态更新字段时返回 {@code null}。
      */
-    private static void appendEmptySetFallback(StringBuilder sb, List<FieldMeta> updateFieldMetas,
-                                               String targetRefPrefix) {
+    static String emptyUpdateCondition(List<FieldMeta> updateFieldMetas) {
+        return updateCondition(updateFieldMetas, false);
+    }
+
+    /**
+     * 返回至少一个动态更新字段有值时的条件；存在静态更新字段时返回 {@code null}。
+     */
+    static String nonEmptyUpdateCondition(List<FieldMeta> updateFieldMetas) {
+        return updateCondition(updateFieldMetas, true);
+    }
+
+    private static String updateCondition(List<FieldMeta> updateFieldMetas, boolean present) {
         if (updateFieldMetas.isEmpty()) {
-            return;
+            return present ? "false" : "true";
         }
-        StringBuilder allOmitted = new StringBuilder();
+        StringBuilder condition = new StringBuilder();
         for (FieldMeta fm : updateFieldMetas) {
             if (!fm.isDynamic()) {
-                return;
+                return null;
             }
-            if (allOmitted.length() > 0) {
-                allOmitted.append(" and ");
+            if (condition.length() > 0) {
+                condition.append(present ? " or " : " and ");
             }
             String ref = fm.getProperty();
-            if (fm.isCheckEmpty()) {
-                allOmitted.append('(').append(ref).append(" == null or ").append(ref).append(" == '')");
+            if (present) {
+                if (fm.isCheckEmpty()) {
+                    condition.append('(').append(ref).append(" != null and ").append(ref).append(" != '')");
+                } else {
+                    condition.append(ref).append(" != null");
+                }
+            } else if (fm.isCheckEmpty()) {
+                condition.append('(').append(ref).append(" == null or ").append(ref).append(" == '')");
             } else {
-                allOmitted.append(ref).append(" == null");
+                condition.append(ref).append(" == null");
             }
         }
-        String column = updateFieldMetas.get(0).getColumn();
-        sb.append("<if test=\"").append(allOmitted).append("\">")
-                .append(column).append(" = ").append(targetRefPrefix).append(column).append(", </if>");
+        return condition.toString();
     }
 
     static String ifTestExpr(FieldMeta fm) {

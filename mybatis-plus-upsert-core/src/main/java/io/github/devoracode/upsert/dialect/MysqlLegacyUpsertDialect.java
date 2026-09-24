@@ -13,15 +13,26 @@ public class MysqlLegacyUpsertDialect implements UpsertDialect {
 
     @Override
     public String buildUpsertSql(UpsertMeta meta) {
+        String emptyUpdate = DynamicSqlBuilder.emptyUpdateCondition(meta.getUpdateFieldMetas());
+        String nonEmptyUpdate = DynamicSqlBuilder.nonEmptyUpdateCondition(meta.getUpdateFieldMetas());
         StringBuilder sb = new StringBuilder(256 + meta.getInsertFieldMetas().size() * 24
                 + meta.getUpdateFieldMetas().size() * 32);
-        sb.append("INSERT INTO ").append(meta.getTableName()).append(' ');
+        sb.append("INSERT ");
+        if (emptyUpdate != null) {
+            sb.append("<if test=\"").append(emptyUpdate).append("\">IGNORE </if>");
+        }
+        sb.append("INTO ").append(meta.getTableName()).append(' ');
         sb.append(DynamicSqlBuilder.insertColumnsTrim(meta.getInsertFieldMetas()));
         sb.append(" VALUES ");
         sb.append(DynamicSqlBuilder.insertValuesTrim(meta.getInsertFieldMetas()));
-        sb.append(" ON DUPLICATE KEY UPDATE ");
-        // 兜底自赋值用非限定列名（targetRefPrefix 为空串）：引用目标行当前值
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "VALUES(", ")", ""));
+        if (nonEmptyUpdate == null) {
+            sb.append(" ON DUPLICATE KEY UPDATE ");
+            sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "VALUES(", ")"));
+        } else {
+            sb.append("<if test=\"").append(nonEmptyUpdate).append("\"> ON DUPLICATE KEY UPDATE ");
+            sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "VALUES(", ")"));
+            sb.append("</if>");
+        }
         return sb.toString();
     }
 }

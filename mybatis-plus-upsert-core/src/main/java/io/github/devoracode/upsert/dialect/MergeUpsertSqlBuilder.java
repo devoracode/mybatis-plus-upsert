@@ -54,10 +54,15 @@ final class MergeUpsertSqlBuilder {
             String col = confCols.get(i);
             sb.append("t.").append(col).append(" = src.").append(col);
         }
-        sb.append(") WHEN MATCHED THEN UPDATE SET ");
-        // 引用 src.*，与 USING 子查询用同一组 <if> 条件保持同步；
-        // 兜底自赋值引用目标别名 t——首个更新列必不在 ON 条件里，不触发 ORA-38104
-        sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "src.", "", "t."));
+        String nonEmptyUpdate = DynamicSqlBuilder.nonEmptyUpdateCondition(meta.getUpdateFieldMetas());
+        if (nonEmptyUpdate == null) {
+            sb.append(") WHEN MATCHED THEN UPDATE SET ");
+            sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "src.", ""));
+        } else {
+            sb.append(")<if test=\"").append(nonEmptyUpdate).append("\"> WHEN MATCHED THEN UPDATE SET ");
+            sb.append(DynamicSqlBuilder.updateSetTrim(meta.getUpdateFieldMetas(), "src.", ""));
+            sb.append("</if>");
+        }
         sb.append(" WHEN NOT MATCHED THEN INSERT ");
         // 列名与值都按同一组 <if> 条件裁剪，两者始终一一对应
         sb.append("<trim prefix=\"(\" suffix=\")\" suffixOverrides=\",\">");

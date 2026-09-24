@@ -372,8 +372,9 @@ public class UserService {
 ### SQL 缓存
 
 路由方言内部按 **"<数据源解析出的方言实例> + 实体"** 缓存已构建的 `SqlSource`，
-所以每个数据源的 SQL 只生成一次，性能与单数据源模式一致。缓存挂在注入出的 `upsert`
-statement 自己身上，`upsert(Collection)` 复用的正是这条语句，单条与批量路径共享同一份缓存。
+在条目未被淘汰前每个数据源的 SQL 只生成一次；缓存最多保留约 64 条，超出后由 Caffeine 淘汰旧条目。
+缓存挂在注入出的 `upsert` statement 自己身上，`upsert(Collection)` 复用的正是这条语句，
+单条与批量路径共享同一份缓存。
 
 缓存键落在**方言实例**而不是方言类名上，原因是类名不足以区分两个数据源：
 
@@ -384,8 +385,7 @@ statement 自己身上，`upsert(Collection)` 复用的正是这条语句，单�
 语句，产生跨库污染。方言实例若重写了 `equals/hashCode` 声明两个实例等价，则共享同一份缓存 SQL。
 
 > 自定义 `DynamicUpsertDialect` 实现应为每个数据源返回**稳定的方言实例**（如单例 Bean）。
-> 如果每次调用 `getCurrentDialect()` 都新建实例，缓存既不会命中也会无界增长，
-> 因此缓存条目达到 64 个后会自动停止缓存、改为每次直接构建 SQL（并输出一次 WARN 日志）。
+> 如果每次调用 `getCurrentDialect()` 都新建实例，缓存命中率会下降；缓存达到 64 条后由 Caffeine 淘汰旧条目并继续接收新条目。
 
 ### 多数据源配置项说明
 

@@ -1,17 +1,16 @@
 package io.github.devoracode.upsert.injector;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
-import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.LanguageDriver;
 import org.apache.ibatis.session.Configuration;
 
 import java.util.Objects;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 动态数据源下按当前线程的数据源解析方言、再委托该方言绑定 SQL 的 {@link SqlSource}，
@@ -20,12 +19,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author devoracode
  * @since 1.2.0
  */
-@Slf4j
 final class RoutingUpsertSqlSource implements SqlSource {
 
     /**
-     * 缓存条目上限，防止方言实现每次新建实例导致缓存无限增长；达到上限后整个缓存退化，
-     * 所有方言（含已缓存的）都改为直接构建、不再写入缓存。
+     * 缓存条目上限，防止方言实现每次新建实例导致缓存无限增长；达到上限后由 Caffeine 淘汰旧条目。
      */
     private static final int MAX_CACHED_SQL_SOURCES = 64;
 
@@ -35,12 +32,10 @@ final class RoutingUpsertSqlSource implements SqlSource {
     private final UpsertMeta meta;
     private final Class<?> modelClass;
 
-    private final ConcurrentHashMap<SqlSourceKey, SqlSource> sqlSourceCache = new ConcurrentHashMap<>();
-
-    /**
-     * 达到缓存上限的告警只输出一次。
-     */
-    private final AtomicBoolean overflowWarned = new AtomicBoolean();
+    private final Cache<SqlSourceKey, SqlSource> sqlSourceCache = Caffeine.newBuilder()
+            .maximumSize(MAX_CACHED_SQL_SOURCES)
+            .recordStats()
+            .build();
 
     RoutingUpsertSqlSource(Configuration configuration,
                            LanguageDriver languageDriver,
@@ -63,17 +58,8 @@ final class RoutingUpsertSqlSource implements SqlSource {
      * 取该方言实例对应的 SqlSource，首次访问时构建并写入缓存。
      */
     private SqlSource cachedSqlSource(UpsertDialect dialect) {
-        if (sqlSourceCache.size() >= MAX_CACHED_SQL_SOURCES) {
-            if (overflowWarned.compareAndSet(false, true)) {
-                log.warn("Upsert SqlSource cache of entity '{}' reached {} entries: the DynamicUpsertDialect "
-                        + "appears to resolve a new dialect instance on every call, so Upsert SQL is rebuilt "
-                        + "instead of cached.", entityKey(), MAX_CACHED_SQL_SOURCES);
-            }
-            return buildSqlSource(dialect);
-        }
-        // computeIfAbsent 保证同一方言实例被多个线程首次并发访问时也只构建一次
-        return sqlSourceCache.computeIfAbsent(
-                new SqlSourceKey(dialect, entityKey()), key -> buildSqlSource(key.dialect));
+        SqlSourceKey key = new SqlSourceKey(dialect, entityKey());
+        return sqlSourceCache.get(key, cacheKey -> buildSqlSource(cacheKey.dialect));
     }
 
     /**

@@ -1,6 +1,7 @@
 package io.github.devoracode.upsert.injector;
 
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.github.benmanes.caffeine.cache.Cache;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
@@ -12,10 +13,12 @@ import org.junit.jupiter.api.Test;
 import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,8 +36,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 场景下，后到的数据源直接命中前一个数据源生成的 SQL，拿到结构完全不同的
  * ON DUPLICATE KEY / ON CONFLICT / MERGE 语句。
  *
- * <p>同时验证缓存收益仍在（同一实例只构建一次）、并发首次访问只构建一次、
- * 以及方言实例每次都在变化时缓存不会无限增长。
+ * <p>同时验证缓存收益仍在（同一实例只构建一次）、并发首次访问只构建一次，
+ * 以及方言实例每次都在变化时缓存有界且 SQL 仍然正确。
  */
 class RoutingUpsertSqlSourceCacheTest {
 
@@ -155,21 +158,97 @@ class RoutingUpsertSqlSourceCacheTest {
     // --- 缓存上限 ---
 
     @Test
-    void dialect_resolved_per_call_never_fills_the_cache_and_stays_correct() throws Exception {
+    void concurrent_distinct_dialects_never_exceed_cache_limit() throws Exception {
+        ThreadBoundDialect dynamic = new ThreadBoundDialect();
+        RoutingUpsertSqlSource source = routingSource(dynamic);
+        for (int i = 0; i < 63; i++) {
+            dynamic.setCurrent(new CountingDialect("prefix-" + i));
+            assertThat(renderedSql(source)).contains("prefix-" + i);
+        }
+        dynamic.clearCurrent();
+        assertThat(cachedEntryCount(source)).isEqualTo(63);
+
+        int concurrentDialects = 2;
+        CyclicBarrier startLine = new CyclicBarrier(concurrentDialects);
+        CountDownLatch buildsEntered = new CountDownLatch(concurrentDialects);
+        CountDownLatch releaseBuilds = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(concurrentDialects);
+        try {
+            List<Future<String>> results = new ArrayList<>();
+            results.add(pool.submit(() -> {
+                dynamic.setCurrent(new BlockingDialect("concurrent-a", buildsEntered, releaseBuilds));
+                startLine.await();
+                try {
+                    return renderedSql(source);
+                } finally {
+                    dynamic.clearCurrent();
+                }
+            }));
+            results.add(pool.submit(() -> {
+                dynamic.setCurrent(new BlockingDialect("concurrent-b", buildsEntered, releaseBuilds));
+                startLine.await();
+                try {
+                    return renderedSql(source);
+                } finally {
+                    dynamic.clearCurrent();
+                }
+            }));
+
+            assertThat(buildsEntered.await(2, TimeUnit.SECONDS)).isTrue();
+            releaseBuilds.countDown();
+
+            assertThat(results.get(0).get(5, TimeUnit.SECONDS)).contains("concurrent-a");
+            assertThat(results.get(1).get(5, TimeUnit.SECONDS)).contains("concurrent-b");
+            assertThat(cachedEntryCount(source)).isLessThanOrEqualTo(64);
+        } finally {
+            releaseBuilds.countDown();
+            pool.shutdownNow();
+            pool.awaitTermination(5, TimeUnit.SECONDS);
+        }
+    }
+
+    @Test
+    void caffeine_cache_evicts_old_entries_and_records_stats() throws Exception {
+        RoutingUpsertSqlSource source = routingSource(new AlwaysNewDialect());
+
+        for (int i = 0; i < 65; i++) {
+            assertThat(renderedSql(source)).contains("fresh-" + i);
+        }
+
+        Object cacheValue = cacheField(source);
+        assertThat(cacheValue).isInstanceOf(Cache.class);
+        Cache<?, ?> cache = (Cache<?, ?>) cacheValue;
+        cache.cleanUp();
+        assertThat(cache.estimatedSize()).isLessThanOrEqualTo(64);
+        assertThat(cache.stats().evictionCount()).isPositive();
+    }
+
+    @Test
+    void dialect_resolved_per_call_keeps_cache_bounded_and_stays_correct() throws Exception {
         RoutingUpsertSqlSource source = routingSource(new AlwaysNewDialect());
 
         int calls = 200;
         for (int i = 0; i < calls; i++) {
-            // 每次都是新的方言实例：即使缓存旁路，SQL 仍必须与当次解析出的方言匹配
+            // 每次都是新的方言实例：即使发生淘汰/重建，SQL 仍必须与当次解析出的方言匹配
             assertThat(renderedSql(source)).contains("fresh-" + i);
         }
         assertThat(cachedEntryCount(source)).isBetween(1, 64);
     }
 
     private static int cachedEntryCount(RoutingUpsertSqlSource source) throws Exception {
+        Object cache = cacheField(source);
+        if (cache instanceof Cache) {
+            Cache<?, ?> caffeineCache = (Cache<?, ?>) cache;
+            caffeineCache.cleanUp();
+            return (int) caffeineCache.estimatedSize();
+        }
+        return ((Map<?, ?>) cache).size();
+    }
+
+    private static Object cacheField(RoutingUpsertSqlSource source) throws Exception {
         Field field = RoutingUpsertSqlSource.class.getDeclaredField("sqlSourceCache");
         field.setAccessible(true);
-        return ((Map<?, ?>) field.get(source)).size();
+        return field.get(source);
     }
 
     // --- 测试桩 ---
@@ -277,6 +356,53 @@ class RoutingUpsertSqlSourceCacheTest {
         @Override
         public String buildUpsertSql(UpsertMeta meta) {
             return getCurrentDialect().buildUpsertSql(meta);
+        }
+    }
+
+    private static final class ThreadBoundDialect implements DynamicUpsertDialect {
+
+        private final ThreadLocal<UpsertDialect> current = new ThreadLocal<>();
+
+        private void setCurrent(UpsertDialect dialect) {
+            current.set(dialect);
+        }
+
+        private void clearCurrent() {
+            current.remove();
+        }
+
+        @Override
+        public UpsertDialect getCurrentDialect() {
+            return current.get();
+        }
+
+        @Override
+        public String buildUpsertSql(UpsertMeta meta) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    private static final class BlockingDialect extends CountingDialect {
+
+        private final CountDownLatch buildsEntered;
+        private final CountDownLatch releaseBuilds;
+
+        private BlockingDialect(String marker, CountDownLatch buildsEntered, CountDownLatch releaseBuilds) {
+            super(marker);
+            this.buildsEntered = buildsEntered;
+            this.releaseBuilds = releaseBuilds;
+        }
+
+        @Override
+        public String buildUpsertSql(UpsertMeta meta) {
+            buildsEntered.countDown();
+            try {
+                releaseBuilds.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            return super.buildUpsertSql(meta);
         }
     }
 

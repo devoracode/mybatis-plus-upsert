@@ -3,6 +3,8 @@ package io.github.devoracode.upsert.util;
 import io.github.devoracode.upsert.exception.UpsertException;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.Locale;
+
 /**
  * 从配置字符串或 JDBC URL 检测数据库类型的无状态工具类。
  *
@@ -41,7 +43,7 @@ public class DbTypeDetector {
         if (dbType == null) {
             return DbType.UNKNOWN;
         }
-        String upper = dbType.toUpperCase();
+        String upper = dbType.toUpperCase(Locale.ROOT);
         if (upper.contains("MYSQL") || upper.contains("MARIADB")) {
             return DbType.MYSQL;
         }
@@ -87,7 +89,7 @@ public class DbTypeDetector {
         if (jdbcUrl == null) {
             return DbType.UNKNOWN;
         }
-        String url = jdbcUrl.toLowerCase();
+        String url = jdbcUrl.toLowerCase(Locale.ROOT);
         if (url.contains(":mysql:") || url.contains(":mariadb:")) {
             return DbType.MYSQL;
         } else if (url.contains(":oracle:")) {
