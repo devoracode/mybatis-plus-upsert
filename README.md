@@ -926,6 +926,14 @@ ON CONFLICT (username) DO UPDATE SET <trim suffixOverrides=",">
 
 ### Oracle
 
+> **Oracle / SQL Server 的 null 参数前置要求**：本库生成的 MERGE 使用不带 `jdbcType` 的 `#{...}`。绑定 `null` 参数时，MyBatis 默认使用 `JdbcType.OTHER`，Oracle 驱动会报 `Invalid column type: 1111`。使用 Oracle 或 SQL Server 前请配置：
+> ```yaml
+> mybatis-plus:
+>   configuration:
+>     jdbc-type-for-null: 'null'
+> ```
+> 必须写成带引号的 `'null'`：YAML 裸 `null` 会被解析为空值，而不是 `JdbcType.NULL`。这与 MP 原生 `insert` 绑定 null 参数的要求一致，并非 Upsert 独有。
+
 **单行语句（`src` 子查询列表、INSERT 列名、INSERT 取值三处使用完全相同的 `<if>` 条件，保证列数严格对齐）：**
 ```xml
 MERGE INTO t_user t USING (SELECT <trim suffixOverrides=",">
@@ -956,6 +964,8 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
 ---
 
 ### SQL Server
+
+> SQL Server 同样需要先配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`，原因与 Oracle 一致，详见上方 Oracle 章节的前置要求。
 
 **单行语句（改用 `USING (SELECT ...) AS src` 而非 `USING (VALUES (...)) AS src(cols)`，原理与 Oracle 一致）：**
 ```xml
@@ -1160,9 +1170,10 @@ mybatis-plus:
 >
 > 在 Oracle / SQL Server 上首次使用本库前，建议：
 >
-> 1. 用你的实际实体（含动态字段、自动填充、各注解组合）跑一遍单条 `upsert` 与批量 `upsert(Collection)`，确认 SQL 可执行——两者用的是同一条单行语句，但批量走 JDBC BATCH 执行器，驱动行为仍需单独确认；
-> 2. 确认 `List<BatchResult>` 里的逐行受影响行数符合你的预期（部分驱动在 BATCH 下会返回 `SUCCESS_NO_INFO`）；
-> 3. 关注下方两个数据库各自的注意事项（如 SQL Server MERGE 的并发特性）。
+> 1. 配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`：MERGE 中的 `#{...}` 不带 `jdbcType`，null 参数默认按 `JdbcType.OTHER` 绑定，Oracle 驱动会报 `Invalid column type: 1111`；
+> 2. 用你的实际实体（含动态字段、自动填充、各注解组合）跑一遍单条 `upsert` 与批量 `upsert(Collection)`，确认 SQL 可执行——两者用的是同一条单行语句，但批量走 JDBC BATCH 执行器，驱动行为仍需单独确认；
+> 3. 确认 `List<BatchResult>` 里的逐行受影响行数符合你的预期（部分驱动在 BATCH 下会返回 `SUCCESS_NO_INFO`）；
+> 4. 关注下方两个数据库各自的注意事项（如 SQL Server MERGE 的并发特性）。
 >
 > 如遇问题欢迎提 issue 附上生成 SQL 与报错信息。
 
@@ -1179,6 +1190,7 @@ mybatis-plus:
 
 ### Oracle
 
+- **null 参数绑定**：MERGE 中的 `#{...}` 不带 `jdbcType`，请配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`；否则 null 参数默认按 `JdbcType.OTHER` 绑定，Oracle 驱动会报 `Invalid column type: 1111`。
 - 每条记录是**一条独立的单行 MERGE**（`SELECT ... FROM dual` 形式的源子查询），批量写入只是把这些 MERGE 交给 JDBC BATCH 执行器分块提交——不使用 `UNION ALL` 拼成的多行源子查询，也不依赖 Oracle JDBC 的多语句支持（Oracle 驱动在 `;` 分隔的多语句上会报 ORA-00911，本库的写法不会碰到它）。
 - 同一批次内**允许出现重复的冲突键**：两行同键会先后各自执行一次 MERGE，第一行插入、第二行更新，不会触发 ORA-30926。
 - 逐行行数从 `upsert(Collection)` 返回的 `List<BatchResult>` 的 `getUpdateCounts()` 读取。
@@ -1186,6 +1198,7 @@ mybatis-plus:
 
 ### SQL Server
 
+- **null 参数绑定**：同样需要配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`，原因与 Oracle 相同。
 - MERGE 语句末尾的 `;` 是 SQL Server 语法规范要求，缺少会报语法错误。
 - 批量写入为逐条独立的单行 MERGE，不使用 `USING (VALUES (...),(...)) AS src(cols)` 多行写法，因此没有"版本 ≥ 2008"这类多值语法要求，也不受同一批次内重复冲突键的影响。
 - 若遇到字符类型/排序规则相关的报错，可在 JDBC URL 添加 `;sendStringParametersAsUnicode=false` 或升级驱动版本。
