@@ -28,6 +28,9 @@ public class UpsertMeta {
     /** 冲突键列名，用于 ON CONFLICT / ON DUPLICATE KEY / MERGE ON 子句。 */
     private final List<String> conflictColumns;
 
+    /** 与 {@link #conflictColumns} 一一对应、顺序相同的 Java 字段名。 */
+    private final List<String> conflictFields;
+
     /** UPDATE SET 的固定候选列集合（不含冲突键列）。 */
     private final List<String> updateColumns;
 

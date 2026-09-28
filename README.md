@@ -205,7 +205,7 @@ public class UserService {
 > 批量写入只有一条路径：`upsert(Collection)`。它的实现细节（为什么不是"一条多值 SQL"、生成键何时可见、
 > 部分成功语义）见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
-> 传 `null` 实体、`null`/空集合或集合内含 `null` 时的行为在[异常说明](#异常说明)中逐条列出：实体为 `null`（含集合内的 `null` 元素）会在 SQL 绑定之前给出明确的 `UpsertException`，而不是让数据库报一个看不出根因的约束错误；集合本身为 `null` 或为空则视为没有行要写，直接返回空列表。
+> 传 `null` 实体、`null`/空集合或集合内含 `null` 时的行为在[异常说明](#异常说明)中逐条列出：实体为 `null`（含集合内的 `null` 元素）或任一 `@ConflictKey` 值为 `null` 时，会在 SQL 绑定之前给出明确的 `UpsertException`，而不是让数据库报一个看不出根因的约束错误；集合本身为 `null` 或为空则视为没有行要写，直接返回空列表。
 
 ---
 
@@ -826,6 +826,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 | `insertColumns` | `List<String>` | INSERT 全部候选列名（不做动态判断的固定列集合，`insertStrategy = NEVER` 的字段已剔除） |
 | `insertFields` | `List<String>` | 与 `insertColumns` 一一对应的 Java 字段名 |
 | `conflictColumns` | `List<String>` | 冲突检测列名 |
+| `conflictFields` | `List<String>` | 与 `conflictColumns` 一一对应、顺序相同的 Java 字段名；参数守卫按这些字段检查冲突键值 |
 | `updateColumns` | `List<String>` | UPDATE SET 全部候选列名（固定列集合） |
 | `updateFields` | `List<String>` | 与 `updateColumns` 一一对应的 Java 字段名 |
 | `insertFieldMetas` | `List<FieldMeta>` | 带动态判断信息的 INSERT 字段元数据，upsert 的 `<if>` 动态 SQL 由它生成（单条与 `upsert(Collection)` 的每一行共用） |
@@ -1016,13 +1017,17 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 | 调用 | 行为 |
 |---|---|
 | `upsert(entity)` 传入 `null` 实体 | 抛异常 `Upsert entity must not be null` |
+| `upsert(entity)` 任一 `@ConflictKey` 值为 `null` | 抛异常 `Upsert conflict key must not be null`：SQL 语义中的 `NULL` 不与任何值相等，冲突永远不会命中，语句只会退化成重复 INSERT |
 | `upsert(Collection)` 集合内含 `null` | 抛异常 `Upsert entity must not be null`：与 MyBatis-Plus 的 `BaseMapper#insert(Collection)` 一致，本库不预扫描集合，该元素轮到排队执行时被单行语句的守卫拒绝 |
+| `upsert(Collection)` 元素含 `null` 冲突键 | 抛异常 `Upsert conflict key must not be null`：与 null 元素相同，在该元素进入 SQL 绑定前拒绝，不预扫描整批 |
 | `upsert((Collection) null)` / `upsert(空集合)` | **不抛异常**：没有行要写，返回空的 `List<BatchResult>`，不产生任何语句（对齐 MP `Db#saveBatch` 的 `isEmpty` 短路） |
 | `upsert(Collection, batchSize)` 传入 `batchSize <= 0` | 抛异常，消息含 `batchSize`：这一项由 MyBatis-Plus 在进入批次之前把关，本库不重复实现同名校验，因此异常类型是 MP 自己的而不是 `UpsertException` |
 
 > **为什么 `null` 实体必须显式拒绝**：MyBatis 不会拦下它，而是把所有列绑成 `NULL` 照常执行——冲突键列有非空约束时抛出的是看不出根因的数据库约束错误，冲突键列可空时则直接写入一条全空记录。两种结果都比一条明确的异常难排查。
+>
+> **为什么 `null` 冲突键必须显式拒绝**：SQL 中 `NULL` 不等于任何值，PostgreSQL `ON CONFLICT`、MySQL 唯一索引以及 Oracle/SQL Server `MERGE ON` 都不会命中已有行；列可空时每次调用都会再插入一行。可空约束只能把错误推迟到数据库，不能替代冲突键本身的语义要求。守卫在预绑定填充之后执行，因此由 `insertFill` 生成的冲突键是有效值。
 
-> 参数守卫只判断形态，不触碰主键；各条路径在什么情况下回填生成主键见[主键回填](#主键回填)。
+> 参数守卫只判断参数形态和冲突键值，不触碰主键；各条路径在什么情况下回填生成主键见[主键回填](#主键回填)。
 
 ---
 
@@ -1068,7 +1073,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 **Q：`@ConflictKey` 可以标注在主键上吗？**
 
-取决于主键策略：`INPUT` / `ASSIGN_ID` / `ASSIGN_UUID` 主键可以——主键本身就是唯一约束，标注后以主键为冲突依据；**`IdType.AUTO` 自增主键不行**——自增键的值在插入前不存在，无法作为冲突判断依据，启动解析期即抛 `UpsertMetaException`（见[异常说明](#异常说明)）。通常建议以业务唯一键（如 `username`、`order_no`）作为冲突键，而不是主键。
+取决于守卫执行时（预绑定填充之后、SQL 绑定之前）冲突键是否已有值：调用方已提供的主键（如 `INPUT`）、以及由 `insertFill` 预绑定生成的业务键都可以作为冲突键；**`IdType.AUTO` 自增主键、`ASSIGN_ID` / `ASSIGN_UUID` 和 `@KeySequence` 主键不行**——它们在守卫之后才由 MyBatis-Plus 或数据库生成，守卫读取到的仍是 `null`，会在调用期被拒绝（`IdType.AUTO` 已在启动解析期抛 `UpsertMetaException`，见[异常说明](#异常说明)）。通常建议以业务唯一键（如 `username`、`order_no`）作为冲突键，而不是主键。
 
 ---
 

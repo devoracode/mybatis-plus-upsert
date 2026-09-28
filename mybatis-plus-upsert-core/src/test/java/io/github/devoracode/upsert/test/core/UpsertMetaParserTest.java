@@ -50,6 +50,7 @@ class UpsertMetaParserTest {
 
         assertThat(meta.getTableName()).isEqualTo("t_user");
         assertThat(meta.getConflictColumns()).containsExactly("username");
+        assertThat(meta.getConflictFields()).containsExactly("username");
         assertThat(meta.getUpdateColumns()).contains("email", "age", "update_time");
         assertThat(meta.getUpdateColumns()).doesNotContain("username", "create_time");
     }
@@ -103,6 +104,7 @@ class UpsertMetaParserTest {
     void parse_multiple_conflict_keys_respect_order() {
         UpsertMeta meta = UpsertMetaParser.getMeta(multiConflictKeyInfo);
         assertThat(meta.getConflictColumns()).containsExactly("tenant_id", "biz_code");
+        assertThat(meta.getConflictFields()).containsExactly("tenantId", "bizCode");
         // 多个冲突键同样必须始终出现在 INSERT 中
         assertThat(meta.getInsertFields()).contains("tenantId", "bizCode");
         assertThat(meta.getInsertFieldMetas().stream()

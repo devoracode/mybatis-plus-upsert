@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.toolkit.Constants;
 import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
+import io.github.devoracode.upsert.test.support.MultiConflictKeyEntity;
 import org.apache.ibatis.binding.MapperMethod.ParamMap;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
@@ -27,9 +28,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 把这类调用变成一条能直接读懂的 {@link UpsertException}，
  * 且拒绝时绝不能把参数交给委托 SqlSource。
  *
- * <p>注入的两条语句（{@code upsert} 与 {@code upsertExecutor}）参数形态相同，
- * 因此守卫只有一种形态；{@code upsert(Collection)} 集合里的 {@code null} 元素
- * 表现为一次 {@code et} 为 null 的 {@code upsertExecutor} 调用，由同一份逻辑拒绝。
+ * <p>注入的 {@code upsert} 语句直接接收裸实体；{@code upsert(Collection)} 复用同一语句逐行处理，
+ * 集合里的 {@code null} 元素或 {@code null} 冲突键会在该元素进入 SQL 绑定前被同一守卫拒绝。
  */
 class ParameterGuardSqlSourceTest {
 
@@ -57,10 +57,14 @@ class ParameterGuardSqlSourceTest {
         return AutoIdEntity.builder().username(username).email(username + "@example.com").build();
     }
 
+    private ParameterGuardSqlSource guard(SqlSource delegate) {
+        return new ParameterGuardSqlSource(delegate, configuration, Collections.singletonList("username"));
+    }
+
     @Test
     void passes_a_real_entity_through_to_the_delegate() {
         CountingSqlSource delegate = new CountingSqlSource();
-        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(delegate);
+        ParameterGuardSqlSource guard = guard(delegate);
 
         assertThat(guard.getBoundSql(entityParameter(entity("alice")))).isNotNull();
         // 直接向 SqlSession 传裸实体同样识别
@@ -71,7 +75,7 @@ class ParameterGuardSqlSourceTest {
     @Test
     void rejects_null_entity_before_touching_the_delegate() {
         CountingSqlSource delegate = new CountingSqlSource();
-        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(delegate);
+        ParameterGuardSqlSource guard = guard(delegate);
 
         assertThatThrownBy(() -> guard.getBoundSql(entityParameter(null)))
                 .isInstanceOf(UpsertException.class)
@@ -82,10 +86,38 @@ class ParameterGuardSqlSourceTest {
         assertThat(delegate.calls).isZero();
     }
 
+    @Test
+    void rejects_null_conflict_key_before_touching_the_delegate() {
+        CountingSqlSource delegate = new CountingSqlSource();
+        ParameterGuardSqlSource guard = guard(delegate);
+
+        assertThatThrownBy(() -> guard.getBoundSql(entityParameter(entity(null))))
+                .isInstanceOf(UpsertException.class)
+                .hasMessageContaining("Upsert conflict key must not be null")
+                .hasMessageContaining("username");
+        assertThat(delegate.calls).isZero();
+    }
+
+    @Test
+    void rejects_a_null_key_in_a_composite_conflict_key() {
+        CountingSqlSource delegate = new CountingSqlSource();
+        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(delegate, configuration,
+                Arrays.asList("tenantId", "bizCode"));
+        MultiConflictKeyEntity entity = new MultiConflictKeyEntity();
+        entity.setTenantId("tenant-a");
+        entity.setBizCode(null);
+
+        assertThatThrownBy(() -> guard.getBoundSql(entity))
+                .isInstanceOf(UpsertException.class)
+                .hasMessageContaining("Upsert conflict key must not be null")
+                .hasMessageContaining("bizCode");
+        assertThat(delegate.calls).isZero();
+    }
+
     /** MyBatis 的 ParamMap 对缺失键抛 BindingException，守卫必须把它转成能直接读懂的 UpsertException。 */
     @Test
     void rejects_param_map_without_the_entity_key() {
-        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(new CountingSqlSource());
+        ParameterGuardSqlSource guard = guard(new CountingSqlSource());
         ParamMap<Object> parameter = new ParamMap<>();
         parameter.put(Constants.LIST, Collections.singletonList(entity("ivan")));
 
@@ -95,18 +127,18 @@ class ParameterGuardSqlSourceTest {
     }
 
     /**
-     * {@code upsert(Collection)} 集合里的 null 元素对应的正是一次 {@code et} 为 null 的
-     * {@code upsertExecutor} 调用：集合形态不会被当作整批扫描，而是在该元素排队执行时拒绝。
+     * {@code upsert(Collection)} 集合里的 null 元素复用单行语句时，
+     * 不会做整批预扫描，而是在该元素排队执行时被守卫拒绝。
      */
     @Test
     void null_collection_element_is_rejected_as_a_null_entity() {
         CountingSqlSource delegate = new CountingSqlSource();
-        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(delegate);
+        ParameterGuardSqlSource guard = guard(delegate);
         List<AutoIdEntity> entities = Arrays.asList(entity("frank"), null);
 
         // 有实体的那条正常通过
         assertThat(guard.getBoundSql(entityParameter(entities.get(0)))).isNotNull();
-        // null 元素作为 upsertExecutor 的 et 传入时被拒，且不进入 SQL 绑定
+        // null 元素作为该行参数传入时被拒，且不进入 SQL 绑定
         assertThatThrownBy(() -> guard.getBoundSql(entityParameter(entities.get(1))))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("Upsert entity must not be null");
@@ -116,7 +148,7 @@ class ParameterGuardSqlSourceTest {
     @Test
     void collection_shaped_parameter_is_not_mistaken_for_an_entity() {
         // 单行语句收到 list 参数形态时按实体判断：et 缺失即拒绝，不会误当集合扫描
-        ParameterGuardSqlSource guard = new ParameterGuardSqlSource(new CountingSqlSource());
+        ParameterGuardSqlSource guard = guard(new CountingSqlSource());
         Map<String, Object> listParameter = new HashMap<>();
         listParameter.put(Constants.LIST, Collections.singletonList(entity("henry")));
 

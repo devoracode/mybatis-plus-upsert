@@ -38,9 +38,10 @@ final class UpsertSqlSourceFactory {
                     "<script>" + sql + "</script>",
                     modelClass);
         }
+        SqlSource guarded = new ParameterGuardSqlSource(delegate, configuration, meta.getConflictFields());
         if (fillStrategy != null && fillStrategy != FillStrategy.NONE) {
-            delegate = new PreFillSqlSource(delegate, fillStrategy, configuration);
+            guarded = new PreFillSqlSource(guarded, fillStrategy, configuration);
         }
-        return new ParameterGuardSqlSource(delegate);
+        return guarded;
     }
 }

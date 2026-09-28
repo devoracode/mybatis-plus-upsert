@@ -59,3 +59,14 @@ CREATE TABLE t_keyless_user (
     email    VARCHAR(128),
     PRIMARY KEY (username)
 );
+
+-- 冲突键由 insertFill 生成：守卫必须在预绑定填充之后、SQL 绑定之前校验。
+DROP TABLE IF EXISTS t_filled_conflict;
+
+CREATE TABLE t_filled_conflict (
+    id    BIGINT      NOT NULL,
+    code  VARCHAR(64) NOT NULL,
+    value VARCHAR(128),
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_filled_code (code)
+);

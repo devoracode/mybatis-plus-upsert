@@ -116,6 +116,7 @@ public class UpsertMetaParser {
                 .insertColumns(Collections.unmodifiableList(insertColumns))
                 .insertFields(Collections.unmodifiableList(insertFields))
                 .conflictColumns(Collections.unmodifiableList(conflictColumns))
+                .conflictFields(Collections.unmodifiableList(sortedConflictFields))
                 .updateColumns(Collections.unmodifiableList(updateColumns))
                 .updateFields(Collections.unmodifiableList(updateFields))
                 .insertFieldMetas(Collections.unmodifiableList(insertFieldMetas))

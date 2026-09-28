@@ -4,6 +4,8 @@ import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.test.TestApplication;
 import io.github.devoracode.upsert.test.support.AutoUserEntity;
 import io.github.devoracode.upsert.test.support.AutoUserMapper;
+import io.github.devoracode.upsert.test.support.FilledConflictKeyEntity;
+import io.github.devoracode.upsert.test.support.FilledConflictKeyMapper;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -23,8 +25,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * Upsert 空值参数在运行时的拒绝行为（H2 MySQL 模式）。
  *
  * <p>这里要钉住的是"错误由谁给出、给得多早"：{@code null} 实体、{@code null}/空集合、
- * 集合内的 {@code null} 元素都必须在 SQL 绑定之前变成明确的 {@link UpsertException}，
- * 而不是让数据库回一个看不出根因的约束错误，或者写入一条全空记录。
+ * 集合内的 {@code null} 元素以及 {@code null} 冲突键都必须在 SQL 绑定之前变成明确的
+ * {@link UpsertException}，而不是让数据库回一个看不出根因的约束错误，或者静默插入重复行。
  * 每个拒绝用例都会断言表里仍然一行都没有，作为"SQL 从未到达数据库"的证据。
  *
  * <p>{@code upsert(Collection)} 对 {@code null} 与空集合是明确定义的 no-op（返回空列表），
@@ -38,6 +40,9 @@ class UpsertParameterGuardTest {
 
     @Autowired
     private AutoUserMapper autoUserMapper;
+
+    @Autowired
+    private FilledConflictKeyMapper filledConflictKeyMapper;
 
     private static AutoUserEntity user(String username) {
         return AutoUserEntity.builder().username(username).email(username + "@example.com").build();
@@ -73,12 +78,38 @@ class UpsertParameterGuardTest {
     @BeforeEach
     void clean() {
         autoUserMapper.delete(null);
+        filledConflictKeyMapper.delete(null);
     }
 
     @Test
     void null_entity_is_rejected_before_any_sql_runs() {
         assertRejectedByUpsert(() -> autoUserMapper.upsert((AutoUserEntity) null),
                 "Upsert entity must not be null");
+    }
+
+    @Test
+    void null_conflict_key_is_rejected_before_any_sql_runs() {
+        assertRejectedByUpsert(() -> autoUserMapper.upsert(user(null)),
+                "Upsert conflict key must not be null");
+    }
+
+    @Test
+    void null_conflict_key_in_collection_is_rejected_by_the_statement_guard() {
+        assertRejectedByUpsert(() -> autoUserMapper.upsert(Arrays.asList(user("guard-key-ok"), user(null))),
+                "Upsert conflict key must not be null");
+    }
+
+    @Test
+    void conflict_key_filled_before_binding_is_valid_and_persisted() {
+        FilledConflictKeyEntity entity = FilledConflictKeyEntity.builder()
+                .id(1L)
+                .code(null)
+                .value("filled-key")
+                .build();
+
+        assertThat(filledConflictKeyMapper.upsert(entity)).isGreaterThanOrEqualTo(1);
+        assertThat(entity.getCode()).isEqualTo("filled-code");
+        assertThat(filledConflictKeyMapper.selectCount(null)).isEqualTo(1);
     }
 
     /**

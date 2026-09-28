@@ -19,7 +19,10 @@ import java.util.List;
  * 在 MyBatis-Plus {@link BaseMapper} 之上增加 Upsert（存在则更新、不存在则插入）能力的扩展接口。
  *
  * <p>实体至少要有一个 {@link io.github.devoracode.upsert.annotation.ConflictKey} 字段，否则本接口的
- * 语句不会为该 Mapper 注入。动态列、主键回填、事务边界与批量的部分成功语义见 README
+ * 语句不会为该 Mapper 注入；冲突键在 SQL 绑定前必须能读取到非 {@code null} 值（由调用方提供，
+ * 或由 {@code insertFill} 预绑定生成），否则无法命中已有行。MyBatis-Plus 的
+ * {@code ASSIGN_ID}/{@code ASSIGN_UUID}/{@code @KeySequence} 取值晚于该检查，不能用作冲突键。
+ * 动态列、主键回填、事务边界与批量的部分成功语义见 README
  * 「字段动态判断」「主键回填」「批量 Upsert 的实现」三节。
  *
  * @param <T> 实体类型
@@ -31,7 +34,7 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
     /**
      * 插入实体；冲突键命中已有行时改为更新该行。
      *
-     * @param entity 待 upsert 的实体，为 null 时抛 {@link UpsertException}
+     * @param entity 待 upsert 的实体；实体本身或任一 {@code @ConflictKey} 值为 null 时抛 {@link UpsertException}
      * @return 受影响行数（MySQL 下 1=插入、2=更新、0=值未变化，其他数据库不区分插入与更新）
      */
     int upsert(T entity);
@@ -49,7 +52,7 @@ public interface UpsertMapper<T> extends BaseMapper<T> {
     /**
      * 按指定批次大小逐条 upsert 实体集合。
      *
-     * @param entityList 待 upsert 的实体集合；为 null 或空时不执行任何 SQL，含 null 元素时抛 {@link UpsertException}
+     * @param entityList 待 upsert 的实体集合；为 null 或空时不执行任何 SQL，含 null 元素或冲突键为 null 的元素时抛 {@link UpsertException}
      * @param batchSize  批次大小，必须为正整数，否则由 MyBatis-Plus 在写入任何一行之前拒绝
      * @return 各批次的执行结果，{@code getUpdateCounts()} 是该批次逐行的受影响行数
      */

@@ -71,6 +71,7 @@ public class TestApplication {
             insertFillCount.incrementAndGet();
             insertFillSources.add(resolveFillSource());
             LocalDateTime now = LocalDateTime.now();
+            strictInsertFill(metaObject, "code", String.class, "filled-code");
             strictInsertFill(metaObject, "createTime", LocalDateTime.class, now);
             strictInsertFill(metaObject, "updateTime", LocalDateTime.class, now);
         }
