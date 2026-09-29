@@ -6,6 +6,7 @@ import io.github.devoracode.upsert.autoconfigure.DynamicUpsertAutoConfiguration;
 import io.github.devoracode.upsert.autoconfigure.UpsertDynamicProperties;
 import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
+import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.util.DbTypeDetector;
@@ -139,6 +140,27 @@ class DynamicUpsertAutoConfigurationTest {
                 .hasMessageContaining("Cannot infer db-type from JDBC URL 'jdbc:db2://localhost:50000/db;user=***;password=***'")
                 .hasMessageNotContaining("s3cret")
                 .hasMessageNotContaining("scott");
+    }
+
+    // --- 静态数据源为空时的退避 ---
+
+    /**
+     * 数据源也可能由 DynamicDataSourceProvider（配置中心）下发或运行期 addDataSource 加入，
+     * 这两种情况下静态配置为空属于正常用法，不能因此拒绝启动。
+     */
+    @Test
+    void no_static_datasource_does_not_block_startup() {
+        DynamicDataSourceProperties dsProps = new DynamicDataSourceProperties();
+        dsProps.setPrimary("from-nacos");
+
+        DynamicUpsertDialect dialect = new DynamicUpsertAutoConfiguration(
+                new UpsertDynamicProperties(), dsProps, beanFactory).dynamicUpsertDialect();
+
+        assertThat(dialect).isInstanceOf(io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl.class);
+        assertThat(((io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl) dialect).getPrimary())
+                .isEqualTo("from-nacos");
+        assertThat(((io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl) dialect).getDialectMap())
+                .isEmpty();
     }
 
     // --- sqlserver-holdlock 开关是否真的落到 SQL 上 ---

@@ -336,6 +336,11 @@ class RoutingUpsertSqlSourceCacheTest {
         }
 
         @Override
+        public void addDialect(String dataSourceName, UpsertDialect dialect) {
+            // 本用例只关心路由，桩不需要真实的注册表
+        }
+
+        @Override
         public String buildUpsertSql(UpsertMeta meta) {
             return current.buildUpsertSql(meta);
         }
@@ -351,6 +356,11 @@ class RoutingUpsertSqlSourceCacheTest {
         @Override
         public UpsertDialect getCurrentDialect() {
             return new CountingDialect("fresh-" + sequence.getAndIncrement());
+        }
+
+        @Override
+        public void addDialect(String dataSourceName, UpsertDialect dialect) {
+            // 同上
         }
 
         @Override
@@ -374,6 +384,11 @@ class RoutingUpsertSqlSourceCacheTest {
         @Override
         public UpsertDialect getCurrentDialect() {
             return current.get();
+        }
+
+        @Override
+        public void addDialect(String dataSourceName, UpsertDialect dialect) {
+            // 同上
         }
 
         @Override
