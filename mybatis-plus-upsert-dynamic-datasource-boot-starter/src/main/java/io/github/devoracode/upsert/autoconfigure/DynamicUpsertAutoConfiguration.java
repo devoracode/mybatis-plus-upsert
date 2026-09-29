@@ -54,6 +54,9 @@ public class DynamicUpsertAutoConfiguration {
     /**
      * 为 {@code spring.datasource.dynamic.datasource} 里的每个数据源推断（或按配置取用）数据库类型并注册方言，随后校验主数据源也在其中。
      *
+     * <p>该配置为空时不阻塞启动：数据源也可能由 {@code DynamicDataSourceProvider} 从配置中心下发、
+     * 或运行期 {@code addDataSource} 加入，这些来源在启动期拿不到 JDBC URL，无法推断 db-type。
+     *
      * @return DynamicUpsertDialect 实例
      */
     @Bean
@@ -63,7 +66,11 @@ public class DynamicUpsertAutoConfiguration {
 
         Map<String, DataSourceProperty> allDatasources = dynamicDataSourceProperties.getDatasource();
         if (allDatasources == null || allDatasources.isEmpty()) {
-            throw new UpsertException("No data sources configured in spring.datasource.dynamic.datasource");
+            dynamicDialect.setPrimary(dynamicDataSourceProperties.getPrimary());
+            log.warn("No data sources declared in spring.datasource.dynamic.datasource. If your data sources come from a"
+                    + " DynamicDataSourceProvider or are added at runtime, register their upsert dialects with"
+                    + " DynamicUpsertDialect.addDialect(name, dialect) before calling upsert.");
+            return dynamicDialect;
         }
 
         Map<String, UpsertDynamicProperties.DataSourceConfig> upsertConfigs = upsertDynamicProperties.getDatasource();

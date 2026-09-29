@@ -30,6 +30,7 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
     private volatile String primary;
 
     /** 为指定数据源注册方言；两者都不能为 null。 */
+    @Override
     public void addDialect(String dataSourceName, UpsertDialect dialect) {
         dialectMap.put(dataSourceName, dialect);
     }
@@ -47,7 +48,9 @@ public class DynamicUpsertDialectImpl implements DynamicUpsertDialect {
         String dataSourceName = peeked != null ? peeked : primary;
         UpsertDialect dialect = dialectMap.get(dataSourceName);
         if (dialect == null) {
-            throw new UpsertException("No upsert dialect configured for data source '" + dataSourceName + "'");
+            throw new UpsertException("No upsert dialect configured for data source '" + dataSourceName
+                    + "'. Register one with DynamicUpsertDialect.addDialect(name, dialect), or declare it under"
+                    + " mybatis-plus.upsert.dynamic.datasource." + dataSourceName + " for statically configured data sources.");
         }
         if (log.isDebugEnabled()) {
             log.debug("Using dialect {} for data source {}", dialect.getClass().getSimpleName(), dataSourceName);
