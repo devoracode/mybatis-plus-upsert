@@ -880,6 +880,8 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 以下示例基于 `UserEntity`（冲突键 `username`，更新 `email`、`age`、`update_time`，忽略 `create_time`）。`UserEntity` 字段均未显式标注 `@TableField`，按 MP 全局默认策略 `NOT_NULL`，因此 `email`、`age`、`update_time` 等非冲突键字段在下面每个数据库的单行语句中均为动态字段；为保持示例简洁，以下只展示 `email` 的 `<if>` 片段，其余动态字段省略号代替，结构相同。主键 `id` 和冲突键 `username` 始终原样拼接，不做动态判断。
 
 > 本节只列单行语句的形态：`upsert(Collection<T>)` 复用的正是下面每个数据库的这条 SQL（同一条注入的 `upsert` statement，逐条走 BATCH executor），因此这些示例同时就是批量写入实际执行的 SQL。为什么批量不拼一条多行 `VALUES` SQL，见[批量 Upsert 的实现](#批量-upsert-的实现)。
+>
+> 当全部可更新字段都是动态字段、且本次值全部被过滤时，示例中不会剩下任何赋值；实际生成的条件自赋值兜底（MySQL 为 `col = col`、PostgreSQL 为 `col = 表名.col`、MERGE 方言为 `col = t.col`）只会在这种情况下追加，以保证 `UPDATE SET` 语法完整。需要注意这仍是一条真实 UPDATE：数据库触发器会执行，`ON UPDATE CURRENT_TIMESTAMP` 列会变化，MySQL/MariaDB 在冲突分支还可能返回 2（更新）。
 
 ### MySQL / MariaDB
 
