@@ -13,47 +13,59 @@ class DialectFactoryTest {
 
     @Test
     void create_returns_correct_dialect_type() {
-        assertThat(DialectFactory.create("mysql", false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create("postgresql", false)).isInstanceOf(PostgresUpsertDialect.class);
-        assertThat(DialectFactory.create("oracle", false)).isInstanceOf(OracleUpsertDialect.class);
-        assertThat(DialectFactory.create("h2", false)).isInstanceOf(H2UpsertDialect.class);
-        assertThat(DialectFactory.create("sqlserver", false)).isInstanceOf(SqlServerUpsertDialect.class);
-        assertThat(DialectFactory.create("postgres", false)).isInstanceOf(PostgresUpsertDialect.class);
-        assertThat(DialectFactory.create(DbType.MYSQL, false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create(DbType.H2, false)).isInstanceOf(H2UpsertDialect.class);
+        assertThat(DialectFactory.create("mysql", false, true)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create("postgresql", false, true)).isInstanceOf(PostgresUpsertDialect.class);
+        assertThat(DialectFactory.create("oracle", false, true)).isInstanceOf(OracleUpsertDialect.class);
+        assertThat(DialectFactory.create("h2", false, true)).isInstanceOf(H2UpsertDialect.class);
+        assertThat(DialectFactory.create("sqlserver", false, true)).isInstanceOf(SqlServerUpsertDialect.class);
+        assertThat(DialectFactory.create("postgres", false, true)).isInstanceOf(PostgresUpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.MYSQL, false, true)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.H2, false, true)).isInstanceOf(H2UpsertDialect.class);
     }
 
     @Test
     void create_by_string_is_case_insensitive() {
-        assertThat(DialectFactory.create("MySQL", false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create("POSTGRESQL", false)).isInstanceOf(PostgresUpsertDialect.class);
+        assertThat(DialectFactory.create("MySQL", false, true)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create("POSTGRESQL", false, true)).isInstanceOf(PostgresUpsertDialect.class);
     }
 
     @Test
     void mysql_configuration_selects_correct_dialect() {
-        assertThat(DialectFactory.create(DbType.MYSQL, false)).isInstanceOf(MysqlLegacyUpsertDialect.class);
-        assertThat(DialectFactory.create(DbType.MYSQL, true)).isInstanceOf(MysqlUpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.MYSQL, false, true)).isInstanceOf(MysqlLegacyUpsertDialect.class);
+        assertThat(DialectFactory.create(DbType.MYSQL, true, true)).isInstanceOf(MysqlUpsertDialect.class);
     }
 
     @Test
     void create_with_unknown_string_throws() {
-        assertThatThrownBy(() -> DialectFactory.create("oceanbase", false))
+        assertThatThrownBy(() -> DialectFactory.create("oceanbase", false, true))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("Unknown db-type");
     }
 
     @Test
     void create_caches_instance_per_type() {
-        UpsertDialect first = DialectFactory.create("mysql", false);
-        UpsertDialect second = DialectFactory.create("mysql", false);
+        UpsertDialect first = DialectFactory.create("mysql", false, true);
+        UpsertDialect second = DialectFactory.create("mysql", false, true);
         assertThat(first).isSameAs(second);
 
-        UpsertDialect legacy1 = DialectFactory.create(DbType.MYSQL, false);
-        UpsertDialect legacy2 = DialectFactory.create(DbType.MYSQL, false);
-        UpsertDialect new1 = DialectFactory.create(DbType.MYSQL, true);
-        UpsertDialect new2 = DialectFactory.create(DbType.MYSQL, true);
+        UpsertDialect legacy1 = DialectFactory.create(DbType.MYSQL, false, true);
+        UpsertDialect legacy2 = DialectFactory.create(DbType.MYSQL, false, true);
+        UpsertDialect new1 = DialectFactory.create(DbType.MYSQL, true, true);
+        UpsertDialect new2 = DialectFactory.create(DbType.MYSQL, true, true);
         assertThat(legacy1).isSameAs(legacy2);
         assertThat(new1).isSameAs(new2);
         assertThat(legacy1).isNotSameAs(new1);
+    }
+
+    /**
+     * HOLDLOCK 开关会改变 SQL，必须参与实例缓存键，否则先创建的方言会被另一种开关取值复用。
+     */
+    @Test
+    void sqlserver_holdlock_flag_is_part_of_cache_key() {
+        UpsertDialect holdlock1 = DialectFactory.create(DbType.SQLSERVER, false, true);
+        UpsertDialect holdlock2 = DialectFactory.create(DbType.SQLSERVER, false, true);
+        UpsertDialect noHoldlock = DialectFactory.create(DbType.SQLSERVER, false, false);
+        assertThat(holdlock1).isSameAs(holdlock2);
+        assertThat(holdlock1).isNotSameAs(noHoldlock);
     }
 }

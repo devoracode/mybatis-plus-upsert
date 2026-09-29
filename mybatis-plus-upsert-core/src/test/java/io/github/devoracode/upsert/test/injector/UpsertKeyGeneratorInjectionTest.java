@@ -103,7 +103,7 @@ class UpsertKeyGeneratorInjectionTest {
                 new MysqlLegacyUpsertDialect(),
                 new PostgresUpsertDialect(),
                 new OracleUpsertDialect(),
-                new SqlServerUpsertDialect(),
+                new SqlServerUpsertDialect(true),
                 new H2UpsertDialect(),
         };
         for (UpsertDialect dialect : dialects) {

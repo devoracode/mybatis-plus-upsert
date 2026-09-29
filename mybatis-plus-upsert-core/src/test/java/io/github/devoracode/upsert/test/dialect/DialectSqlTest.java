@@ -185,8 +185,8 @@ class DialectSqlTest {
 
     @Test
     void sqlserver_single_sql() {
-        String sql = new SqlServerUpsertDialect().buildUpsertSql(staticMeta);
-        assertThat(sql).containsIgnoringCase("MERGE INTO t_user AS t");
+        String sql = new SqlServerUpsertDialect(true).buildUpsertSql(staticMeta);
+        assertThat(sql).containsIgnoringCase("MERGE INTO t_user WITH (HOLDLOCK) AS t");
         assertThat(sql).containsIgnoringCase("AS src");
         assertThat(sql).containsIgnoringCase("WHEN MATCHED THEN UPDATE SET");
         assertThat(sql.trim()).endsWith(";");
@@ -194,9 +194,23 @@ class DialectSqlTest {
         assertThat(sql).contains("email = src.email");
     }
 
+    /**
+     * HOLDLOCK 关闭时目标别名退回 {@code AS t}；提示只加在目标表上，别名与其余子句不受影响。
+     */
+    @Test
+    void sqlserver_holdlock_can_be_disabled() {
+        String sql = new SqlServerUpsertDialect(false).buildUpsertSql(staticMeta);
+        assertThat(sql).containsIgnoringCase("MERGE INTO t_user AS t")
+                .doesNotContain("HOLDLOCK")
+                .contains("email = src.email");
+        // Oracle 不受该开关影响
+        assertThat(new OracleUpsertDialect().buildUpsertSql(staticMeta))
+                .doesNotContain("HOLDLOCK");
+    }
+
     @Test
     void sqlserver_single_sql_uses_select_based_src_for_dynamic_support() {
-        String sql = new SqlServerUpsertDialect().buildUpsertSql(dynamicMeta);
+        String sql = new SqlServerUpsertDialect(true).buildUpsertSql(dynamicMeta);
         // 单行场景使用基于 SELECT 的 src（而非 VALUES(...) AS src(cols)）以支持动态列
         assertThat(sql).containsIgnoringCase("USING (SELECT");
         assertThat(sql).contains("<if test=\"email != null\">");
@@ -272,7 +286,7 @@ class DialectSqlTest {
                 .containsIgnoringCase("ON CONFLICT (tenant_id, biz_code)");
         assertThat(new H2UpsertDialect().buildUpsertSql(multiColumnMeta))
                 .containsIgnoringCase("KEY(tenant_id, biz_code)");
-        assertThat(new SqlServerUpsertDialect().buildUpsertSql(multiColumnMeta))
+        assertThat(new SqlServerUpsertDialect(true).buildUpsertSql(multiColumnMeta))
                 .contains("ON (t.tenant_id = src.tenant_id AND t.biz_code = src.biz_code)");
         assertThat(new OracleUpsertDialect().buildUpsertSql(multiColumnMeta))
                 .contains("ON (t.tenant_id = src.tenant_id AND t.biz_code = src.biz_code)");
@@ -302,7 +316,7 @@ class DialectSqlTest {
 
         List<UpsertDialect> dialects = Arrays.asList(
                 new MysqlLegacyUpsertDialect(), new PostgresUpsertDialect(), new H2UpsertDialect(),
-                new OracleUpsertDialect(), new SqlServerUpsertDialect());
+                new OracleUpsertDialect(), new SqlServerUpsertDialect(true));
         for (UpsertDialect dialect : dialects) {
             String sql = dialect.buildUpsertSql(singleColumnMeta);
             assertThat(sql).as(dialect.getClass().getSimpleName() + " single SQL")
@@ -348,7 +362,7 @@ class DialectSqlTest {
                 .contains("memo = #{memo}").doesNotContain("memo = EXCLUDED.memo");
         assertThat(new OracleUpsertDialect().buildUpsertSql(meta))
                 .contains("memo = #{memo}").doesNotContain("memo = src.memo");
-        assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
+        assertThat(new SqlServerUpsertDialect(true).buildUpsertSql(meta))
                 .contains("memo = #{memo}").doesNotContain("memo = src.memo");
     }
 
@@ -423,7 +437,7 @@ class DialectSqlTest {
         assertThat(new OracleUpsertDialect().buildUpsertSql(meta))
                 .contains("<if test=\"email != null\">email = src.email, </if>")
                 .contains(fallbackCond + "email = t.email, </if>");
-        assertThat(new SqlServerUpsertDialect().buildUpsertSql(meta))
+        assertThat(new SqlServerUpsertDialect(true).buildUpsertSql(meta))
                 .contains("<if test=\"email != null\">email = src.email, </if>")
                 .contains(fallbackCond + "email = t.email, </if>");
     }
@@ -534,7 +548,7 @@ class DialectSqlTest {
         assertThat(oracle).contains("WHEN MATCHED THEN UPDATE SET email = t.email WHEN NOT MATCHED");
 
         String sqlServer = renderSingleSql(
-                new SqlServerUpsertDialect().buildUpsertSql(allDynamicUpdateMeta()), entity);
+                new SqlServerUpsertDialect(true).buildUpsertSql(allDynamicUpdateMeta()), entity);
         assertThat(sqlServer).contains("WHEN MATCHED THEN UPDATE SET email = t.email WHEN NOT MATCHED");
     }
 
@@ -583,7 +597,7 @@ class DialectSqlTest {
         assertThat(oracle).contains("AS id, ? AS username FROM dual")
                 .contains("ON (t.username = src.username)");
 
-        String sqlServer = renderSingleSql(new SqlServerUpsertDialect().buildUpsertSql(meta), entity);
+        String sqlServer = renderSingleSql(new SqlServerUpsertDialect(true).buildUpsertSql(meta), entity);
         assertThat(sqlServer).contains("USING (SELECT ? AS id, ? AS username ) AS src")
                 .contains("ON (t.username = src.username)");
 

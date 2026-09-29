@@ -4,6 +4,8 @@ import com.baomidou.dynamic.datasource.spring.boot.autoconfigure.DynamicDataSour
 import com.baomidou.dynamic.datasource.creator.DataSourceProperty;
 import io.github.devoracode.upsert.autoconfigure.DynamicUpsertAutoConfiguration;
 import io.github.devoracode.upsert.autoconfigure.UpsertDynamicProperties;
+import io.github.devoracode.upsert.core.FieldMeta;
+import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.util.DbTypeDetector;
@@ -11,6 +13,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -42,7 +46,7 @@ class DynamicUpsertAutoConfigurationTest {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("mysql");
 
-        UpsertDialect dialect = config.resolveDialect("mysql", cfg, DbTypeDetector.DbType.MYSQL, false);
+        UpsertDialect dialect = config.resolveDialect("mysql", cfg, DbTypeDetector.DbType.MYSQL, false, true);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
@@ -53,7 +57,7 @@ class DynamicUpsertAutoConfigurationTest {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("postgresql");
 
-        UpsertDialect dialect = config.resolveDialect("pg", cfg, DbTypeDetector.DbType.POSTGRESQL, false);
+        UpsertDialect dialect = config.resolveDialect("pg", cfg, DbTypeDetector.DbType.POSTGRESQL, false, true);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect.getClass().getSimpleName()).contains("Postgres");
@@ -65,7 +69,7 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("clickHouseDialect");
 
-        UpsertDialect dialect = config.resolveDialect("clickhouse", cfg, DbTypeDetector.DbType.CUSTOM, false);
+        UpsertDialect dialect = config.resolveDialect("clickhouse", cfg, DbTypeDetector.DbType.CUSTOM, false, true);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect).isSameAs(beanFactory.getBean("clickHouseDialect"));
@@ -77,7 +81,7 @@ class DynamicUpsertAutoConfigurationTest {
         UpsertDynamicProperties.DataSourceConfig cfg = new UpsertDynamicProperties.DataSourceConfig();
         cfg.setDbType("custom");
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false, true))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("dialect-ref is configured");
     }
@@ -88,7 +92,7 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("nonExistentBean");
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false, true))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("not found in Spring container");
     }
@@ -99,24 +103,77 @@ class DynamicUpsertAutoConfigurationTest {
         cfg.setDbType("custom");
         cfg.setDialectRef("wrongTypeBean");
 
-        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false))
+        assertThatThrownBy(() -> config.resolveDialect("custom", cfg, DbTypeDetector.DbType.CUSTOM, false, true))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("does not implement UpsertDialect");
     }
 
     @Test
     void resolveDialect_custom_with_null_config_throws() {
-        assertThatThrownBy(() -> config.resolveDialect("custom", null, DbTypeDetector.DbType.CUSTOM, false))
+        assertThatThrownBy(() -> config.resolveDialect("custom", null, DbTypeDetector.DbType.CUSTOM, false, true))
                 .isInstanceOf(UpsertException.class)
                 .hasMessageContaining("requires custom dialect configuration");
     }
 
     @Test
     void resolveDialect_with_null_config_and_builtin_dbtype_works() {
-        UpsertDialect dialect = config.resolveDialect("mysql", null, DbTypeDetector.DbType.MYSQL, false);
+        UpsertDialect dialect = config.resolveDialect("mysql", null, DbTypeDetector.DbType.MYSQL, false, true);
 
         assertThat(dialect).isNotNull();
         assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
+    }
+
+    // --- sqlserver-holdlock 开关是否真的落到 SQL 上 ---
+
+    @Test
+    void sqlserver_holdlock_is_on_by_default() {
+        assertThat(new UpsertDynamicProperties().isSqlserverHoldlock()).isTrue();
+
+        assertThat(upsertSqlForSqlServerDs(new UpsertDynamicProperties()))
+                .contains("MERGE INTO t_user WITH (HOLDLOCK) AS t");
+    }
+
+    @Test
+    void sqlserver_holdlock_disabled_removes_hint() {
+        UpsertDynamicProperties props = new UpsertDynamicProperties();
+        props.setSqlserverHoldlock(false);
+
+        assertThat(upsertSqlForSqlServerDs(props))
+                .contains("MERGE INTO t_user AS t")
+                .doesNotContain("HOLDLOCK");
+    }
+
+    private String upsertSqlForSqlServerDs(UpsertDynamicProperties props) {
+        DynamicDataSourceProperties dsProps = new DynamicDataSourceProperties();
+        dsProps.setPrimary("sqlserver");
+        DataSourceProperty sqlServer = new DataSourceProperty();
+        sqlServer.setUrl("jdbc:sqlserver://localhost:1433;databaseName=db");
+        dsProps.getDatasource().put("sqlserver", sqlServer);
+
+        io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl dialect =
+                (io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl)
+                        new DynamicUpsertAutoConfiguration(props, dsProps, beanFactory).dynamicUpsertDialect();
+        return dialect.getDialectMap().get("sqlserver").buildUpsertSql(minimalMeta());
+    }
+
+    /** 只够渲染单行语句的最小元数据：两个插入列、一个冲突键、无更新列。 */
+    private UpsertMeta minimalMeta() {
+        Map<String, String> fieldToColumn = new HashMap<>();
+        fieldToColumn.put("id", "id");
+        fieldToColumn.put("code", "code");
+        FieldMeta id = FieldMeta.builder().column("id").property("id").dynamic(false).build();
+        FieldMeta code = FieldMeta.builder().column("code").property("code").dynamic(false).build();
+        return UpsertMeta.builder()
+                .tableName("t_user")
+                .insertColumns(Arrays.asList("id", "code"))
+                .insertFields(Arrays.asList("id", "code"))
+                .conflictColumns(Collections.singletonList("code"))
+                .updateColumns(Collections.emptyList())
+                .updateFields(Collections.emptyList())
+                .insertFieldMetas(Arrays.asList(id, code))
+                .updateFieldMetas(Collections.emptyList())
+                .fieldToColumnMap(fieldToColumn)
+                .build();
     }
 
     // --- per-数据源 use-new-mysql-syntax 的继承语义 ---
