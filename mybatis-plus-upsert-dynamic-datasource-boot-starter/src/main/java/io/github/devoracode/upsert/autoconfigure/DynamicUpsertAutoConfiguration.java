@@ -10,6 +10,7 @@ import io.github.devoracode.upsert.exception.UpsertException;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import io.github.devoracode.upsert.util.DialectFactory;
 import io.github.devoracode.upsert.util.DbTypeDetector;
+import io.github.devoracode.upsert.util.LogSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
@@ -114,7 +115,9 @@ public class DynamicUpsertAutoConfiguration {
         String url = dsProp.getUrl();
         DbTypeDetector.DbType dbType = DbTypeDetector.parseDbTypeByJdbcUrl(url);
         if (dbType == DbTypeDetector.DbType.UNKNOWN) {
-            throw new UpsertException("Cannot infer db-type from JDBC URL '" + url + "' for data source '" + dsName
+            // URL 常带账号口令，回显前脱敏；异常会进启动日志与 CI 产物
+            throw new UpsertException("Cannot infer db-type from JDBC URL '" + LogSanitizer.redactJdbcUrl(url)
+                    + "' for data source '" + dsName
                     + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName);
         }
         return dbType;
