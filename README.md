@@ -394,6 +394,7 @@ public class UserService {
 | `mybatis-plus.upsert.dynamic.enabled` | `true` | 是否启用动态数据源支持 |
 | `mybatis-plus.upsert.dynamic.use-new-mysql-syntax` | `false` | **全局**默认：MySQL 数据源是否使用新语法（AS new），可被单个数据源配置覆盖 |
 | `mybatis-plus.upsert.dynamic.fill-strategy` | `insert_update` | 动态 SQL 绑定前是否调用 `MetaObjectHandler` 预填充，可选 `none` / `insert` / `insert_update`，对所有数据源生效 |
+| `mybatis-plus.upsert.dynamic.sqlserver-holdlock` | `true` | SQL Server 数据源的 MERGE 目标表是否加 `WITH (HOLDLOCK)`，对所有 SQL Server 数据源生效，取舍见[数据库注意事项](#数据库注意事项)的 SQL Server 一节 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.db-type` | 自动推断 | 该数据源的数据库类型（mysql/postgresql/oracle/sqlserver/h2/custom）。**可选**，未配置时从 JDBC URL 自动推断 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.use-new-mysql-syntax` | 未声明则继承全局配置 | 单个数据源的 MySQL 语法开关；仅当显式写出 `true`/`false` 时覆盖全局配置，只配置了 `db-type` 等其他项不会影响该开关 |
 | `mybatis-plus.upsert.dynamic.datasource.{dsName}.dialect-ref` | - | 自定义方言 Bean 名称，仅在 `db-type=custom` 时生效 |
@@ -709,6 +710,8 @@ mybatis-plus:
                                    # 可选值：mysql | postgresql | oracle | sqlserver | h2 | custom
     use-new-mysql-syntax: false  # 是否使用 MySQL 8.0.19+ 引入的新 upsert 语法（AS new）
                                    # 默认 false 使用向后兼容的 VALUES() 语法
+    sqlserver-holdlock: true     # SQL Server 的 MERGE 目标表是否加 WITH (HOLDLOCK)，默认 true
+                                   # 仅在数据库类型为 sqlserver 时生效，取舍见下方 SQL Server 章节
     fill-strategy: insert_update  # 动态 SQL 绑定前是否调用 MetaObjectHandler 预填充
                                    # 可选值：none | insert | insert_update（默认）
                                    # 仅在实体有 @TableField(fill = ...) 字段时有意义，详见[常见问题](#常见问题)
@@ -971,7 +974,7 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">
 
 **单行语句（改用 `USING (SELECT ...) AS src` 而非 `USING (VALUES (...)) AS src(cols)`，原理与 Oracle 一致）：**
 ```xml
-MERGE INTO t_user AS t USING (SELECT <trim suffixOverrides=",">
+MERGE INTO t_user WITH (HOLDLOCK) AS t USING (SELECT <trim suffixOverrides=",">
   #{id} AS id, #{username} AS username,
   <if test="email != null">#{email} AS email, </if>
   ...
@@ -986,6 +989,8 @@ WHEN NOT MATCHED THEN INSERT (<trim suffixOverrides=",">...</trim>)
 ```
 
 > `USING (VALUES (...)) AS src(cols)` 要求列名声明和取值列表严格等长，无法配合 `<if>` 动态增减列，因此本库统一使用 `SELECT` 形式；批量写入也是这条语句逐条执行。
+
+> **`WITH (HOLDLOCK)` 由 `mybatis-plus.upsert.sqlserver-holdlock` 控制，默认开启**：MERGE 名义上是单条语句，内部却是「先读判定、再 insert/update」，默认读阶段不持有键更新锁，并发写同一个冲突键时两条 MERGE 可能都判定为未命中而双双插入，抛 `Cannot insert duplicate key row`。加上 HOLDLOCK 后匹配判定期间持锁，可以消除这个竞态。代价是热点键上死锁概率上升，因此提供了关闭开关，取舍见[数据库注意事项](#数据库注意事项)的 SQL Server 一节。
 
 ---
 
@@ -1210,6 +1215,15 @@ mybatis-plus:
 ### SQL Server
 
 - **null 参数绑定**：同样需要配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`，原因与 Oracle 相同。
+- **并发与 `WITH (HOLDLOCK)`**：本库默认在 MERGE 目标表上加 `WITH (HOLDLOCK)`（`MERGE INTO t WITH (HOLDLOCK) AS t`）。MERGE 内部是「先读判定、再 insert/update」，默认读阶段不持有键更新锁，并发写同一个冲突键时两条 MERGE 可能都判定为未命中而双双插入，抛 `Cannot insert duplicate key row`；加上 HOLDLOCK 后匹配判定期间持有键更新锁，串行化同一键上的 MERGE，代价是**热点键上死锁概率上升**。确认业务不会并发写同一冲突键、或能接受该错误并重试时，可关闭它换取更低的死锁概率：
+
+  ```yaml
+  mybatis-plus:
+    upsert:
+      sqlserver-holdlock: false   # 多数据源 starter 用 mybatis-plus.upsert.dynamic.sqlserver-holdlock
+  ```
+
+  该开关只影响 SQL Server 方言，其他数据库类型忽略。
 - MERGE 语句末尾的 `;` 是 SQL Server 语法规范要求，缺少会报语法错误。
 - 批量写入为逐条独立的单行 MERGE，不使用 `USING (VALUES (...),(...)) AS src(cols)` 多行写法，因此没有"版本 ≥ 2008"这类多值语法要求，也不受同一批次内重复冲突键的影响。
 - 若遇到字符类型/排序规则相关的报错，可在 JDBC URL 添加 `;sendStringParametersAsUnicode=false` 或升级驱动版本。
