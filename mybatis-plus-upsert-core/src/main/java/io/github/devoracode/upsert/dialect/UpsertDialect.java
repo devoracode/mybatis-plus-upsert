@@ -13,6 +13,12 @@ public interface UpsertDialect {
     /**
      * 构建给定元数据的单行 Upsert SQL。
      *
+     * <p>返回值会被注入器包进 {@code <script>} 后按 XML 解析，因此 SQL 文本里的
+     * {@code <}、{@code >}、{@code &} 必须写成 {@code &lt;}、{@code &gt;}、{@code &amp;}
+     *（如 {@code WHERE a < b} 要写成 {@code WHERE a &lt; b}），否则解析阶段直接报错。
+     *本库不自动转义：同一段 SQL 里的 {@code <if>}、{@code <trim>} 等动态标签必须保持
+     *为标签，整体包 CDATA 会让它们退化成纯文本。
+     *
      * @param meta 表名、列名、冲突键等 SQL 生成元数据
      * @return 生成的 SQL 字符串，含 MyBatis 动态标签时不要自带 {@code <script>} 包裹
      */

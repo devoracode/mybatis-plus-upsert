@@ -821,6 +821,8 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 
 > `UpsertDialect` 接口只有一个必须实现的方法 `buildUpsertSql(UpsertMeta)`。`upsert(Collection)` 复用的正是本方法生成的那条单行语句，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 
+> **⚠️ 返回值必须是 XML 安全的**：注入器把本方法的返回值原样包进 `<script>` 交给 MyBatis 解析，所以 SQL 文本里的 `<`、`>`、`&` 要写成 `&lt;`、`&gt;`、`&amp;`——`WHERE a < b` 必须写成 `WHERE a &lt; b`，否则在 SQL 解析阶段就报错。本库**不自动转义**：同一段 SQL 里的 `<if>`、`<trim>` 等动态标签必须保持为标签，整体包 CDATA 会让它们退化成纯文本，因此这个约束由实现者自己保证。
+
 `UpsertMeta` 提供以下字段供 SQL 拼接使用：
 
 | 字段 | 类型 | 说明 |

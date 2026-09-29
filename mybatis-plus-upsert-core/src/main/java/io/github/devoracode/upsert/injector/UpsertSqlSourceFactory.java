@@ -34,6 +34,8 @@ final class UpsertSqlSourceFactory {
                     modelClass);
         } else {
             String sql = dialect.buildUpsertSql(meta);
+            // 不在此转义 < 与 &：同一段 SQL 里的 <if>/<trim> 必须保持为标签，
+            // 转义契约由 UpsertDialect.buildUpsertSql 的 javadoc 约束实现者
             delegate = languageDriver.createSqlSource(configuration,
                     "<script>" + sql + "</script>",
                     modelClass);
