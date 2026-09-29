@@ -123,6 +123,24 @@ class DynamicUpsertAutoConfigurationTest {
         assertThat(dialect.getClass().getSimpleName()).contains("Mysql");
     }
 
+    // --- 推断失败时的消息脱敏 ---
+
+    @Test
+    void url_credentials_are_redacted_from_inference_error() {
+        DynamicDataSourceProperties dsProps = new DynamicDataSourceProperties();
+        dsProps.setPrimary("legacy");
+        DataSourceProperty legacy = new DataSourceProperty();
+        legacy.setUrl("jdbc:db2://localhost:50000/db;user=scott;password=s3cret");
+        dsProps.getDatasource().put("legacy", legacy);
+
+        assertThatThrownBy(() -> new DynamicUpsertAutoConfiguration(
+                new UpsertDynamicProperties(), dsProps, beanFactory).dynamicUpsertDialect())
+                .isInstanceOf(UpsertException.class)
+                .hasMessageContaining("Cannot infer db-type from JDBC URL 'jdbc:db2://localhost:50000/db;user=***;password=***'")
+                .hasMessageNotContaining("s3cret")
+                .hasMessageNotContaining("scott");
+    }
+
     // --- sqlserver-holdlock 开关是否真的落到 SQL 上 ---
 
     @Test
