@@ -9,6 +9,8 @@ import io.github.devoracode.upsert.util.DbTypeDetector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
@@ -19,13 +21,20 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 
+import javax.sql.DataSource;
+
 /**
  * 单数据源 Upsert 的自动配置：解析数据库类型、创建 {@link UpsertDialect}、注册 {@link UpsertSqlInjector}。
+ *
+ * <p>本 starter 可能只是被传递依赖带进某个应用（该应用并未使用关系型数据库），
+ * 因此在缺少 MyBatis-Plus 或缺少 {@link DataSource} Bean 时整类退避，不参与装配。
  *
  * @author devoracode
  * @since 1.0.0
  */
-@Configuration
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnClass(MybatisPlusAutoConfiguration.class)
+@ConditionalOnBean(DataSource.class)
 @EnableConfigurationProperties(UpsertProperties.class)
 @ConditionalOnProperty(prefix = "mybatis-plus.upsert", name = "enabled", havingValue = "true", matchIfMissing = true)
 @AutoConfigureBefore(MybatisPlusAutoConfiguration.class)
