@@ -369,6 +369,20 @@ public class UserService {
 3. 根据推断结果创建对应的 `UpsertDialect` 实例并注册到 `DynamicUpsertDialect`
 4. 运行时通过 `DynamicDataSourceContextHolder.peek()` 获取当前数据源名称，路由到对应的方言生成 SQL
 
+### 运行期新增的数据源
+
+数据源不一定来自 `spring.datasource.dynamic.datasource`：dynamic-datasource 还支持用 `DynamicDataSourceProvider` 从 Nacos / Apollo 等配置中心下发，或在运行期调用 `addDataSource` 加入。这两种情况下第 1 步遍历到的是空配置，**此时本 starter 只记一条 WARN 日志，不阻塞启动**，方言需要在使用前补注册：
+
+```java
+@Autowired
+private DynamicUpsertDialect upsertDialect;
+
+// 数据源名必须与 DynamicDataSourceContextHolder.push(name) 里的 name 一致
+upsertDialect.addDialect("order_ds", new PostgresUpsertDialect());
+```
+
+未注册就调用 upsert 会抛 `UpsertException`，消息里会指明是哪个数据源、该走哪条注册路径。启动时 `spring.datasource.dynamic.datasource` 非空的场景不受影响：主数据源若不在已注册列表中仍会启动失败（那是配置错误，不是本文说的运行期注册场景）。
+
 ### SQL 缓存
 
 路由方言内部按 **"<数据源解析出的方言实例> + 实体"** 缓存已构建的 `SqlSource`，
