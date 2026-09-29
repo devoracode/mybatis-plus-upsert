@@ -23,10 +23,14 @@ public final class DialectFactory {
     /**
      * 按数据库类型字符串创建方言实例。
      *
+     * @param dbTypeStr         数据库类型字符串，大小写不敏感
+     * @param useNewMysqlSyntax MySQL 是否使用 8.0.19+ 的 {@code AS} 别名语法，其他数据库忽略
+     * @param sqlserverHoldlock SQL Server 的 MERGE 目标表是否加 {@code WITH (HOLDLOCK)}，其他数据库忽略
+     * @return 对应的 UpsertDialect 实例
      * @throws UpsertException 数据库类型未知或不支持
      */
-    public static UpsertDialect create(String dbTypeStr, boolean useNewMysqlSyntax) {
-        return create(parseDbType(dbTypeStr), useNewMysqlSyntax);
+    public static UpsertDialect create(String dbTypeStr, boolean useNewMysqlSyntax, boolean sqlserverHoldlock) {
+        return create(parseDbType(dbTypeStr), useNewMysqlSyntax, sqlserverHoldlock);
     }
 
     /**
@@ -34,24 +38,28 @@ public final class DialectFactory {
      *
      * @param dbType            数据库类型
      * @param useNewMysqlSyntax MySQL 是否使用 8.0.19+ 的 {@code AS} 别名语法，其他数据库忽略
+     * @param sqlserverHoldlock SQL Server 的 MERGE 目标表是否加 {@code WITH (HOLDLOCK)}，其他数据库忽略
      * @return 对应的 UpsertDialect 实例；{@code dbType} 为 CUSTOM 时返回 null
      * @throws UpsertException 数据库类型不支持
      */
-    public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax) {
+    public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax, boolean sqlserverHoldlock) {
         if (dbType == DbType.CUSTOM) {
             return null;
         }
-        String cacheKey = dbType + (dbType == DbType.MYSQL ? ":" + useNewMysqlSyntax : "");
+        // 语法开关会改变生成的 SQL，必须进入缓存键，否则先到的取值会被后来的调用复用
+        String cacheKey = dbType
+                + (dbType == DbType.MYSQL ? ":" + useNewMysqlSyntax : "")
+                + (dbType == DbType.SQLSERVER ? ":holdlock=" + sqlserverHoldlock : "");
         return INSTANCES.computeIfAbsent(cacheKey,
-                k -> newInstance(dbType, useNewMysqlSyntax));
+                k -> newInstance(dbType, useNewMysqlSyntax, sqlserverHoldlock));
     }
 
-    private static UpsertDialect newInstance(DbType dbType, boolean useNewMysqlSyntax) {
+    private static UpsertDialect newInstance(DbType dbType, boolean useNewMysqlSyntax, boolean sqlserverHoldlock) {
         switch (dbType) {
             case MYSQL:      return newMysqlInstance(useNewMysqlSyntax);
             case POSTGRESQL: return new PostgresUpsertDialect();
             case ORACLE:     return new OracleUpsertDialect();
-            case SQLSERVER:  return new SqlServerUpsertDialect();
+            case SQLSERVER:  return new SqlServerUpsertDialect(sqlserverHoldlock);
             case H2:         return new H2UpsertDialect();
             default:
                 throw new UpsertException("Unsupported db-type: " + dbType
@@ -61,6 +69,9 @@ public final class DialectFactory {
 
     /**
      * 新建 MySQL 方言实例，每次返回新实例、不走 {@link #create} 的缓存。
+     *
+     * @param useNewMysqlSyntax 是否使用 8.0.19+ 的 {@code AS} 别名语法
+     * @return {@link MysqlUpsertDialect} 或 {@link MysqlLegacyUpsertDialect} 实例
      */
     public static UpsertDialect newMysqlInstance(boolean useNewMysqlSyntax) {
         if (useNewMysqlSyntax) {
@@ -72,6 +83,8 @@ public final class DialectFactory {
     /**
      * 解析数据库类型字符串。
      *
+     * @param value 数据库类型字符串，大小写不敏感
+     * @return 解析出的数据库类型
      * @throws UpsertException 字符串无法解析为数据库类型
      */
     public static DbType parseDbType(String value) {

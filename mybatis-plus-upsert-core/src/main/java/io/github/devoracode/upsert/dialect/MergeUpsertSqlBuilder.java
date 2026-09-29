@@ -30,9 +30,15 @@ final class MergeUpsertSqlBuilder {
         return new MergeUpsertSqlBuilder(" t", " FROM dual) src ON (", "");
     }
 
-    /** SQL Server 版：目标别名为 {@code AS t}，USING 子查询收尾带 {@code AS src}，结尾带分号。 */
-    static MergeUpsertSqlBuilder sqlServer() {
-        return new MergeUpsertSqlBuilder(" AS t", ") AS src ON (", ";");
+    /**
+     * SQL Server 版：USING 子查询收尾带 {@code AS src}，结尾带分号。
+     *
+     * @param holdlock 目标表是否加 {@code WITH (HOLDLOCK)}。MERGE 只在判定匹配后才加锁，
+     *                 并发同键的两条 MERGE 可能双双判定为未命中而都去插入；加 HOLDLOCK 后
+     *                 匹配判定期间持有键更新锁，代价是热点键上更易死锁
+     */
+    static MergeUpsertSqlBuilder sqlServer(boolean holdlock) {
+        return new MergeUpsertSqlBuilder(holdlock ? " WITH (HOLDLOCK) AS t" : " AS t", ") AS src ON (", ";");
     }
 
     String buildUpsertSql(UpsertMeta meta) {

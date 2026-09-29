@@ -24,6 +24,12 @@ public class UpsertProperties {
     private boolean useNewMysqlSyntax = false;
 
     /**
+     * SQL Server 的 MERGE 目标表是否加 {@code WITH (HOLDLOCK)}，默认 true，仅在数据库类型为 SQL Server 时生效。
+     * 关闭可降低热点键上的死锁概率，代价是并发写同一冲突键时可能出现 {@code Cannot insert duplicate key}。
+     */
+    private boolean sqlserverHoldlock = true;
+
+    /**
      * SQL 绑定前应用的自动填充策略；未配置时由 {@link #resolveFillStrategy()} 给出默认值。
      *
      * @since 1.6.0

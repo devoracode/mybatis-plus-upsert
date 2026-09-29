@@ -75,7 +75,8 @@ public class DynamicUpsertAutoConfiguration {
             UpsertDynamicProperties.DataSourceConfig upsertConfig = upsertConfigs.get(dsName);
 
             DbTypeDetector.DbType dbType = inferDbType(dsName, entry.getValue(), upsertConfig);
-            UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType, resolveUseNewMysqlSyntax(upsertConfig));
+            UpsertDialect dialect = resolveDialect(dsName, upsertConfig, dbType,
+                    resolveUseNewMysqlSyntax(upsertConfig), upsertDynamicProperties.isSqlserverHoldlock());
             dynamicDialect.addDialect(dsName, dialect);
             log.info("Registered upsert dialect {} for data source '{}'", dialect.getClass().getSimpleName(), dsName);
         }
@@ -140,7 +141,8 @@ public class DynamicUpsertAutoConfiguration {
     public UpsertDialect resolveDialect(String dsName,
                                         UpsertDynamicProperties.DataSourceConfig config,
                                         DbTypeDetector.DbType dbType,
-                                        boolean useNewMysqlSyntax) {
+                                        boolean useNewMysqlSyntax,
+                                        boolean sqlserverHoldlock) {
         if (dbType == DbTypeDetector.DbType.CUSTOM) {
             if (config == null) {
                 throw new UpsertException("Data source '" + dsName + "' requires custom dialect configuration");
@@ -161,7 +163,7 @@ public class DynamicUpsertAutoConfiguration {
             }
             return (UpsertDialect) bean;
         }
-        UpsertDialect dialect = DialectFactory.create(dbType, useNewMysqlSyntax);
+        UpsertDialect dialect = DialectFactory.create(dbType, useNewMysqlSyntax, sqlserverHoldlock);
         if (dialect == null) {
             String dbTypeName = dbType.name().toLowerCase();
             throw new UpsertException("Failed to create upsert dialect for db-type '" + dbTypeName

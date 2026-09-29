@@ -66,7 +66,8 @@ public class UpsertAutoConfiguration {
             log.info("Auto-inferred db-type as '{}' from JDBC URL", dbTypeEnum.name().toLowerCase());
         }
 
-        UpsertDialect dialect = DialectFactory.create(dbTypeEnum, properties.isUseNewMysqlSyntax());
+        UpsertDialect dialect = DialectFactory.create(dbTypeEnum,
+                properties.isUseNewMysqlSyntax(), properties.isSqlserverHoldlock());
         if (dialect == null) {
             throw new UpsertException("Failed to create upsert dialect for db-type '" + dbTypeEnum.name().toLowerCase() + "'");
         }
