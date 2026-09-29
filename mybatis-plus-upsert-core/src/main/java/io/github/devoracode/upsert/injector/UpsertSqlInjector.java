@@ -7,6 +7,7 @@ import io.github.devoracode.upsert.core.fill.FillStrategy;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
 import org.apache.ibatis.session.Configuration;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -41,7 +42,8 @@ public class UpsertSqlInjector extends DefaultSqlInjector {
 
     @Override
     public List<AbstractMethod> getMethodList(Configuration configuration, Class<?> mapperClass, TableInfo tableInfo) {
-        List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
+        // 父类返回的可能是按 mapper 缓存的共享列表，也可能是不可变空列表，复制后再追加
+        List<AbstractMethod> methods = new ArrayList<>(super.getMethodList(configuration, mapperClass, tableInfo));
         methods.add(new UpsertMethod(dialect, fillStrategy));
         return methods;
     }
