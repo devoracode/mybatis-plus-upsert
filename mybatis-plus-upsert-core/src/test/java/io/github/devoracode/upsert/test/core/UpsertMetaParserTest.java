@@ -13,6 +13,7 @@ import io.github.devoracode.upsert.test.support.ConflictOnlyEntity;
 import io.github.devoracode.upsert.test.support.MultiConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.NeverInsertConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.UserEntity;
+import io.github.devoracode.upsert.test.support.VersionedEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class UpsertMetaParserTest {
     private static TableInfo conflictOnlyInfo;
     private static TableInfo neverInsertConflictKeyInfo;
     private static TableInfo multiConflictKeyInfo;
+    private static TableInfo versionedInfo;
 
     @BeforeAll
     static void initTableInfo() {
@@ -42,6 +44,7 @@ class UpsertMetaParserTest {
         conflictOnlyInfo = TableInfoHelper.initTableInfo(assistant, ConflictOnlyEntity.class);
         neverInsertConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, NeverInsertConflictKeyEntity.class);
         multiConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, MultiConflictKeyEntity.class);
+        versionedInfo = TableInfoHelper.initTableInfo(assistant, VersionedEntity.class);
     }
 
     @Test
@@ -138,6 +141,17 @@ class UpsertMetaParserTest {
         assertThatThrownBy(() -> UpsertMetaParser.getMeta(autoIdConflictKeyInfo))
                 .isInstanceOf(UpsertMetaException.class)
                 .hasMessageContaining("auto-increment");
+    }
+
+    @Test
+    void version_field_fails_fast_for_upsert() {
+        // upsert 注册为 INSERT 语句，MP 乐观锁拦截器只改写 UPDATE；
+        // 放行会把调用方的旧 version 原样写回且不做并发比较
+        assertThatThrownBy(() -> UpsertMetaParser.getMeta(versionedInfo))
+                .isInstanceOf(UpsertMetaException.class)
+                .hasMessageContaining("VersionedEntity")
+                .hasMessageContaining("'version'")
+                .hasMessageContaining("@Version");
     }
 
     @Test

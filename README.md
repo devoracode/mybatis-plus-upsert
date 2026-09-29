@@ -1016,6 +1016,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 - `@ConflictKey` 标在 `IdType.AUTO` 主键上——自增键在插入前没有值，无法作为冲突判断依据；
 - `@ConflictKey` 字段声明了 `insertStrategy = NEVER`——冲突键必须参与 INSERT，否则 UPDATE 场景会退化成 INSERT；
+- 含 `@ConflictKey`、会注入 upsert 的实体含 `@Version` 字段——upsert 注册为 INSERT 语句，MP 乐观锁只改写 UPDATE；放行会把调用方的旧 version 写回且不做比较或自增，乐观锁静默失效并造成并发更新丢失；
 - 实体没有任何可更新列（只有冲突键，或其余字段全被 `@IgnoreOnUpdate` / `updateStrategy = NEVER` 排除）——必然产生空 `UPDATE SET`，启动期快速失败，而不是留到运行期报 SQL 语法错误。
 
 实体**没有** `@ConflictKey` 时不属于异常：本库直接跳过该 Mapper 的 Upsert 方法注入，不会拖垮启动，普通 CRUD 照常可用。
@@ -1099,6 +1100,14 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 ---
 
+**Q：实体使用 `@Version` 乐观锁，可以调用 upsert 吗？**
+
+**不可以。** 自 v1.7.1 起，含 `@ConflictKey`、会注入 upsert 的实体若同时标注 `@Version`，解析期会直接抛 `UpsertMetaException`；没有 `@ConflictKey` 的实体本来就不注入 upsert 方法，属于“不支持 upsert”，不是乐观锁可用。本库注入的 upsert 语句是 `SqlCommandType.INSERT`，而 MP 的 `OptimisticLockerInnerInterceptor` 只改写 `UPDATE` 语句。若把 `version` 列放进 upsert，冲突分支会执行 `SET version = #{version}`，把调用方读到的旧版本原样写回，既没有 `version = version + 1`，也没有 `AND version = ?`；并发更新不会失败，数据会静默丢失。
+
+因此含 `@Version` 的实体不能注入 upsert 方法。请移除 `@Version`，或不用 upsert、改用 `updateById` 并配置 `OptimisticLockerInnerInterceptor`——后者不具备“冲突则插入”的语义。
+
+---
+
 **Q：同一 JVM 里存在多个 Spring 上下文 / 多个 MyBatis Configuration（集成测试、父子上下文、动态刷新），实体元数据会串吗？**
 
 不会。`UpsertMetaParser` 是无状态解析器：不维护全局元数据缓存，也不通过 `TableInfoHelper` 的全局注册表按实体类反查 `TableInfo`，只解析每个 `Configuration` 在 SQL 注入期交给它的那份 `TableInfo`——表名、字段映射、主键策略、字段动态策略都取自各自上下文，结构上不存在跨上下文串用的通道。解析只发生在启动注入期（每个实体每个 Mapper 共几次），运行期执行 Upsert 不再解析元数据，因此无需缓存也不会有额外开销。
@@ -1107,7 +1116,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 **Q：upsert 与 MP 的自动填充（`@TableField(fill = ...)`) 兼容吗？**
 
-**兼容。** 从 v1.6.0 起，自动填充内嵌在注入的 upsert `SqlSource` 中（`PreFillSqlSource`），在**动态 SQL 绑定之前**调用 `MetaObjectHandler`，确保所有 `@TableField(fill = ...)` 字段都能被正确填充。该机制只作用于 upsert 语句本身——不再注册全局 MyBatis 拦截器，与分页、乐观锁等插件的顺序无关，其他语句零开销。
+**兼容。** 从 v1.6.0 起，自动填充内嵌在注入的 upsert `SqlSource` 中（`PreFillSqlSource`），在**动态 SQL 绑定之前**调用 `MetaObjectHandler`，确保所有 `@TableField(fill = ...)` 字段都能被正确填充。该机制只作用于 upsert 语句本身——不再注册全局 MyBatis 拦截器，与分页等插件的顺序无关，其他语句零开销。`@Version` 乐观锁则不受支持，详见上文说明。
 
 由于 upsert 使用 `SqlCommandType.INSERT`，`insertFill` 实际上会被调用**两次**（MyBatis-Plus 机制决定，无法从外部禁用）——单条和批量 upsert 均如此，批量时对**每个实体**各调用两次：
 

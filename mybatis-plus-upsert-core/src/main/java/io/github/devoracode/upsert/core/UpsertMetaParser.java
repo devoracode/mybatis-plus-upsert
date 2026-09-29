@@ -39,7 +39,7 @@ public class UpsertMetaParser {
      * 基于入参 {@link TableInfo} 解析实体的完整 {@link UpsertMeta}。
      *
      * @param tableInfo 当前 Configuration 下的实体表元数据
-     * @throws UpsertMetaException 元数据校验不通过（如缺少冲突键、无可更新列）
+     * @throws UpsertMetaException 元数据校验不通过（如缺少冲突键、含 {@code @Version}、无可更新列）
      */
     public static UpsertMeta getMeta(TableInfo tableInfo) {
         Objects.requireNonNull(tableInfo, "tableInfo must not be null");
@@ -56,6 +56,7 @@ public class UpsertMetaParser {
                     + ": @ConflictKey cannot be placed on an auto-increment (IdType.AUTO) primary key;"
                     + " the conflict key must be a user-provided column");
         }
+        rejectVersionField(entityClass, tableInfo);
         List<String> sortedConflictFields = sortConflictFields(scan.conflictFieldOrder);
 
         int fieldCount = tableInfo.getFieldList().size() + 1; // +1 用于主键
@@ -124,6 +125,19 @@ public class UpsertMetaParser {
                 .fieldToColumnMap(Collections.unmodifiableMap(fieldToColumnMap))
                 .entityClass(entityClass)
                 .build();
+    }
+
+    private static void rejectVersionField(Class<?> entityClass, TableInfo tableInfo) {
+        for (TableFieldInfo fieldInfo : tableInfo.getFieldList()) {
+            if (fieldInfo.isVersion()) {
+                throw new UpsertMetaException(entityClass.getName() + ": @Version field '"
+                        + fieldInfo.getProperty() + "' is not supported by upsert. The injected statement is an"
+                        + " INSERT and MyBatis-Plus's OptimisticLockerInnerInterceptor only rewrites UPDATE"
+                        + " statements; including this field would write the caller's stale version back"
+                        + " without comparing or incrementing it. Remove @Version or use updateById with the"
+                        + " optimistic-locker plugin.");
+            }
+        }
     }
 
     private static void addPrimaryKey(TableInfo tableInfo, Map<String, String> fieldToColumnMap,
