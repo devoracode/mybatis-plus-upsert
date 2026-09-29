@@ -1169,6 +1169,31 @@ mybatis-plus:
 
 ---
 
+**Q：项目里已经自定义了 `ISqlInjector`，还能用 upsert 吗？**
+
+自定义注入器必须**继承 `UpsertSqlInjector`**。一旦容器里存在自己的 `ISqlInjector` Bean，本 starter 注册注入器的 `@ConditionalOnMissingBean` 就会退避，`upsert` 语句根本不会被注入，而且这个错误要到第一次调用时才暴露：`Invalid bound statement (not found)`。
+
+```java
+@Component
+public class MySqlInjector extends UpsertSqlInjector {
+
+    public MySqlInjector(UpsertDialect dialect) {
+        super(dialect);   // 第二个参数可传 fill-strategy，见上文 fill-strategy 说明
+    }
+
+    @Override
+    public List<AbstractMethod> getMethodList(Configuration configuration, Class<?> mapperClass, TableInfo tableInfo) {
+        List<AbstractMethod> methods = super.getMethodList(configuration, mapperClass, tableInfo);
+        methods.add(new MyOwnMethod());   // super 返回的是本类自己的新列表，可安全追加
+        return methods;
+    }
+}
+```
+
+注意是继承 `UpsertSqlInjector` 而不是 MP 的 `DefaultSqlInjector`——后者不含 upsert 注入。若只是想改方言而不换注入器，参见[自定义方言](#自定义方言)。
+
+---
+
 ## 各数据库 UPSERT 对比
 
 | 数据库 | 支持 UPSERT 的版本 | 语法关键字 | 是否依赖唯一键冲突 | 并发安全性 | 备注 |
