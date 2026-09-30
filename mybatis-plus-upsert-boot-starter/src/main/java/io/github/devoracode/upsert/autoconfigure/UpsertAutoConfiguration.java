@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -29,11 +30,17 @@ import javax.sql.DataSource;
  * <p>本 starter 可能只是被传递依赖带进某个应用（该应用并未使用关系型数据库），
  * 因此在缺少 MyBatis-Plus 或缺少 {@link DataSource} Bean 时整类退避，不参与装配。
  *
+ * <p>多数据源 starter 在 classpath 上时也整类退避：两个自动配置都注册
+ * {@code UpsertSqlInjector}，靠 {@code @ConditionalOnMissingBean} 决出胜负时结果取决于
+ * 条件求值顺序，选错会让多数据源路由静默失效。退避后由多数据源 starter 接管，
+ * 结果与求值顺序无关。
+ *
  * @author devoracode
  * @since 1.0.0
  */
 @Configuration(proxyBeanMethods = false)
 @ConditionalOnClass(MybatisPlusAutoConfiguration.class)
+@ConditionalOnMissingClass("io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl")
 @ConditionalOnBean(DataSource.class)
 @EnableConfigurationProperties(UpsertProperties.class)
 @ConditionalOnProperty(prefix = "mybatis-plus.upsert", name = "enabled", havingValue = "true", matchIfMissing = true)
