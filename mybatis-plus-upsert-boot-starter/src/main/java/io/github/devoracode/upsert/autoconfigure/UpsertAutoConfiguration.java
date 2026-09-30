@@ -7,6 +7,7 @@ import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import io.github.devoracode.upsert.util.DialectFactory;
 import io.github.devoracode.upsert.util.DbTypeDetector;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.AutoConfigureBefore;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
@@ -82,23 +83,32 @@ public class UpsertAutoConfiguration {
             log.info("Auto-inferred db-type as '{}' from JDBC URL", dbTypeEnum.name().toLowerCase());
         }
 
-        UpsertDialect dialect = DialectFactory.create(dbTypeEnum,
+        return DialectFactory.create(dbTypeEnum,
                 properties.isUseNewMysqlSyntax(), properties.isSqlserverHoldlock());
-        if (dialect == null) {
-            throw new UpsertException("Failed to create upsert dialect for db-type '" + dbTypeEnum.name().toLowerCase() + "'");
-        }
-        return dialect;
     }
 
     /**
      * 注册 Upsert 注入器，并把 {@code fill-strategy} 解析出的策略交给它。
      *
-     * @param dialect 用于 SQL 生成的 upsert 方言
+     * <p>方言用 {@link ObjectProvider} 取：{@code db-type=custom} 且应用没有提供
+     * {@link UpsertDialect} Bean 时，这里给出可操作的报错，而不是 Spring 默认的
+     * "No qualifying bean"。
+     *
+     * @param dialectProvider 用于 SQL 生成的 upsert 方言，由内置自动配置或应用自身提供
      * @return 配置好的 UpsertSqlInjector
+     * @throws UpsertException 未注册任何 {@link UpsertDialect}
      */
     @Bean
     @ConditionalOnMissingBean(com.baomidou.mybatisplus.core.injector.ISqlInjector.class)
-    public UpsertSqlInjector upsertSqlInjector(UpsertDialect dialect) {
+    public UpsertSqlInjector upsertSqlInjector(ObjectProvider<UpsertDialect> dialectProvider) {
+        UpsertDialect dialect = dialectProvider.getIfUnique();
+        if (dialect == null) {
+            // 零个和多个候选都会走到这里，getIfUnique() 对两者都返回 null
+            throw new UpsertException("Expected exactly one UpsertDialect bean, found "
+                    + dialectProvider.orderedStream().count() + ". mybatis-plus.upsert.db-type=custom means the"
+                    + " dialect is supplied by the application: declare an UpsertDialect bean (for example"
+                    + " @Component on your dialect class) or point db-type at a built-in database type.");
+        }
         return new UpsertSqlInjector(dialect, properties.resolveFillStrategy());
     }
 }

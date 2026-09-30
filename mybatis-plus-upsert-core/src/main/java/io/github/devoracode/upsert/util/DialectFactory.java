@@ -39,12 +39,13 @@ public final class DialectFactory {
      * @param dbType            数据库类型
      * @param useNewMysqlSyntax MySQL 是否使用 8.0.19+ 的 {@code AS} 别名语法，其他数据库忽略
      * @param sqlserverHoldlock SQL Server 的 MERGE 目标表是否加 {@code WITH (HOLDLOCK)}，其他数据库忽略
-     * @return 对应的 UpsertDialect 实例；{@code dbType} 为 CUSTOM 时返回 null
-     * @throws UpsertException 数据库类型不支持
+     * @return 对应的 UpsertDialect 实例
+     * @throws UpsertException 数据库类型不支持，或 dbType 为 CUSTOM（自定义方言不由本工厂创建）
      */
     public static UpsertDialect create(DbType dbType, boolean useNewMysqlSyntax, boolean sqlserverHoldlock) {
         if (dbType == DbType.CUSTOM) {
-            return null;
+            throw new UpsertException("db-type=custom means the dialect is supplied by the application;"
+                    + " register it as an UpsertDialect bean instead of calling DialectFactory");
         }
         // 语法开关会改变生成的 SQL，必须进入缓存键，否则先到的取值会被后来的调用复用
         String cacheKey = dbType

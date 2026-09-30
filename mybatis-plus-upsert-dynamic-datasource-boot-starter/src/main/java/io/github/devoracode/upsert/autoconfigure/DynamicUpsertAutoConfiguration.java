@@ -173,13 +173,7 @@ public class DynamicUpsertAutoConfiguration {
             }
             return (UpsertDialect) bean;
         }
-        UpsertDialect dialect = DialectFactory.create(dbType, useNewMysqlSyntax, sqlserverHoldlock);
-        if (dialect == null) {
-            String dbTypeName = dbType.name().toLowerCase();
-            throw new UpsertException("Failed to create upsert dialect for db-type '" + dbTypeName
-                    + "' on data source '" + dsName + "'");
-        }
-        return dialect;
+        return DialectFactory.create(dbType, useNewMysqlSyntax, sqlserverHoldlock);
     }
 
     /**
