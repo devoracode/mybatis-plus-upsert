@@ -8,6 +8,7 @@ import io.github.devoracode.upsert.annotation.ConflictKey;
 import io.github.devoracode.upsert.annotation.IgnoreOnUpdate;
 import io.github.devoracode.upsert.annotation.UpdateColumn;
 import io.github.devoracode.upsert.exception.UpsertMetaException;
+import lombok.extern.slf4j.Slf4j;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import java.util.Set;
  * @author devoracode
  * @since 1.0.0
  */
+@Slf4j
 public class UpsertMetaParser {
 
     /**
@@ -64,7 +66,7 @@ public class UpsertMetaParser {
                     + tableInfo.getIdType() + "); such a key is newly generated on every insert, so the conflict"
                     + " would never match an existing row - use a user-provided column as the conflict key");
         }
-        rejectVersionField(entityClass, tableInfo);
+        rejectVersionField(entityClass, tableInfo, scan);
         List<String> sortedConflictFields = sortConflictFields(scan.conflictFieldOrder);
 
         int fieldCount = tableInfo.getFieldList().size() + 1; // +1 用于主键
@@ -135,9 +137,12 @@ public class UpsertMetaParser {
                 .build();
     }
 
-    private static void rejectVersionField(Class<?> entityClass, TableInfo tableInfo) {
+    private static void rejectVersionField(Class<?> entityClass, TableInfo tableInfo, AnnotationScan scan) {
         for (TableFieldInfo fieldInfo : tableInfo.getFieldList()) {
-            if (fieldInfo.isVersion()) {
+            if (!fieldInfo.isVersion()) {
+                continue;
+            }
+            if (isWrittenOnConflictBranch(scan, fieldInfo)) {
                 throw new UpsertMetaException(entityClass.getName() + ": @Version field '"
                         + fieldInfo.getProperty() + "' is not supported by upsert. The injected statement is an"
                         + " INSERT and MyBatis-Plus's OptimisticLockerInnerInterceptor only rewrites UPDATE"
@@ -145,7 +150,20 @@ public class UpsertMetaParser {
                         + " without comparing or incrementing it. Remove @Version or use updateById with the"
                         + " optimistic-locker plugin.");
             }
+            log.warn("{}: @Version field '{}' is excluded from the conflict branch (@IgnoreOnUpdate, @UpdateColumn"
+                    + " or updateStrategy = NEVER), so upsert never writes it back and the optimistic-locker"
+                    + " plugin does not apply here. Keep the version column consistent yourself.",
+                    entityClass.getName(), fieldInfo.getProperty());
         }
+    }
+
+    /**
+     * 该字段是否会出现在冲突分支的 SET 子句中。{@code updateStrategy = NEVER} 与
+     * {@code shouldUpdateField} 都要成立才会被写入。
+     */
+    private static boolean isWrittenOnConflictBranch(AnnotationScan scan, TableFieldInfo fieldInfo) {
+        return shouldUpdateField(scan, fieldInfo.getProperty())
+                && fieldInfo.getUpdateStrategy() != FieldStrategy.NEVER;
     }
 
     private static void addPrimaryKey(TableInfo tableInfo, Map<String, String> fieldToColumnMap,
