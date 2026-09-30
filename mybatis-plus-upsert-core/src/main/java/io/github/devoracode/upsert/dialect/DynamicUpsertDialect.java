@@ -12,6 +12,11 @@ public interface DynamicUpsertDialect extends UpsertDialect {
     /**
      * 解析当前数据源上下文对应的方言，每次执行 Upsert 时调用。
      *
+     * <p><b>实现须为同一数据源返回稳定的方言实例</b>（典型做法是预先创建好、每次返回同一个）。
+     * 路由用的 {@link org.apache.ibatis.mapping.SqlSource} 按方言实例缓存已构建的 SQL，
+     * 每次调用都新建实例会让缓存始终不命中，导致每次调用都重新解析一遍动态 SQL——
+     * 比命中缓存更慢。确需按条件切换方言时，请复用已创建的实例而不是现场 new。
+     *
      * @return 当前数据源应使用的 {@link UpsertDialect}
      * @throws io.github.devoracode.upsert.exception.UpsertException 当前数据源没有已注册的方言
      */
