@@ -125,7 +125,9 @@ public class DynamicUpsertAutoConfiguration {
             // URL 常带账号口令，回显前脱敏；异常会进启动日志与 CI 产物
             throw new UpsertException("Cannot infer db-type from JDBC URL '" + LogSanitizer.redactJdbcUrl(url)
                     + "' for data source '" + dsName
-                    + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName);
+                    + "'. Please configure db-type explicitly in mybatis-plus.upsert.dynamic.datasource." + dsName
+                    + ". If the database has no built-in dialect yet, use db-type=custom with a dialect-ref"
+                    + " pointing at your own UpsertDialect bean.");
         }
         return dbType;
     }

@@ -78,7 +78,9 @@ public class UpsertAutoConfiguration {
         } else {
             dbTypeEnum = DbTypeDetector.parseDbTypeByJdbcUrl(dataSourceProperties.getUrl());
             if (dbTypeEnum == DbTypeDetector.DbType.UNKNOWN) {
-                throw new UpsertException("Cannot infer db-type from data source. Please configure mybatis-plus.upsert.db-type explicitly.");
+                throw new UpsertException("Cannot infer db-type from data source. Please configure"
+                        + " mybatis-plus.upsert.db-type explicitly. If the database has no built-in dialect yet,"
+                        + " set db-type=custom and provide an UpsertDialect bean instead.");
             }
             log.info("Auto-inferred db-type as '{}' from JDBC URL", dbTypeEnum.name().toLowerCase());
         }
