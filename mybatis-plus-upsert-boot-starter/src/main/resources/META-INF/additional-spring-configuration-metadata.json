@@ -23,6 +23,12 @@
       "type": "io.github.devoracode.upsert.core.fill.FillStrategy",
       "description": "Auto-fill strategy applied before the upsert SQL is bound.",
       "defaultValue": "insert_update"
+    },
+    {
+      "name": "mybatis-plus.upsert.sqlserver-holdlock",
+      "type": "java.lang.Boolean",
+      "description": "Whether to add WITH (HOLDLOCK) to the SQL Server MERGE target table. Required to avoid a duplicate-key race between concurrent MERGEs on the same conflict key; disabling it lowers deadlock risk on hot keys. Only applicable for db-type=sqlserver.",
+      "defaultValue": true
     }
   ],
   "hints": [
