@@ -903,7 +903,7 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 >
 > 当全部可更新字段都是动态字段、且本次值全部被过滤时，示例中不会剩下任何赋值；实际生成的条件自赋值兜底（MySQL 为 `col = col`、PostgreSQL 为 `col = 表名.col`、MERGE 方言为 `col = t.col`）只会在这种情况下追加，以保证 `UPDATE SET` 语法完整。需要注意这仍是一条真实 UPDATE：数据库触发器会执行，`ON UPDATE CURRENT_TIMESTAMP` 列会变化，MySQL/MariaDB 在冲突分支还可能返回 2（更新）。
 >
-> **存储代价（数据库既有行为，非本库验证）**：自赋值不改变任何列的值，但"是否产生物理写"由数据库决定，各库不同——PostgreSQL 只要 UPDATE 匹配到行就会写出新的行版本与 WAL，没有"值未变则跳过"的优化，因此这条路径在 PostgreSQL 上是持续的表膨胀与 autovacuum 压力；MySQL/InnoDB 与 Oracle 在新旧值相同时会跳过实际写入（仍会取行锁）。若你的业务存在大量"可更新字段恰好全为空"的 upsert（如 DTO 式局部更新），PostgreSQL 上应留意这张表的膨胀速度，必要时按批定期做 `VACUUM` 或调整 autovacuum 阈值。
+> **存储代价（数据库既有行为，非本库验证）**：自赋值不改变任何列的值，但"是否产生物理写"由数据库决定，各库不同——**MySQL/InnoDB** 在值未变时不做实际行写入（MySQL 官方手册明示的行为），仅取行锁；**PostgreSQL** 只要 UPDATE 匹配到行就写出新的行版本与 WAL；**Oracle** 同样会写——块内原地改写行片段并生成 redo/undo（仅 NULL→NULL 这一窄例不产生 redo），膨胀程度比 PG 的新元组模型轻，但不等于"跳过"。若你的业务存在大量"可更新字段恰好全为空"的 upsert（如 DTO 式局部更新），PostgreSQL 上应留意这张表的膨胀速度、必要时定期 `VACUUM` 或调整 autovacuum 阈值；Oracle 上对应的关注点是 redo 量与 UNDO 保留时间。
 
 ### MySQL / MariaDB
 
