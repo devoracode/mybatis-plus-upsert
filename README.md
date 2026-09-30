@@ -1037,7 +1037,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 注入阶段解析实体时抛出，属于配置错误，应用启动即失败而不是等到第一次调用才暴露：
 
-- `@ConflictKey` 标在 `IdType.AUTO` 主键上——自增键在插入前没有值，无法作为冲突判断依据；
+- `@ConflictKey` 标在每次插入都会重新取值的主键上（`IdType.AUTO` / `ASSIGN_ID` / `ASSIGN_UUID`）——数据库自增与 MP 新分配的雪花 ID 每次都是新值，冲突判定永不命中，upsert 会退化成普通插入；
 - `@ConflictKey` 字段声明了 `insertStrategy = NEVER`——冲突键必须参与 INSERT，否则 UPDATE 场景会退化成 INSERT；
 - 含 `@ConflictKey`、会注入 upsert 的实体含 `@Version` 字段——upsert 注册为 INSERT 语句，MP 乐观锁只改写 UPDATE；放行会把调用方的旧 version 写回且不做比较或自增，乐观锁静默失效并造成并发更新丢失；
 - 实体没有任何可更新列（只有冲突键，或其余字段全被 `@IgnoreOnUpdate` / `updateStrategy = NEVER` 排除）——必然产生空 `UPDATE SET`，启动期快速失败，而不是留到运行期报 SQL 语法错误。
@@ -1107,7 +1107,11 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 **Q：`@ConflictKey` 可以标注在主键上吗？**
 
-取决于守卫执行时（预绑定填充之后、SQL 绑定之前）冲突键是否已有值：调用方已提供的主键（如 `INPUT`）、以及由 `insertFill` 预绑定生成的业务键都可以作为冲突键；**`IdType.AUTO` 自增主键、`ASSIGN_ID` / `ASSIGN_UUID` 和 `@KeySequence` 主键不行**——它们在守卫之后才由 MyBatis-Plus 或数据库生成，守卫读取到的仍是 `null`，会在调用期被拒绝（`IdType.AUTO` 已在启动解析期抛 `UpsertMetaException`，见[异常说明](#异常说明)）。通常建议以业务唯一键（如 `username`、`order_no`）作为冲突键，而不是主键。
+`INPUT` 主键可以：调用方自己给值，守卫读得到，冲突判定成立（但用主键当冲突键通常意味着「行不存在才插」）。`insertFill` 预绑定生成的业务键同样可以。
+
+**每次插入都会重新取值的主键不行**——`IdType.AUTO` 由数据库自增，`ASSIGN_ID` / `ASSIGN_UUID` 由 MP 新分配雪花 ID，`@KeySequence` 每次取一个新号。它们每次的值都不同于已有行，upsert 会退化成普通插入（`IdType.AUTO` / `ASSIGN_ID` / `ASSIGN_UUID` 已在启动解析期抛 `UpsertMetaException`，见[异常说明](#异常说明)；`@KeySequence` 走 `SELECT` 取号、守卫读得到值，因此不拦，但语义上同样不成立）。
+
+实践上建议以业务唯一键（如 `username`、`order_no`）作为冲突键，而不是主键。
 
 ---
 
