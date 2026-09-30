@@ -399,7 +399,8 @@ upsertDialect.addDialect("order_ds", new PostgresUpsertDialect());
 语句，产生跨库污染。方言实例若重写了 `equals/hashCode` 声明两个实例等价，则共享同一份缓存 SQL。
 
 > 自定义 `DynamicUpsertDialect` 实现应为每个数据源返回**稳定的方言实例**（如单例 Bean）。
-> 如果每次调用 `getCurrentDialect()` 都新建实例，缓存命中率会下降；缓存达到 64 条后由 Caffeine 淘汰旧条目并继续接收新条目。
+> 如果每次调用 `getCurrentDialect()` 都新建实例，每次 upsert 都会重新解析一遍 XML（构造 SqlSource 需要完整解析 `<script>`），比有缓存更慢；缓存达到 64 条后由 Caffeine 淘汰旧条目并继续接收新条目。
+> **排查**：把日志级别调到 `DEBUG`，若同一实体反复出现 `Building upsert SQL for dialect ...`，说明 `getCurrentDialect()` 返回的不是稳定实例。
 
 ### 多数据源配置项说明
 
