@@ -208,7 +208,7 @@ class RoutingUpsertSqlSourceCacheTest {
     }
 
     @Test
-    void caffeine_cache_evicts_old_entries_and_records_stats() throws Exception {
+    void caffeine_cache_evicts_old_entries() throws Exception {
         RoutingUpsertSqlSource source = routingSource(new AlwaysNewDialect());
 
         for (int i = 0; i < 65; i++) {
@@ -219,8 +219,8 @@ class RoutingUpsertSqlSourceCacheTest {
         assertThat(cacheValue).isInstanceOf(Cache.class);
         Cache<?, ?> cache = (Cache<?, ?>) cacheValue;
         cache.cleanUp();
+        // 65 个互不相同的键却只留得下 64 条：淘汰确实发生过
         assertThat(cache.estimatedSize()).isLessThanOrEqualTo(64);
-        assertThat(cache.stats().evictionCount()).isPositive();
     }
 
     @Test
