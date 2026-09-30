@@ -7,6 +7,7 @@ import io.github.devoracode.upsert.core.FieldMeta;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.core.UpsertMetaParser;
 import io.github.devoracode.upsert.exception.UpsertMetaException;
+import io.github.devoracode.upsert.test.support.AssignIdConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.AutoIdConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.AutoIdEntity;
 import io.github.devoracode.upsert.test.support.ConflictOnlyEntity;
@@ -29,6 +30,7 @@ class UpsertMetaParserTest {
     private static TableInfo userInfo;
     private static TableInfo autoIdInfo;
     private static TableInfo autoIdConflictKeyInfo;
+    private static TableInfo assignIdConflictKeyInfo;
     private static TableInfo conflictOnlyInfo;
     private static TableInfo neverInsertConflictKeyInfo;
     private static TableInfo multiConflictKeyInfo;
@@ -41,6 +43,7 @@ class UpsertMetaParserTest {
         userInfo = TableInfoHelper.initTableInfo(assistant, UserEntity.class);
         autoIdInfo = TableInfoHelper.initTableInfo(assistant, AutoIdEntity.class);
         autoIdConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, AutoIdConflictKeyEntity.class);
+        assignIdConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, AssignIdConflictKeyEntity.class);
         conflictOnlyInfo = TableInfoHelper.initTableInfo(assistant, ConflictOnlyEntity.class);
         neverInsertConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, NeverInsertConflictKeyEntity.class);
         multiConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, MultiConflictKeyEntity.class);
@@ -140,7 +143,19 @@ class UpsertMetaParserTest {
     void conflict_key_on_auto_increment_primary_key_fails_fast() {
         assertThatThrownBy(() -> UpsertMetaParser.getMeta(autoIdConflictKeyInfo))
                 .isInstanceOf(UpsertMetaException.class)
-                .hasMessageContaining("auto-increment");
+                .hasMessageContaining("AUTO");
+    }
+
+    /**
+     * MP 每次调用都新分配雪花 ID，守卫在 SQL 绑定前读到的是 null，故障会被推迟到运行期
+     * 且报错与根因无关；这类主键在解析期就该被拒。
+     */
+    @Test
+    void conflict_key_on_assign_id_primary_key_fails_fast() {
+        assertThatThrownBy(() -> UpsertMetaParser.getMeta(assignIdConflictKeyInfo))
+                .isInstanceOf(UpsertMetaException.class)
+                .hasMessageContaining("ASSIGN_ID")
+                .hasMessageContaining("never match an existing row");
     }
 
     @Test
