@@ -415,7 +415,7 @@ upsertDialect.addDialect("order_ds", new PostgresUpsertDialect());
 
 > **注意**：
 > - 使用多数据源 starter 时，`mybatis-plus.upsert.db-type` 单数据源配置不再生效。
-> - **`mybatis-plus-upsert-boot-starter`（单数据源）与 `mybatis-plus-upsert-dynamic-datasource-boot-starter`（多数据源）互斥**，不能同时在 classpath 上，否则会导致自动配置冲突。
+> - **不要同时引入 `mybatis-plus-upsert-boot-starter`（单数据源）与 `mybatis-plus-upsert-dynamic-datasource-boot-starter`（多数据源）**。两者都在 classpath 上时，单数据源的自动配置会检测到多数据源 starter 并**整类退避**，最终由多数据源 starter 接管——不会报错，但意味着你写的 `mybatis-plus.upsert.db-type` 等单数据源配置被静默忽略。
 
 ---
 
