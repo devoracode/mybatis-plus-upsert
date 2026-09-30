@@ -57,6 +57,9 @@ final class DynamicSqlBuilder {
 
     /**
      * 全部更新列都被跳过时向 SET 追加一条兜底自赋值，避免 SET 渲染为空；不能无条件渲染。
+     *
+     * <p>自赋值不改变任何列，但"是否产生物理写"由数据库决定：PostgreSQL 命中即写新行版本
+     * 与 WAL，MySQL/InnoDB 与 Oracle 在新旧值相同时跳过实际写入。
      */
     private static void appendEmptySetFallback(StringBuilder sb, List<FieldMeta> updateFieldMetas,
                                                String targetRefPrefix) {

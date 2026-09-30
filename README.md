@@ -902,6 +902,8 @@ public class ClickHouseUpsertDialect implements UpsertDialect {
 > 本节只列单行语句的形态：`upsert(Collection<T>)` 复用的正是下面每个数据库的这条 SQL（同一条注入的 `upsert` statement，逐条走 BATCH executor），因此这些示例同时就是批量写入实际执行的 SQL。为什么批量不拼一条多行 `VALUES` SQL，见[批量 Upsert 的实现](#批量-upsert-的实现)。
 >
 > 当全部可更新字段都是动态字段、且本次值全部被过滤时，示例中不会剩下任何赋值；实际生成的条件自赋值兜底（MySQL 为 `col = col`、PostgreSQL 为 `col = 表名.col`、MERGE 方言为 `col = t.col`）只会在这种情况下追加，以保证 `UPDATE SET` 语法完整。需要注意这仍是一条真实 UPDATE：数据库触发器会执行，`ON UPDATE CURRENT_TIMESTAMP` 列会变化，MySQL/MariaDB 在冲突分支还可能返回 2（更新）。
+>
+> **存储代价（数据库既有行为，非本库验证）**：自赋值不改变任何列的值，但"是否产生物理写"由数据库决定，各库不同——PostgreSQL 只要 UPDATE 匹配到行就会写出新的行版本与 WAL，没有"值未变则跳过"的优化，因此这条路径在 PostgreSQL 上是持续的表膨胀与 autovacuum 压力；MySQL/InnoDB 与 Oracle 在新旧值相同时会跳过实际写入（仍会取行锁）。若你的业务存在大量"可更新字段恰好全为空"的 upsert（如 DTO 式局部更新），PostgreSQL 上应留意这张表的膨胀速度，必要时按批定期做 `VACUUM` 或调整 autovacuum 阈值。
 
 ### MySQL / MariaDB
 
@@ -1251,6 +1253,7 @@ public class MySqlInjector extends UpsertSqlInjector {
 ### PostgreSQL
 
 - `ON CONFLICT (cols) DO UPDATE` 要求括号内的列必须有对应的**唯一索引**（主键也算），否则报错 `there is no unique or exclusion constraint matching the ON CONFLICT specification`。
+- **空更新的兜底自赋值会产生新行版本**。当全部可更新字段都是动态字段且本次值恰好全为空时，冲突分支以 `col = 表名.col` 保持语句完整，而 PostgreSQL 只要 UPDATE 匹配到行就会写新行版本与 WAL——这是数据库既有行为，本库未在该路径上做规避。高频出现这种调用形态（如 DTO 式局部更新）时应关注表膨胀与 autovacuum 压力，详见[各数据库生成的 SQL 示例](#各数据库生成的-sql-示例)开头的说明。
 
 ### Oracle
 
