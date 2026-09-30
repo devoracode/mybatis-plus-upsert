@@ -6,6 +6,7 @@ import io.github.devoracode.upsert.dialect.UpsertDialect;
 import io.github.devoracode.upsert.injector.UpsertSqlInjector;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingClass;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
 import org.springframework.boot.test.context.FilteredClassLoader;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -53,5 +54,22 @@ class UpsertAutoConfigurationConditionsTest {
                     assertThat(context).getBean(UpsertDialect.class).isInstanceOf(H2UpsertDialect.class);
                     assertThat(context).hasSingleBean(UpsertSqlInjector.class);
                 });
+    }
+
+    /**
+     * 多数据源 starter 在 classpath 上时本自动配置必须退避，否则两个注入器争
+     * {@code @ConditionalOnMissingBean(ISqlInjector)} 的胜负取决于求值顺序。
+     *
+     * <p>结构性断言：本模块不依赖多数据源 starter（否则就成了编译期依赖），
+     * 条件只能用字符串形式，因此这里只钉住类名——写错则退避静默失效。
+     */
+    @Test
+    void backs_off_when_dynamic_datasource_starter_is_present() {
+        ConditionalOnMissingClass condition =
+                UpsertAutoConfiguration.class.getAnnotation(ConditionalOnMissingClass.class);
+
+        assertThat(condition).isNotNull();
+        assertThat(condition.value())
+                .containsExactly("io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl");
     }
 }
