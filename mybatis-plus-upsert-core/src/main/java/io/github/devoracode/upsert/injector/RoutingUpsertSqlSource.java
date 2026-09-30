@@ -5,6 +5,7 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import io.github.devoracode.upsert.core.UpsertMeta;
 import io.github.devoracode.upsert.dialect.DynamicUpsertDialect;
 import io.github.devoracode.upsert.dialect.UpsertDialect;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.mapping.BoundSql;
 import org.apache.ibatis.mapping.SqlSource;
 import org.apache.ibatis.scripting.LanguageDriver;
@@ -19,6 +20,7 @@ import java.util.Objects;
  * @author devoracode
  * @since 1.2.0
  */
+@Slf4j
 final class RoutingUpsertSqlSource implements SqlSource {
 
     /**
@@ -34,7 +36,6 @@ final class RoutingUpsertSqlSource implements SqlSource {
 
     private final Cache<SqlSourceKey, SqlSource> sqlSourceCache = Caffeine.newBuilder()
             .maximumSize(MAX_CACHED_SQL_SOURCES)
-            .recordStats()
             .build();
 
     RoutingUpsertSqlSource(Configuration configuration,
@@ -56,10 +57,21 @@ final class RoutingUpsertSqlSource implements SqlSource {
 
     /**
      * 取该方言实例对应的 SqlSource，首次访问时构建并写入缓存。
+     *
+     * <p>未命中会重新解析一遍 XML，代价不低。方言实现每次调用都返回新实例时这里会
+     * 持续未命中，因此留一条 DEBUG：日志里反复出现同一实体时，说明
+     * {@code getCurrentDialect()} 返回的不是稳定实例。
      */
     private SqlSource cachedSqlSource(UpsertDialect dialect) {
         SqlSourceKey key = new SqlSourceKey(dialect, entityKey());
-        return sqlSourceCache.get(key, cacheKey -> buildSqlSource(cacheKey.dialect));
+        return sqlSourceCache.get(key, cacheKey -> {
+            if (log.isDebugEnabled()) {
+                log.debug("Building upsert SQL for dialect {} of entity {}; repeated misses for the same entity"
+                        + " mean getCurrentDialect() is not returning a stable dialect instance",
+                        cacheKey.dialect.getClass().getSimpleName(), key.entityKey);
+            }
+            return buildSqlSource(cacheKey.dialect);
+        });
     }
 
     /**
