@@ -72,4 +72,29 @@ class UpsertAutoConfigurationConditionsTest {
         assertThat(condition.value())
                 .containsExactly("io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl");
     }
+
+    /** {@code db-type=custom} 但应用没提供方言 Bean 时，报错要指向自定义方言而不是 Spring 默认文案。 */
+    @Test
+    void custom_db_type_without_dialect_bean_reports_how_to_supply_one() {
+        runner.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class, UpsertAutoConfiguration.class))
+                .withPropertyValues("mybatis-plus.upsert.db-type=custom",
+                        "spring.datasource.url=jdbc:h2:mem:backoff;DB_CLOSE_DELAY=-1")
+                .run(context -> assertThat(context).getFailure()
+                        .hasMessageContaining("Expected exactly one UpsertDialect bean, found 0")
+                        .hasMessageContaining("db-type=custom"));
+    }
+
+    /** 应用自带方言 Bean 时直接用它，不受 db-type 影响。 */
+    @Test
+    void application_supplied_dialect_bean_is_used() {
+        runner.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class, UpsertAutoConfiguration.class))
+                .withBean("clickHouseDialect", UpsertDialect.class,
+                        () -> new io.github.devoracode.upsert.dialect.H2UpsertDialect())
+                .withPropertyValues("mybatis-plus.upsert.db-type=custom",
+                        "spring.datasource.url=jdbc:h2:mem:backoff;DB_CLOSE_DELAY=-1")
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context).hasSingleBean(UpsertSqlInjector.class);
+                });
+    }
 }

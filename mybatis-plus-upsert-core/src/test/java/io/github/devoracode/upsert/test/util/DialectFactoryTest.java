@@ -68,4 +68,16 @@ class DialectFactoryTest {
         assertThat(holdlock1).isSameAs(holdlock2);
         assertThat(holdlock1).isNotSameAs(noHoldlock);
     }
+
+    /**
+     * CUSTOM 的方言由应用自己提供 Bean；工厂返回 null 会让忘记判空的调用方
+     * 在后面某处炸成 NPE，因此这里直接抛错并指明正确做法。
+     */
+    @Test
+    void custom_db_type_throws_instead_of_returning_null() {
+        assertThatThrownBy(() -> DialectFactory.create(DbType.CUSTOM, false, true))
+                .isInstanceOf(io.github.devoracode.upsert.exception.UpsertException.class)
+                .hasMessageContaining("db-type=custom")
+                .hasMessageContaining("UpsertDialect bean");
+    }
 }
