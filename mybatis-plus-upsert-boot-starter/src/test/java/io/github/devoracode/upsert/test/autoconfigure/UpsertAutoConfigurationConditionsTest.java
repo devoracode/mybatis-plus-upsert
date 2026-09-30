@@ -73,6 +73,22 @@ class UpsertAutoConfigurationConditionsTest {
                 .containsExactly("io.github.devoracode.upsert.autoconfigure.DynamicUpsertDialectImpl");
     }
 
+    /**
+     * {@code dbType} 驼峰写法与 {@code db-type} 等价，条件也必须认得它。
+     *
+     * <p>认不出时条件会按"非 custom"放行，内置方言 Bean 被创建出来并拿着 custom 去
+     * 建方言——失败点前移，报错变成工厂那条。这里断言失败发生在"没提供方言 Bean"，
+     * 即内置方言确实被跳过了。
+     */
+    @Test
+    void camel_case_db_type_custom_is_recognized_by_the_condition() {
+        runner.withConfiguration(AutoConfigurations.of(DataSourceAutoConfiguration.class, UpsertAutoConfiguration.class))
+                .withPropertyValues("mybatis-plus.upsert.dbType=custom",
+                        "spring.datasource.url=jdbc:h2:mem:backoff;DB_CLOSE_DELAY=-1")
+                .run(context -> assertThat(context).getFailure()
+                        .hasMessageContaining("Expected exactly one UpsertDialect bean, found 0"));
+    }
+
     /** {@code db-type=custom} 但应用没提供方言 Bean 时，报错要指向自定义方言而不是 Spring 默认文案。 */
     @Test
     void custom_db_type_without_dialect_bean_reports_how_to_supply_one() {
