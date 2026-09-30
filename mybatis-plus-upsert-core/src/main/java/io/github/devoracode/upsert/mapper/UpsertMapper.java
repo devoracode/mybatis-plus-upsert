@@ -20,8 +20,9 @@ import java.util.List;
  *
  * <p>实体至少要有一个 {@link io.github.devoracode.upsert.annotation.ConflictKey} 字段，否则本接口的
  * 语句不会为该 Mapper 注入；冲突键在 SQL 绑定前必须能读取到非 {@code null} 值（由调用方提供，
- * 或由 {@code insertFill} 预绑定生成），否则无法命中已有行。MyBatis-Plus 的
- * {@code ASSIGN_ID}/{@code ASSIGN_UUID}/{@code @KeySequence} 取值晚于该检查，不能用作冲突键。
+ * 或由 {@code insertFill} 预绑定生成），否则无法命中已有行。冲突键不能是每次插入都会重新取值的
+ * 主键——无论数据库自增（{@code IdType.AUTO}）、MP 新分配（{@code ASSIGN_ID}/{@code ASSIGN_UUID}）
+ * 还是 {@code @KeySequence} 取号，新值都匹配不到已有行，upsert 会退化成普通插入。
  * 动态列、主键回填、事务边界与批量的部分成功语义见 README
  * 「字段动态判断」「主键回填」「批量 Upsert 的实现」三节。
  *

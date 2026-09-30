@@ -36,6 +36,13 @@ public class UpsertMetaParser {
     }
 
     /**
+     * 主键取值不由调用方提供、每次插入都是新值的 IdType：这类主键做冲突键会永不命中。
+     */
+    private static boolean isRegeneratedKey(IdType idType) {
+        return idType == IdType.AUTO || idType == IdType.ASSIGN_ID || idType == IdType.ASSIGN_UUID;
+    }
+
+    /**
      * 基于入参 {@link TableInfo} 解析实体的完整 {@link UpsertMeta}。
      *
      * @param tableInfo 当前 Configuration 下的实体表元数据
@@ -50,11 +57,12 @@ public class UpsertMetaParser {
             throw new UpsertMetaException(entityClass.getName() + ": no @ConflictKey field found");
         }
         if (tableInfo.getKeyProperty() != null
-                && tableInfo.getIdType() == IdType.AUTO
+                && isRegeneratedKey(tableInfo.getIdType())
                 && scan.conflictFieldOrder.containsKey(tableInfo.getKeyProperty())) {
             throw new UpsertMetaException(entityClass.getName()
-                    + ": @ConflictKey cannot be placed on an auto-increment (IdType.AUTO) primary key;"
-                    + " the conflict key must be a user-provided column");
+                    + ": @ConflictKey cannot be placed on a primary key whose value is not supplied by the caller ("
+                    + tableInfo.getIdType() + "); such a key is newly generated on every insert, so the conflict"
+                    + " would never match an existing row - use a user-provided column as the conflict key");
         }
         rejectVersionField(entityClass, tableInfo);
         List<String> sortedConflictFields = sortConflictFields(scan.conflictFieldOrder);
