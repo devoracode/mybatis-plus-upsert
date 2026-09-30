@@ -15,6 +15,7 @@ import io.github.devoracode.upsert.test.support.MultiConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.NeverInsertConflictKeyEntity;
 import io.github.devoracode.upsert.test.support.UserEntity;
 import io.github.devoracode.upsert.test.support.VersionedEntity;
+import io.github.devoracode.upsert.test.support.VersionedIgnoredEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,7 @@ class UpsertMetaParserTest {
     private static TableInfo neverInsertConflictKeyInfo;
     private static TableInfo multiConflictKeyInfo;
     private static TableInfo versionedInfo;
+    private static TableInfo versionedIgnoredInfo;
 
     @BeforeAll
     static void initTableInfo() {
@@ -48,6 +50,7 @@ class UpsertMetaParserTest {
         neverInsertConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, NeverInsertConflictKeyEntity.class);
         multiConflictKeyInfo = TableInfoHelper.initTableInfo(assistant, MultiConflictKeyEntity.class);
         versionedInfo = TableInfoHelper.initTableInfo(assistant, VersionedEntity.class);
+        versionedIgnoredInfo = TableInfoHelper.initTableInfo(assistant, VersionedIgnoredEntity.class);
     }
 
     @Test
@@ -167,6 +170,19 @@ class UpsertMetaParserTest {
                 .hasMessageContaining("VersionedEntity")
                 .hasMessageContaining("'version'")
                 .hasMessageContaining("@Version");
+    }
+
+    /**
+     * version 字段同时标了 @IgnoreOnUpdate 时，冲突分支本就不会写它——不构成
+     * 「把旧 version 写回」的问题，属于显式知情声明，放行并告警。
+     */
+    @Test
+    void version_field_excluded_from_update_is_allowed() {
+        UpsertMeta meta = UpsertMetaParser.getMeta(versionedIgnoredInfo);
+
+        assertThat(meta.getUpdateColumns()).doesNotContain("version");
+        assertThat(meta.getUpdateFields()).doesNotContain("version");
+        assertThat(meta.getUpdateColumns()).contains("email");
     }
 
     @Test

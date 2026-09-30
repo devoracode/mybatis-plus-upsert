@@ -9,6 +9,7 @@ import io.github.devoracode.upsert.core.UpsertMetaParser;
 import io.github.devoracode.upsert.test.support.ScopeEntity;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -91,12 +92,12 @@ class UpsertMetaParserScopeTest {
 
     /**
      * 结构性守卫：解析器不得重新引入任何静态可变状态（缓存），
-     * 否则跨 Configuration 串用的通道会复活。jacoco 等工具注入的合成字段除外。
+     * 否则跨 Configuration 串用的通道会复活。日志器与 jacoco 等工具注入的合成字段除外。
      */
     @Test
     void parser_holds_no_static_state() {
         for (Field field : UpsertMetaParser.class.getDeclaredFields()) {
-            if (field.isSynthetic()) {
+            if (field.isSynthetic() || Logger.class.isAssignableFrom(field.getType())) {
                 continue;
             }
             assertThat(Modifier.isStatic(field.getModifiers()))
