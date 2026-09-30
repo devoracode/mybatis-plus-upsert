@@ -40,6 +40,20 @@ class LogSanitizerTest {
                 .isEqualTo("jdbc:postgresql://appuser@db.internal:5432/orders");
     }
 
+    /**
+     * 口令里的 {@code @} 未转义时只遮住第一段——这是已知且刻意保留的行为。
+     *
+     * <p>userinfo 规则的口令部分不允许出现 {@code @}，因此匹配停在第一个 {@code @}。
+     * 这种 URL 本身不是合法 URI（口令中的 {@code @} 应写成 {@code %40}），真实驱动也解析不了，
+     * 为它把规则改成"遮到最后一个 @"反而会误伤 {@code user@host} 这类无口令写法。
+     * 用例锁住现状：哪天有人改这条规则，这里会先红。
+     */
+    @Test
+    void userinfo_password_with_unescaped_at_sign_is_only_partially_masked() {
+        assertThat(LogSanitizer.redactJdbcUrl("jdbc:postgresql://alice:p@ss@db/mydb"))
+                .isEqualTo("jdbc:postgresql://alice:***@ss@db/mydb");
+    }
+
     @Test
     void masks_pass_named_parameter() {
         assertThat(LogSanitizer.redactJdbcUrl("jdbc:oracle:thin:@//host:1521/orcl?pass=s3cret&user=scott"))
