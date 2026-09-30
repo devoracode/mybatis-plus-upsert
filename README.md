@@ -1039,7 +1039,7 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 
 - `@ConflictKey` 标在每次插入都会重新取值的主键上（`IdType.AUTO` / `ASSIGN_ID` / `ASSIGN_UUID`）——数据库自增与 MP 新分配的雪花 ID 每次都是新值，冲突判定永不命中，upsert 会退化成普通插入；
 - `@ConflictKey` 字段声明了 `insertStrategy = NEVER`——冲突键必须参与 INSERT，否则 UPDATE 场景会退化成 INSERT；
-- 含 `@ConflictKey`、会注入 upsert 的实体含 `@Version` 字段——upsert 注册为 INSERT 语句，MP 乐观锁只改写 UPDATE；放行会把调用方的旧 version 写回且不做比较或自增，乐观锁静默失效并造成并发更新丢失；
+- 含 `@ConflictKey`、会注入 upsert 的实体含 `@Version` 字段，且该列会出现在冲突分支的 `SET` 里——upsert 注册为 INSERT 语句，MP 乐观锁只改写 UPDATE；放行会把调用方的旧 version 写回且不做比较或自增，乐观锁静默失效并造成并发更新丢失。用 `@IgnoreOnUpdate` / `@UpdateColumn` / `updateStrategy = NEVER` 把该列排除出冲突分支则是显式知情声明，改为放行并打 WARN；
 - 实体没有任何可更新列（只有冲突键，或其余字段全被 `@IgnoreOnUpdate` / `updateStrategy = NEVER` 排除）——必然产生空 `UPDATE SET`，启动期快速失败，而不是留到运行期报 SQL 语法错误。
 
 实体**没有** `@ConflictKey` 时不属于异常：本库直接跳过该 Mapper 的 Upsert 方法注入，不会拖垮启动，普通 CRUD 照常可用。
@@ -1132,6 +1132,8 @@ MERGE INTO t_user (<trim suffixOverrides=",">
 **不可以。** 自 v1.7.1 起，含 `@ConflictKey`、会注入 upsert 的实体若同时标注 `@Version`，解析期会直接抛 `UpsertMetaException`；没有 `@ConflictKey` 的实体本来就不注入 upsert 方法，属于“不支持 upsert”，不是乐观锁可用。本库注入的 upsert 语句是 `SqlCommandType.INSERT`，而 MP 的 `OptimisticLockerInnerInterceptor` 只改写 `UPDATE` 语句。若把 `version` 列放进 upsert，冲突分支会执行 `SET version = #{version}`，把调用方读到的旧版本原样写回，既没有 `version = version + 1`，也没有 `AND version = ?`；并发更新不会失败，数据会静默丢失。
 
 因此含 `@Version` 的实体不能注入 upsert 方法。请移除 `@Version`，或不用 upsert、改用 `updateById` 并配置 `OptimisticLockerInnerInterceptor`——后者不具备“冲突则插入”的语义。
+
+**唯一出口**：`version` 列被排除出冲突分支时放行，也就是该字段同时标了 `@IgnoreOnUpdate`、或实体用 `@UpdateColumn` 显式列举更新列而其中不含 `version`、或该字段 `updateStrategy = NEVER`。此时 upsert 根本不会写 `version` 列，"写回旧版本"的问题不存在，解析期只打一条 WARN 提醒你自行维护版本号。这条逃生舱适合 `version` 实际是业务计数列、或并发控制由别处保证的场景；**乐观锁本身在这里不生效**——注入的是 INSERT 语句，MP 的 `OptimisticLockerInnerInterceptor` 不会参与。
 
 ---
 
