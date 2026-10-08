@@ -1267,6 +1267,7 @@ public class MySqlInjector extends UpsertSqlInjector {
 ### SQL Server
 
 - **null 参数绑定**：同样需要配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`，原因与 Oracle 相同。
+- **空更新的兜底自赋值的日志代价待实测**。当全部可更新字段都是动态字段且本次值恰好全为空时，冲突分支以 `col = t.col` 保持语句完整（与 PostgreSQL、Oracle 同一条路径，见[各数据库生成的 SQL 示例](#各数据库生成的-sql-示例)开头）。这条 no-op MERGE 在 SQL Server 上产生多少事务日志、是否影响日志与检查点压力，**本库没有查证也没有引用来源，故不下结论**。若这条路径在你的业务里是高频形态，请自行实测（对比该 MERGE 与等量普通写入的事务日志增量）后再决定是否需要处理。
 - **并发与 `WITH (HOLDLOCK)`**：本库默认在 MERGE 目标表上加 `WITH (HOLDLOCK)`（`MERGE INTO t WITH (HOLDLOCK) AS t`）。MERGE 内部是「先读判定、再 insert/update」，默认读阶段不持有键更新锁，并发写同一个冲突键时两条 MERGE 可能都判定为未命中而双双插入，抛 `Cannot insert duplicate key row`；加上 HOLDLOCK 后匹配判定期间持有键更新锁，串行化同一键上的 MERGE，代价是**热点键上死锁概率上升**。确认业务不会并发写同一冲突键、或能接受该错误并重试时，可关闭它换取更低的死锁概率：
 
   ```yaml
