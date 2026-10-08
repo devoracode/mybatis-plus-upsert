@@ -1258,6 +1258,7 @@ public class MySqlInjector extends UpsertSqlInjector {
 ### Oracle
 
 - **null 参数绑定**：MERGE 中的 `#{...}` 不带 `jdbcType`，请配置 `mybatis-plus.configuration.jdbc-type-for-null: 'null'`；否则 null 参数默认按 `JdbcType.OTHER` 绑定，Oracle 驱动会报 `Invalid column type: 1111`。
+- **空更新的兜底自赋值同样会写**。当全部可更新字段都是动态字段且本次值恰好全为空时，冲突分支以 `col = t.col` 保持语句完整；Oracle 不会因为值未变而跳过——这是数据库既有行为，本库未在该路径上做规避。块内原地改写行片段并生成 redo/undo（仅 NULL→NULL 这一窄例不产生 redo），膨胀程度比 PostgreSQL 的新元组模型轻，但代价同样每次都付。高频出现这种调用形态（如 DTO 式局部更新）时应关注 redo 量、UNDO 保留时间与表空间增长，详见[各数据库生成的 SQL 示例](#各数据库生成的-sql-示例)开头的说明。
 - 每条记录是**一条独立的单行 MERGE**（`SELECT ... FROM dual` 形式的源子查询），批量写入只是把这些 MERGE 交给 JDBC BATCH 执行器分块提交——不使用 `UNION ALL` 拼成的多行源子查询，也不依赖 Oracle JDBC 的多语句支持（Oracle 驱动在 `;` 分隔的多语句上会报 ORA-00911，本库的写法不会碰到它）。
 - 同一批次内**允许出现重复的冲突键**：两行同键会先后各自执行一次 MERGE，第一行插入、第二行更新，不会触发 ORA-30926。
 - 逐行行数从 `upsert(Collection)` 返回的 `List<BatchResult>` 的 `getUpdateCounts()` 读取。
