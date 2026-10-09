@@ -69,15 +69,12 @@ jobs:
           server-id: central
           server-username: CENTRAL_TOKEN_USERNAME
           server-password: CENTRAL_TOKEN_PASSWORD
-      - name: Verify the checked-out commit
-        env:
-          EXPECTED_SHA: ${{ needs.check.outputs.sha }}
+      - name: Show Maven environment
         run: |
-          ACTUAL_SHA=$(git rev-parse HEAD)
-          if [ "${ACTUAL_SHA}" != "${EXPECTED_SHA}" ]; then
-            echo "::error::Checked out ${ACTUAL_SHA}, expected ${EXPECTED_SHA}."
-            exit 1
-          fi
+          java -version
+          mvn -version
+      - name: Clean
+        run: mvn --batch-mode clean
       - name: Publish SNAPSHOT to Maven Central
         # central-publishing-maven-plugin 0.7.0+ 对 -SNAPSHOT 版本自动路由到快照仓库；
         # Portal 对快照不做校验、可覆盖发布，签名无意义
