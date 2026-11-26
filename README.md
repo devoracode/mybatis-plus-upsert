@@ -461,7 +461,7 @@ private String bizCode;
 >
 > PostgreSQL 的 `ON CONFLICT (col1, col2)` 要求括号内的列顺序与目标唯一索引的定义顺序完全匹配，否则会报 `there is no unique or exclusion constraint matching the ON CONFLICT specification`。Oracle 和 SQL Server 的 `MERGE ON (...)` 虽然对顺序不强制，但保持与索引一致有助于优化器利用索引。
 >
-> 当多个字段的 `order` 值相同时，顺序不确定，建议为每个字段指定不同的 `order`。
+> 当多个字段的 `order` 值相同时，当前实现按 Java 字段名升序稳定排序。仍建议为每个字段指定不同的 `order`，并确保最终列顺序与数据库联合唯一索引定义一致。
 
 ---
 
@@ -573,12 +573,13 @@ public class UserEntity {
 
 | `@TableId` 类型 | INSERT 列表 | 作为 `@ConflictKey` |
 |---|---|---|
-| `INPUT` / `ASSIGN_ID` / `ASSIGN_UUID`（默认） | 主键列正常参与 INSERT | 允许 |
+| `INPUT`（不配置 `@KeySequence`） | 主键列正常参与 INSERT | 允许，但调用方须为重复 Upsert 提供相同的稳定值 |
+| `ASSIGN_ID` / `ASSIGN_UUID`（默认策略） | 主键列参与 INSERT，主键生成遵循 MP 策略 | **禁止**，解析器不允许这类生成策略的主键作为冲突键 |
 | `AUTO`（数据库自增） | 主键列**不参与** INSERT（与 MP 原生 insert 行为一致，避免向 PostgreSQL serial 列显式插 NULL） | **禁止**，启动时解析即抛出异常——自增键的值在插入前不存在，无法作为冲突判断依据 |
 
 `@ConflictKey` 应放在业务唯一键列（如 `username`、`order_no`）上，而不是主键上。
 
-> `INPUT` 主键再配 `@KeySequence` 时，主键列仍参与 INSERT，只是值改由 MP 的序列取号语句在语句执行前填入，见[主键回填](#主键回填)。
+> **`@KeySequence` 与冲突键**：`IdType.INPUT` 配置 `@KeySequence` 后，主键列仍参与 INSERT，但 MP 会在每次语句执行前取一个新序列值并覆盖实体中预设的主键。当前实现不会在启动时拒绝这种字段上的 `@ConflictKey`；由于重复调用拿到的是不同序列值，不应将它作为冲突键。请改用调用方能重复提供的稳定业务键。主键回填细节见[主键回填](#主键回填)。
 
 > 另一特殊组合：`insertStrategy = NEVER` 但参与更新（未排除出 UPDATE）的字段，其 UPDATE SET 赋值会回退为 `#{参数.字段}` 参数引用而非行引用（`new.col` / `EXCLUDED.col` / `src.col` / `VALUES(col)`），因为行引用指向插入行中不存在的列。
 

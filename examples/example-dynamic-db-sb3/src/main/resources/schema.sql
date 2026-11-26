@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS t_user (
 
 -- PostgreSQL Schema (same table structure)
 -- CREATE TABLE IF NOT EXISTS t_user (
---     id BIGINT NOT NULL PRIMARY KEY,
+--     id VARCHAR(42) NOT NULL PRIMARY KEY,
 --     name VARCHAR(255) DEFAULT NULL,
 --     age SMALLINT DEFAULT NULL,
 --     email VARCHAR(255) DEFAULT NULL,

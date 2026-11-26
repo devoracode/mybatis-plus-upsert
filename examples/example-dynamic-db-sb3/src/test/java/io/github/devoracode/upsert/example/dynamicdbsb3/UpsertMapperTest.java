@@ -246,7 +246,7 @@ class UpsertMapperTest {
                     .updateTime(LocalDateTime.now())
                     .build());
         }
-        userService.upsertBatch(users);
+        userService.upsertBatch(users, 2);
 
         List<User> allUsers = userService.findAll();
 
